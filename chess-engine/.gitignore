@@ -1,0 +1,10 @@
+target/
+.idea/
+.vscode/
+*.iml
+.classpath
+.project
+.settings/
+code_dump.txt
+__pycache__/
+*.log
