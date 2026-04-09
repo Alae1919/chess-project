@@ -5,94 +5,159 @@ import com.chess.domain.model.*;
 /**
  * Converts between FEN strings and Board objects.
  *
- * Standard FEN: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
- *   - Piece placement: rank 8 first, rank 1 last
- *   - Active color: w or b
- *   - Castling: KQkq or subsets, or -
- *   - En-passant target square: e3 or -
- *   - Half-move clock
- *   - Full-move number
+ * T1 — Strict validation added:
+ *   • Exactly 8 ranks separated by '/'.
+ *   • Each rank expands to exactly 8 squares.
+ *   • Only legal FEN characters are accepted (RNBQKPrnbqkp, digits 1-8).
+ *   • Exactly one white king and one black king must be present.
+ *
+ * All violations throw {@link InvalidFenException} with a descriptive message.
  */
 public final class FenParser {
 
     private FenParser() {}
 
+    // ---- Public API ----------------------------------------------------
+
     public static Board parse(String fen) {
+        if (fen == null || fen.isBlank())
+            throw new InvalidFenException("FEN string is null or blank");
+
         String[] parts = fen.trim().split("\\s+");
         Piece[][] grid = parsePlacement(parts[0]);
+
+        validateKings(grid);
 
         Color activeColor = parts.length > 1 && parts[1].equals("b")
             ? Color.BLACK : Color.WHITE;
 
         CastlingRights castling = parts.length > 2
-            ? parseCastling(parts[2]) : CastlingRights.all();
+            ? CastlingRights.fromString(parts[2]) : CastlingRights.all();
 
         Square epTarget = parts.length > 3 && !parts[3].equals("-")
-            ? Square.of(parts[3]) : null;
+            ? parseEpSquare(parts[3]) : null;
 
-        int halfMove  = parts.length > 4 ? Integer.parseInt(parts[4]) : 0;
-        int fullMove  = parts.length > 5 ? Integer.parseInt(parts[5]) : 1;
+        int halfMove = parts.length > 4 ? parseNonNegativeInt(parts[4], "half-move clock") : 0;
+        int fullMove = parts.length > 5 ? parsePositiveInt(parts[5], "full-move number") : 1;
 
         return new Board(grid, activeColor, castling, epTarget, halfMove, fullMove);
     }
 
     public static String toFen(Board board) {
         StringBuilder sb = new StringBuilder();
-        // Piece placement — rank 8 (index 7) down to rank 1 (index 0)
-        for (int rank = 7; rank >= 0; rank--) {
+        // Rank 8 (index 7) first, down to rank 1 (index 0)
+        for (int rank = Board.SIZE - 1; rank >= 0; rank--) {
             int empty = 0;
             for (int file = 0; file < Board.SIZE; file++) {
-                var piece = board.pieceAt(new Square(file, rank));
-                if (piece.isEmpty()) {
+                var opt = board.pieceAt(new Square(file, rank));
+                if (opt.isEmpty()) {
                     empty++;
                 } else {
                     if (empty > 0) { sb.append(empty); empty = 0; }
-                    char c = piece.get().type().fenChar();
-                    sb.append(piece.get().color() == Color.WHITE ? c
-                                                                 : Character.toLowerCase(c));
+                    sb.append(fenChar(opt.get()));
                 }
             }
             if (empty > 0) sb.append(empty);
             if (rank > 0) sb.append('/');
         }
-        sb.append(' ');
-        sb.append(board.activeColor() == Color.WHITE ? 'w' : 'b');
-        sb.append(' ');
-        sb.append(castlingToFen(board.castlingRights()));
-        sb.append(' ');
-        sb.append(board.enPassantTarget().map(Square::toString).orElse("-"));
-        sb.append(' ');
-        sb.append(board.halfMoveClock());
-        sb.append(' ');
-        sb.append(board.fullMoveNumber());
+        sb.append(' ').append(board.activeColor() == Color.WHITE ? 'w' : 'b');
+        sb.append(' ').append(board.castlingRights());
+        sb.append(' ').append(board.enPassantTarget().map(Square::toString).orElse("-"));
+        sb.append(' ').append(board.halfMoveClock());
+        sb.append(' ').append(board.fullMoveNumber());
         return sb.toString();
     }
 
-    // --- Private helpers -------------------------------------------------
+    // ---- Piece placement -----------------------------------------------
 
+    /**
+     * Parses the piece-placement field (first FEN token).
+     * Validates: exactly 8 ranks, each rank = 8 squares, legal chars only.
+     */
     private static Piece[][] parsePlacement(String placement) {
+        String[] ranks = placement.split("/", -1);  // -1 keeps trailing empties
+
+        if (ranks.length != Board.SIZE)
+            throw new InvalidFenException(
+                "FEN must have exactly 8 ranks separated by '/', found: "
+                + ranks.length + " in \"" + placement + "\"");
+
         Piece[][] grid = new Piece[Board.SIZE][Board.SIZE];
-        String[] ranks = placement.split("/");
-        if (ranks.length != 8) {
-            throw new IllegalArgumentException("FEN must contain 8 ranks");
-        }
-        // FEN rank 0 in the string = rank 8 on the board
+
+        // FEN rank order: first token = rank 8 (board index 7), last = rank 1 (index 0)
         for (int i = 0; i < ranks.length; i++) {
-            int rank = 7 - i;   // FEN starts from rank 8 (index 7)
-            int file = 0;
-            for (char c : ranks[i].toCharArray()) {
-                if (Character.isDigit(c)) {
-                    file += (c - '0');
-                } else {
-                    grid[file][rank] = pieceFromFen(c);
-                    file++;
-                }
-            }
-            if (file != 8) {
-                throw new IllegalArgumentException("Invalid FEN rank: " + ranks[i]);
-            }
+            int boardRank = Board.SIZE - 1 - i;   // rank 8 → index 7
+            parseRank(ranks[i], boardRank, grid, i + 1);
         }
         return grid;
+    }
+
+    private static void parseRank(String rankStr, int boardRank,
+                                   Piece[][] grid, int fenRankNumber) {
+        int file = 0;
+        for (int ci = 0; ci < rankStr.length(); ci++) {
+            char c = rankStr.charAt(ci);
+
+            if (Character.isDigit(c)) {
+                int skip = c - '0';
+                if (skip < 1 || skip > 8)
+                    throw new InvalidFenException(
+                        "Illegal digit '" + c + "' in FEN rank " + fenRankNumber
+                        + " (must be 1-8)");
+                file += skip;
+                if (file > Board.SIZE)
+                    throw new InvalidFenException(
+                        "FEN rank " + fenRankNumber + " is wider than 8 squares");
+            } else if (isLegalFenChar(c)) {
+                if (file >= Board.SIZE)
+                    throw new InvalidFenException(
+                        "FEN rank " + fenRankNumber + " is wider than 8 squares");
+                grid[file][boardRank] = pieceFromFen(c);
+                file++;
+            } else {
+                throw new InvalidFenException(
+                    "Illegal character '" + c + "' in FEN rank " + fenRankNumber);
+            }
+        }
+
+        if (file != Board.SIZE)
+            throw new InvalidFenException(
+                "FEN rank " + fenRankNumber + " has " + file
+                + " squares instead of 8");
+    }
+
+    // ---- King validation -----------------------------------------------
+
+    /**
+     * Verifies exactly one white king and one black king are present.
+     * Missing or duplicate kings both throw InvalidFenException.
+     */
+    private static void validateKings(Piece[][] grid) {
+        int whiteKings = 0, blackKings = 0;
+        for (int f = 0; f < Board.SIZE; f++) {
+            for (int r = 0; r < Board.SIZE; r++) {
+                Piece p = grid[f][r];
+                if (p == null || p.type() != PieceType.KING) continue;
+                if (p.color() == Color.WHITE) whiteKings++;
+                else                          blackKings++;
+            }
+        }
+        if (whiteKings == 0)
+            throw new InvalidFenException("No white king (K) found in FEN");
+        if (whiteKings > 1)
+            throw new InvalidFenException(
+                "Too many white kings (" + whiteKings + ") in FEN");
+        if (blackKings == 0)
+            throw new InvalidFenException("No black king (k) found in FEN");
+        if (blackKings > 1)
+            throw new InvalidFenException(
+                "Too many black kings (" + blackKings + ") in FEN");
+    }
+
+    // ---- Helpers -------------------------------------------------------
+
+    private static boolean isLegalFenChar(char c) {
+        return "RNBQKPrnbqkp".indexOf(c) >= 0;
     }
 
     private static Piece pieceFromFen(char c) {
@@ -104,25 +169,41 @@ public final class FenParser {
             case 'B' -> PieceType.BISHOP;
             case 'Q' -> PieceType.QUEEN;
             case 'K' -> PieceType.KING;
-            default  -> throw new IllegalArgumentException("Unknown FEN char: " + c);
+            default  -> throw new InvalidFenException("Unknown FEN char: " + c);
         };
         return Piece.of(color, type);
     }
 
-    private static CastlingRights parseCastling(String s) {
-        if (s.equals("-")) return CastlingRights.none();
-        return new CastlingRights(
-            s.contains("K"), s.contains("Q"),
-            s.contains("k"), s.contains("q")
-        );
+    private static char fenChar(Piece p) {
+        char c = p.type().fenChar();
+        return p.color() == Color.WHITE ? c : Character.toLowerCase(c);
     }
 
-    private static String castlingToFen(CastlingRights r) {
-        StringBuilder sb = new StringBuilder();
-        if (r.whiteKingSide())  sb.append('K');
-        if (r.whiteQueenSide()) sb.append('Q');
-        if (r.blackKingSide())  sb.append('k');
-        if (r.blackQueenSide()) sb.append('q');
-        return sb.isEmpty() ? "-" : sb.toString();
+    private static Square parseEpSquare(String s) {
+        try {
+            return Square.of(s);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidFenException("Invalid en-passant square: " + s);
+        }
+    }
+
+    private static int parseNonNegativeInt(String s, String field) {
+        try {
+            int v = Integer.parseInt(s);
+            if (v < 0) throw new InvalidFenException(field + " must be >= 0, got: " + v);
+            return v;
+        } catch (NumberFormatException e) {
+            throw new InvalidFenException("Invalid " + field + ": " + s);
+        }
+    }
+
+    private static int parsePositiveInt(String s, String field) {
+        try {
+            int v = Integer.parseInt(s);
+            if (v < 1) throw new InvalidFenException(field + " must be >= 1, got: " + v);
+            return v;
+        } catch (NumberFormatException e) {
+            throw new InvalidFenException("Invalid " + field + ": " + s);
+        }
     }
 }

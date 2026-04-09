@@ -12,7 +12,7 @@ class CheckDetectorTest {
     @Test
     @DisplayName("detects king in check from rook")
     void rookCheck() {
-        Board board = FenParser.parse("4r3/8/8/8/8/8/8/4K3 w - - 0 1");
+        Board board = FenParser.parse("4r3/k7/8/8/8/8/8/4K3 w - - 0 1");
         assertTrue(CheckDetector.isInCheck(board, Color.WHITE));
     }
 
