@@ -1,0 +1,187 @@
+<!-- src/app/features/home/pages/home.page.html -->
+<div class="home">
+
+  <!-- ── LEFT: Mode selector ─────────────────────────────────────── -->
+  <div class="home__left">
+    <p class="eyebrow">Mode de jeu</p>
+    <h1 class="home__title">Choisissez<br><em>votre adversaire</em></h1>
+    <p class="home__sub">
+      Affrontez l'intelligence artificielle, un ami, ou rejoignez la compétition mondiale en temps réel.
+    </p>
+
+    <!-- Mode cards -->
+    <div class="mode-list">
+      <div
+        class="mode-card"
+        [class.mode-card--featured]="selectedMode === 'ai'"
+        [class.mode-card--active]="selectedMode === 'ai'"
+        (click)="selectMode('ai')"
+      >
+        <div class="mode-card__icon">🤖</div>
+        <div class="mode-card__info">
+          <div class="mode-card__title">Jouer contre l'IA</div>
+          <div class="mode-card__desc">Moteur Java haute performance. Adaptatif, redoutable, formateur.</div>
+        </div>
+        <span class="tag tag--em">Populaire</span>
+        <span class="mode-card__arrow">›</span>
+      </div>
+
+      <div
+        class="mode-card"
+        [class.mode-card--active]="selectedMode === 'local'"
+        (click)="selectMode('local')"
+      >
+        <div class="mode-card__icon">🤝</div>
+        <div class="mode-card__info">
+          <div class="mode-card__title">Jouer contre un humain</div>
+          <div class="mode-card__desc">Partie locale — deux joueurs sur le même écran.</div>
+        </div>
+        <span class="mode-card__arrow">›</span>
+      </div>
+
+      <div
+        class="mode-card"
+        [class.mode-card--active]="selectedMode === 'online'"
+        (click)="selectMode('online')"
+      >
+        <div class="mode-card__icon">🌐</div>
+        <div class="mode-card__info">
+          <div class="mode-card__title">Jouer en ligne</div>
+          <div class="mode-card__desc">Classé ou amical — rejoignez un adversaire en temps réel.</div>
+        </div>
+        <span class="tag tag--gold">ELO Classé</span>
+        <span class="mode-card__arrow">›</span>
+      </div>
+
+      <div
+        class="mode-card"
+        [class.mode-card--active]="selectedMode === 'saved'"
+        (click)="selectMode('saved')"
+      >
+        <div class="mode-card__icon">💾</div>
+        <div class="mode-card__info">
+          <div class="mode-card__title">Continuer une partie sauvegardée</div>
+          <div class="mode-card__desc">Reprenez exactement là où vous vous êtes arrêté.</div>
+        </div>
+        <span class="mode-card__arrow">›</span>
+      </div>
+    </div>
+
+    <!-- Saved games list (shown when mode = saved) -->
+    <div class="saved-section" *ngIf="selectedMode === 'saved'">
+      <p class="section-label">Parties sauvegardées</p>
+      <div class="saved-list">
+        <div
+          class="saved-item"
+          *ngFor="let sg of savedGames$ | async"
+          (click)="loadSaved(sg.id)"
+        >
+          <span class="saved-item__thumb">♟</span>
+          <div class="saved-item__info">
+            <div class="saved-item__name">vs {{ sg.opponentName }} — Tour {{ sg.turnNumber }}</div>
+            <div class="saved-item__meta">
+              {{ sg.savedAt | date:'short' }} · {{ sg.playerColor === 'white' ? 'Blancs' : 'Noirs' }}
+              <span *ngIf="sg.opening"> · {{ sg.opening }}</span>
+            </div>
+          </div>
+          <span class="saved-item__load">Charger ›</span>
+        </div>
+        <div class="saved-empty" *ngIf="(savedGames$ | async)?.length === 0">
+          Aucune partie sauvegardée.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RIGHT: Options panel ────────────────────────────────────── -->
+  <aside class="home__right">
+    <div class="options-panel">
+      <div class="options-panel__title">⚙ Options avancées</div>
+
+      <!-- Difficulty (only for AI) -->
+      <ng-container *ngIf="selectedMode === 'ai'">
+        <p class="opt-label">Difficulté de l'IA</p>
+        <div class="btn-grid btn-grid--3">
+          <button
+            class="opt-btn"
+            *ngFor="let label of difficultyLabels; let i = index"
+            [class.opt-btn--sel]="selectedDifficulty === i + 1"
+            (click)="selectDifficulty(i + 1)"
+          >{{ label }}</button>
+        </div>
+      </ng-container>
+
+      <!-- Color picker -->
+      <p class="opt-label">Je joue avec les</p>
+      <div class="btn-grid btn-grid--3">
+        <button class="opt-btn opt-btn--icon" [class.opt-btn--sel]="selectedColor === 'white'"  (click)="selectColor('white')"  title="Blancs">♔</button>
+        <button class="opt-btn opt-btn--icon" [class.opt-btn--sel]="selectedColor === 'black'"  (click)="selectColor('black')"  title="Noirs">♚</button>
+        <button class="opt-btn opt-btn--icon" [class.opt-btn--sel]="selectedColor === 'random'" (click)="selectColor('random')" title="Aléatoire">🎲</button>
+      </div>
+
+      <!-- Time control -->
+      <p class="opt-label">Contrôle du temps</p>
+      <div class="btn-grid btn-grid--3">
+        <button class="opt-btn" [class.opt-btn--sel]="selectedTime === 'blitz'"     (click)="selectTime('blitz')">Blitz 5'</button>
+        <button class="opt-btn" [class.opt-btn--sel]="selectedTime === 'rapid'"     (click)="selectTime('rapid')">Rapide 10'</button>
+        <button class="opt-btn" [class.opt-btn--sel]="selectedTime === 'classical'" (click)="selectTime('classical')">Classique 30'</button>
+      </div>
+
+      <!-- Toggles -->
+      <p class="opt-label">Règles de jeu</p>
+      <form [formGroup]="optionsForm" class="toggle-list">
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-row__label">Annuler un coup</div>
+            <div class="toggle-row__hint">Revenir au coup précédent</div>
+          </div>
+          <div
+            class="toggle"
+            [class.on]="optionsForm.get('enableUndo')?.value"
+            (click)="optionsForm.get('enableUndo')?.setValue(!optionsForm.get('enableUndo')?.value)"
+          ></div>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-row__label">Confirmer les coups</div>
+          <div
+            class="toggle"
+            [class.on]="optionsForm.get('confirmMoves')?.value"
+            (click)="optionsForm.get('confirmMoves')?.setValue(!optionsForm.get('confirmMoves')?.value)"
+          ></div>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-row__label">Afficher les coups légaux</div>
+          <div
+            class="toggle"
+            [class.on]="optionsForm.get('showLegalMoves')?.value"
+            (click)="optionsForm.get('showLegalMoves')?.setValue(!optionsForm.get('showLegalMoves')?.value)"
+          ></div>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-row__label">Analyse en temps réel</div>
+          <div
+            class="toggle"
+            [class.on]="optionsForm.get('realTimeAnalysis')?.value"
+            (click)="optionsForm.get('realTimeAnalysis')?.setValue(!optionsForm.get('realTimeAnalysis')?.value)"
+          ></div>
+        </div>
+
+        <div class="toggle-row">
+          <div class="toggle-row__label">Sons et effets</div>
+          <div
+            class="toggle"
+            [class.on]="optionsForm.get('soundEnabled')?.value"
+            (click)="optionsForm.get('soundEnabled')?.setValue(!optionsForm.get('soundEnabled')?.value)"
+          ></div>
+        </div>
+      </form>
+
+      <button class="btn-primary start-btn" (click)="startGame()">
+        Lancer la partie →
+      </button>
+    </div>
+  </aside>
+</div>

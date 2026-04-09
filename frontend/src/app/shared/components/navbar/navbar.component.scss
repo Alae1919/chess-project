@@ -1,0 +1,41 @@
+.nav {
+  height: 56px; flex-shrink: 0;
+  background: rgba(12,15,10,0.96);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px; position: sticky; top: 0; z-index: 100;
+
+  &__brand {
+    font-family: var(--font-display); font-size: 1.4rem; font-weight: 700;
+    letter-spacing: .08em; color: var(--em3);
+    span { color: var(--gold); }
+  }
+
+  &__links { display: flex; gap: 4px; }
+
+  &__btn {
+    background: none; border: none; color: var(--text3);
+    padding: 7px 16px; border-radius: 5px;
+    font-size: .82rem; letter-spacing: .04em;
+    transition: all .2s; cursor: pointer;
+    &:hover, &--active { color: var(--em3); background: var(--em-glow); }
+  }
+
+  &__right { display: flex; align-items: center; gap: 10px; }
+
+  &__notif {
+    width: 34px; height: 34px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 1rem;
+  }
+
+  &__avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--em), var(--em2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: .78rem; font-weight: 500;
+    border: 1.5px solid var(--em3); color: var(--text);
+  }
+}

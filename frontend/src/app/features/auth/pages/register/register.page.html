@@ -1,0 +1,56 @@
+<div class="auth-layout">
+    <div class="auth-card fade-up">
+      <div class="auth-header">
+        <div class="auth-icon">♕</div>
+        <h1 class="auth-title">Rejoignez-nous</h1>
+        <p class="auth-sub">Créez votre compte pour jouer classé et sauvegarder vos parties.</p>
+      </div>
+  
+      <div class="auth-error" *ngIf="errorMessage">
+        {{ errorMessage }}
+      </div>
+  
+      <form [formGroup]="registerForm" (ngSubmit)="onSubmit()" class="auth-form">
+        <div class="form-group">
+          <label for="username">Nom d'utilisateur</label>
+          <input 
+            id="username" 
+            type="text" 
+            formControlName="username" 
+            placeholder="GrandMaitre99"
+            [class.input-error]="registerForm.get('username')?.touched && registerForm.get('username')?.invalid"
+          />
+        </div>
+  
+        <div class="form-group">
+          <label for="email">Adresse e-mail</label>
+          <input 
+            id="email" 
+            type="email" 
+            formControlName="email" 
+            placeholder="joueur@rexchess.com"
+            [class.input-error]="registerForm.get('email')?.touched && registerForm.get('email')?.invalid"
+          />
+        </div>
+  
+        <div class="form-group">
+          <label for="password">Mot de passe</label>
+          <input 
+            id="password" 
+            type="password" 
+            formControlName="password" 
+            placeholder="••••••••"
+            [class.input-error]="registerForm.get('password')?.touched && registerForm.get('password')?.invalid"
+          />
+        </div>
+  
+        <button type="submit" class="btn-primary auth-submit" [disabled]="isLoading || registerForm.invalid">
+          {{ isLoading ? 'Création...' : 'Créer mon compte' }}
+        </button>
+      </form>
+  
+      <div class="auth-footer">
+        <p>Déjà un compte ? <a routerLink="/login">Se connecter</a></p>
+      </div>
+    </div>
+  </div>

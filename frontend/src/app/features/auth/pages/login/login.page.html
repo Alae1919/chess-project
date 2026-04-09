@@ -1,0 +1,45 @@
+<div class="auth-layout">
+    <div class="auth-card fade-up">
+      <div class="auth-header">
+        <div class="auth-icon">♚</div>
+        <h1 class="auth-title">Bon retour</h1>
+        <p class="auth-sub">Connectez-vous pour reprendre la partie.</p>
+      </div>
+  
+      <div class="auth-error" *ngIf="errorMessage">
+        {{ errorMessage }}
+      </div>
+  
+      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="auth-form">
+        <div class="form-group">
+          <label for="email">Adresse e-mail</label>
+          <input 
+            id="email" 
+            type="email" 
+            formControlName="email" 
+            placeholder="joueur@rexchess.com"
+            [class.input-error]="loginForm.get('email')?.touched && loginForm.get('email')?.invalid"
+          />
+        </div>
+  
+        <div class="form-group">
+          <label for="password">Mot de passe</label>
+          <input 
+            id="password" 
+            type="password" 
+            formControlName="password" 
+            placeholder="••••••••"
+            [class.input-error]="loginForm.get('password')?.touched && loginForm.get('password')?.invalid"
+          />
+        </div>
+  
+        <button type="submit" class="btn-primary auth-submit" [disabled]="isLoading || loginForm.invalid">
+          {{ isLoading ? 'Connexion...' : 'Se connecter' }}
+        </button>
+      </form>
+  
+      <div class="auth-footer">
+        <p>Nouveau sur RexChess ? <a routerLink="/register">Créer un compte</a></p>
+      </div>
+    </div>
+  </div>

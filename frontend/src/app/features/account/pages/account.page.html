@@ -1,0 +1,247 @@
+<!-- src/app/features/account/pages/account.page.html -->
+<div class="account" *ngIf="vm$ | async as vm">
+
+  <!-- ── Profile hero ────────────────────────────────────────────── -->
+  <div class="profile-hero">
+    <div class="profile-hero__avatar">
+      {{ vm.user?.username?.slice(0,2)?.toUpperCase() }}
+      <span class="profile-hero__badge">♔</span>
+    </div>
+
+    <div class="profile-hero__info">
+      <h1 class="profile-hero__name">{{ vm.user?.username }}</h1>
+      <p class="profile-hero__handle">
+        &#64;{{ vm.user?.username?.toLowerCase() }} ·
+        Membre depuis {{ vm.user?.memberSince | date:'MMMM yyyy' }}
+      </p>
+      <div class="profile-hero__tags">
+        <span class="tag tag--em">ELO {{ vm.user?.elo }}</span>
+        <span class="tag tag--gold">{{ vm.user?.rank }}</span>
+        <span class="tag">{{ vm.user?.country }}</span>
+      </div>
+    </div>
+
+    <button class="btn-ghost">✏ Modifier le profil</button>
+  </div>
+
+  <!-- ── Stats strip ─────────────────────────────────────────────── -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <span class="stat-card__val">{{ vm.stats?.gamesPlayed }}</span>
+      <span class="stat-card__lbl">Parties jouées</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__val">{{ winRateLabel(vm.stats) }}</span>
+      <span class="stat-card__lbl">Taux de victoire</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__val">{{ vm.user?.elo }}</span>
+      <span class="stat-card__lbl">ELO actuel</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-card__val">{{ vm.stats?.currentStreak }}</span>
+      <span class="stat-card__lbl">Série en cours</span>
+    </div>
+  </div>
+
+  <!-- ── History + Achievements ──────────────────────────────────── -->
+  <div class="two-col">
+
+    <!-- Match history -->
+    <div class="panel">
+      <p class="panel__title">Historique récent</p>
+      <div class="history-list">
+        <div class="history-row" *ngFor="let match of vm.history">
+          <div
+            class="history-row__result"
+            [class.history-row__result--win]="match.result === 'win'"
+            [class.history-row__result--loss]="match.result === 'loss'"
+            [class.history-row__result--draw]="match.result === 'draw'"
+          >
+            {{ match.result === 'win' ? 'V' : match.result === 'loss' ? 'D' : 'N' }}
+          </div>
+          <div class="history-row__info">
+            <div class="history-row__opp">
+              vs {{ match.opponentUsername }} · {{ match.timeControlLabel }}
+            </div>
+            <div class="history-row__meta">
+              {{ match.playedAt | date:'short' }} ·
+              {{ match.movesCount }} coups ·
+              {{ match.playerColor === 'white' ? 'Blancs' : 'Noirs' }}
+            </div>
+          </div>
+          <div
+            class="history-row__elo"
+            [class.history-row__elo--pos]="(match.eloDelta ?? 0) > 0"
+            [class.history-row__elo--neg]="(match.eloDelta ?? 0) < 0"
+            [class.history-row__elo--neu]="match.eloDelta === 0 || match.eloDelta === undefined"
+          >
+            {{ eloDeltaLabel(match.eloDelta) }}
+          </div>
+        </div>
+        <div class="empty-state" *ngIf="vm.history.length === 0">
+          Aucune partie jouée.
+        </div>
+      </div>
+    </div>
+
+    <!-- Achievements -->
+    <div class="panel">
+      <p class="panel__title">Succès — {{ unlockedCount(vm.achievements) }} / {{ vm.achievements.length }}</p>
+      <div class="achievements-grid">
+        <div
+          class="achievement"
+          *ngFor="let ach of vm.achievements"
+          [class.achievement--done]="ach.unlocked"
+          [title]="ach.description"
+        >
+          <div class="achievement__icon">{{ ach.icon }}</div>
+          <div class="achievement__name">{{ ach.name }}</div>
+          <ng-container *ngIf="!ach.unlocked && ach.progress !== undefined && ach.target">
+            <div class="achievement__progress">{{ ach.progress }} / {{ ach.target }}</div>
+            <div class="achievement__bar">
+              <div class="achievement__bar-fill" [style.width.%]="(ach.progress! / ach.target!) * 100"></div>
+            </div>
+          </ng-container>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Settings + Subscription + Danger ───────────────────────── -->
+  <div class="three-col">
+
+    <!-- Preferences -->
+    <div class="panel">
+      <p class="panel__title">Préférences</p>
+      <div class="settings-list">
+
+        <div class="setting-row">
+          <div class="setting-row__label">Thème échiquier</div>
+          <select
+            class="setting-select"
+            [value]="vm.prefs?.boardTheme"
+            (change)="updatePref('boardTheme', $any($event.target).value)"
+          >
+            <option value="classic-wood">Classique Bois</option>
+            <option value="marble-green">Marbre Vert</option>
+            <option value="slate">Ardoise</option>
+            <option value="blue-night">Bleu Nuit</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-row__label">Style des pièces</div>
+          <select
+            class="setting-select"
+            [value]="vm.prefs?.pieceStyle"
+            (change)="updatePref('pieceStyle', $any($event.target).value)"
+          >
+            <option value="standard">Standard</option>
+            <option value="modern">Moderne</option>
+            <option value="minimalist">Minimaliste</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-row__label">Sons</div>
+          <div
+            class="toggle"
+            [class.on]="vm.prefs?.soundEnabled"
+            (click)="updatePref('soundEnabled', !vm.prefs?.soundEnabled)"
+          ></div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-row__label">Animations</div>
+          <div
+            class="toggle"
+            [class.on]="vm.prefs?.animationsEnabled"
+            (click)="updatePref('animationsEnabled', !vm.prefs?.animationsEnabled)"
+          ></div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-row__label">Notifications</div>
+          <div
+            class="toggle"
+            [class.on]="vm.prefs?.notificationsEnabled"
+            (click)="updatePref('notificationsEnabled', !vm.prefs?.notificationsEnabled)"
+          ></div>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-row__label">Afficher coups légaux</div>
+          <div
+            class="toggle"
+            [class.on]="vm.prefs?.showLegalMoves"
+            (click)="updatePref('showLegalMoves', !vm.prefs?.showLegalMoves)"
+          ></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subscription + Security -->
+    <div class="stack-col">
+      <div class="panel">
+        <p class="panel__title">Abonnement</p>
+        <div class="sub-row">
+          <div>
+            <div class="sub-plan">{{ vm.user?.subscription?.plan }}</div>
+            <div class="sub-date" *ngIf="vm.user?.subscription?.renewsAt">
+              Renouvellement : {{ vm.user?.subscription?.renewsAt | date:'dd MMM yyyy' }}
+            </div>
+          </div>
+          <span class="tag tag--gold" *ngIf="vm.user?.subscription?.active">Actif</span>
+        </div>
+        <button class="btn-primary" style="width:100%; margin-top:14px; padding:10px; font-size:.9rem">
+          Gérer l'abonnement
+        </button>
+      </div>
+
+      <div class="panel">
+        <p class="panel__title">Sécurité</p>
+        <div class="settings-list">
+          <div class="setting-row">
+            <div class="setting-row__label">Mot de passe</div>
+            <button class="btn-ghost" style="font-size:.76rem; padding:5px 12px">Modifier</button>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-row__label">Double authentification</div>
+              <div class="setting-row__hint">Recommandé</div>
+            </div>
+            <div class="toggle"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Danger zone -->
+    <div class="danger-zone">
+      <p class="danger-zone__title">Zone sensible</p>
+      <div class="danger-row">
+        <div>
+          <div class="danger-row__label">Déconnexion</div>
+          <div class="danger-row__hint">Tous les appareils</div>
+        </div>
+        <button class="btn-danger" (click)="logout()">Déconnexion</button>
+      </div>
+      <div class="danger-row">
+        <div>
+          <div class="danger-row__label">Réinitialiser les stats</div>
+          <div class="danger-row__hint">Efface l'historique</div>
+        </div>
+        <button class="btn-danger">Réinitialiser</button>
+      </div>
+      <div class="danger-row">
+        <div>
+          <div class="danger-row__label">Supprimer le compte</div>
+          <div class="danger-row__hint">Action irréversible</div>
+        </div>
+        <button class="btn-danger" (click)="deleteAccount()">Supprimer</button>
+      </div>
+    </div>
+
+  </div>
+</div>

@@ -1,0 +1,237 @@
+/* src/styles.scss — Global styles for RexChess */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+
+/* ─── CSS Variables ────────────────────────────────────────────────────────── */
+:root {
+  --bg:          #0C0F0A;
+  --bg2:         #111510;
+  --bg3:         #161B12;
+  --bg4:         #1C231A;
+  --surface:     #1E261B;
+  --surface2:    #253020;
+
+  --em:          #2D6A4F;
+  --em2:         #3A8A64;
+  --em3:         #52B788;
+  --em-glow:     rgba(82, 183, 136, 0.18);
+
+  --gold:        #C9A84C;
+  --gold2:       #E8C96A;
+  --gold-d:      #7A5C20;
+
+  --text:        #EEF0EB;
+  --text2:       #B0B8AA;
+  --text3:       #6A7564;
+
+  --border:      rgba(82, 183, 136, 0.12);
+  --border2:     rgba(82, 183, 136, 0.25);
+
+  --red:         #C0392B;
+  --red2:        rgba(192, 57, 43, 0.12);
+
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   14px;
+
+  --font-display: 'Cormorant Garamond', serif;
+  --font-body:    'DM Sans', sans-serif;
+}
+
+/* ─── Reset ─────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font-family: var(--font-body); cursor: pointer; }
+input, select, textarea { font-family: var(--font-body); }
+
+/* ─── Navbar ─────────────────────────────────────────────────────────────────── */
+.nav {
+  position: sticky; top: 0; z-index: 100;
+  height: 56px;
+  background: rgba(12, 15, 10, 0.96);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px;
+
+  .nav-brand {
+    font-family: var(--font-display);
+    font-size: 1.4rem; font-weight: 700;
+    letter-spacing: 0.08em; color: var(--em3);
+    span { color: var(--gold); }
+  }
+
+  .nav-links { display: flex; gap: 4px; }
+
+  .nav-btn {
+    background: none; border: none; color: var(--text3);
+    padding: 7px 16px; border-radius: 5px;
+    font-size: 0.82rem; letter-spacing: 0.04em;
+    transition: all 0.2s;
+
+    &:hover, &.active {
+      color: var(--em3);
+      background: var(--em-glow);
+    }
+  }
+
+  .nav-right { display: flex; align-items: center; gap: 10px; }
+
+  .notif-btn {
+    width: 34px; height: 34px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 1rem; position: relative;
+
+    &::after {
+      content: '3'; position: absolute; top: -5px; right: -5px;
+      background: var(--em3); color: var(--bg);
+      font-size: 0.58rem; font-weight: 700;
+      width: 16px; height: 16px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+    }
+  }
+
+  .avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--em), var(--em2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.78rem; font-weight: 500;
+    border: 1.5px solid var(--em3); color: var(--text);
+    cursor: pointer;
+  }
+}
+
+/* ─── Shared reusable classes ───────────────────────────────────────────────── */
+.panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 20px 22px;
+
+  &__title {
+    font-family: var(--font-display); font-size: 1.05rem; font-weight: 600;
+    color: var(--text2); margin-bottom: 14px; padding-bottom: 11px;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+.btn-primary {
+  padding: 12px 20px; border-radius: var(--radius-sm); border: none;
+  background: linear-gradient(135deg, var(--em), var(--em2));
+  color: white; font-family: var(--font-display);
+  font-size: 1rem; font-weight: 600; letter-spacing: 0.06em;
+  transition: all 0.2s; cursor: pointer;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 22px rgba(45, 106, 79, 0.35);
+  }
+}
+
+.btn-ghost {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 8px 16px;
+  color: var(--text2); font-size: 0.82rem; transition: all 0.2s;
+
+  &:hover { border-color: var(--border2); color: var(--text); }
+}
+
+.btn-danger {
+  background: var(--red2); border: 1px solid rgba(192, 57, 43, 0.35);
+  color: #E74C3C; border-radius: var(--radius-sm); padding: 7px 14px;
+  font-size: 0.78rem; transition: all 0.2s;
+
+  &:hover { background: rgba(192, 57, 43, 0.22); }
+}
+
+.tag {
+  font-size: 0.72rem; padding: 4px 12px; border-radius: 12px;
+  border: 1px solid var(--border); color: var(--text3);
+
+  &--em   { border-color: var(--em2); color: var(--em3); background: var(--em-glow); }
+  &--gold { border-color: rgba(201,168,76,.3); color: var(--gold); background: rgba(201,168,76,.08); }
+}
+
+.toggle {
+  width: 42px; height: 23px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 12px; cursor: pointer; position: relative; transition: background 0.2s;
+
+  &::after {
+    content: ''; position: absolute; top: 3px; left: 3px;
+    width: 15px; height: 15px; background: #6A7564;
+    border-radius: 50%; transition: all 0.22s;
+  }
+
+  &.on { background: var(--em); }
+  &.on::after { left: 22px; background: white; }
+}
+
+/* ─── Chessboard ────────────────────────────────────────────────────────────── */
+.board-frame {
+  background: linear-gradient(135deg, var(--gold-d), var(--gold), var(--gold-d));
+  padding: 12px; border-radius: 6px;
+  box-shadow: 0 16px 56px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,220,100,.3);
+}
+
+.board-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 58px);
+  grid-template-rows: repeat(8, 58px);
+  border: 2px solid #4A3008;
+}
+
+.sq {
+  width: 58px; height: 58px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2.1rem; cursor: pointer; position: relative;
+  transition: filter 0.12s; user-select: none;
+
+  &.light  { background: #F0D9B5; }
+  &.dark   { background: #B58863; }
+  &:hover  { filter: brightness(1.1); }
+
+  &.selected { background: rgba(100, 200, 120, 0.55) !important; }
+
+  &.hint::after {
+    content: ''; position: absolute;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(70, 180, 100, 0.5);
+    pointer-events: none; z-index: 2;
+  }
+
+  &.capture::after {
+    content: ''; position: absolute; inset: 0; border-radius: 50%;
+    box-shadow: inset 0 0 0 5px rgba(200, 50, 50, 0.5);
+    pointer-events: none; z-index: 2;
+  }
+
+  &.in-check { background: rgba(220, 50, 50, 0.5) !important; }
+
+  .piece {
+    position: relative; z-index: 3; pointer-events: none;
+    text-shadow: 1px 2px 5px rgba(0,0,0,.45);
+  }
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.fade-up { animation: fadeUp 0.35s ease both; }
