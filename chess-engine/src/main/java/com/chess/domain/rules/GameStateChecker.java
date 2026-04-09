@@ -4,7 +4,16 @@ import com.chess.domain.board.Board;
 import com.chess.domain.model.Color;
 
 /**
- * Evaluates whether the game has ended and how.
+ * Evaluates the current game state for the given color.
+ *
+ * States (in evaluation priority order):
+ *   DRAW_50_MOVE — half-move clock has reached 100 (50 full moves without
+ *                  pawn move or capture). Checked BEFORE move generation
+ *                  because it applies even when the player has legal moves.
+ *   CHECKMATE    — in check AND no legal moves.
+ *   STALEMATE    — not in check AND no legal moves.
+ *   CHECK        — in check but has at least one legal escape.
+ *   ONGOING      — normal position.
  */
 public final class GameStateChecker {
 
@@ -13,17 +22,20 @@ public final class GameStateChecker {
     private GameStateChecker() {}
 
     public static State evaluate(Board board, Color color) {
-        boolean inCheck  = CheckDetector.isInCheck(board, color);
-        boolean hasMove  = !MoveGenerator.generateLegalMoves(board, color).isEmpty();
+        // 50-move rule applies regardless of whether moves are available
+        if (board.halfMoveClock() >= 100) return State.DRAW_50_MOVE;
+
+        boolean inCheck = CheckDetector.isInCheck(board, color);
+        boolean hasMove = !MoveGenerator.generateLegalMoves(board, color).isEmpty();
 
         if (hasMove)  return inCheck ? State.CHECK : State.ONGOING;
         if (inCheck)  return State.CHECKMATE;
-        if (board.halfMoveClock() >= 100) return State.DRAW_50_MOVE;
         return State.STALEMATE;
     }
 
     public static boolean isTerminal(State state) {
-        return state == State.CHECKMATE || state == State.STALEMATE
+        return state == State.CHECKMATE
+            || state == State.STALEMATE
             || state == State.DRAW_50_MOVE;
     }
 }

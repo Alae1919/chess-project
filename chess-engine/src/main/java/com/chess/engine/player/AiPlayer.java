@@ -5,17 +5,20 @@ import com.chess.domain.model.Color;
 import com.chess.domain.model.Move;
 import com.chess.engine.search.AlphaBetaSearch;
 
-/** AI player using iterative-deepening alpha-beta search. */
+import java.util.Optional;
+
+/**
+ * AI player backed by alpha-beta search.
+ * chooseMove() throws IllegalStateException if called on a terminal position
+ * (the GameService must check GameStateChecker before calling the player).
+ */
 public final class AiPlayer implements Player {
 
     private final Color color;
-    private final int depth;
+    private final int   depth;
     private final AlphaBetaSearch search;
 
-    public AiPlayer(Color color) {
-        this(color, 4);
-    }
-
+    public AiPlayer(Color color)            { this(color, 4); }
     public AiPlayer(Color color, int depth) {
         this.color  = color;
         this.depth  = depth;
@@ -24,9 +27,13 @@ public final class AiPlayer implements Player {
 
     @Override
     public Move chooseMove(Board board) {
-        return search.findBestMove(board, depth);
+        return search.findBestMove(board, depth)
+            .orElseThrow(() -> new IllegalStateException(
+                "chooseMove() called on a terminal position for " + color));
     }
 
     @Override
     public Color color() { return color; }
 }
+
+

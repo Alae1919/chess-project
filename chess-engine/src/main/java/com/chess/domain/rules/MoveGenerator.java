@@ -162,9 +162,15 @@ public final class MoveGenerator {
         // Don't capture friendly pieces
         if (dest.isPresent() && dest.get().color() == piece.color()) return;
 
-        Move m = dest.isPresent()
-            ? Move.capture(from, to, dest.get())
-            : Move.normal(from, to);
+        Move m;
+        if (piece.type() == PieceType.KING
+                && Math.abs(to.file() - from.file()) == 2) {
+            m = Move.castling(from, to);
+        } else if (dest.isPresent()) {
+            m = Move.capture(from, to, dest.get());
+        } else {
+            m = Move.normal(from, to);
+        }
 
         if (MoveValidator.isLegal(board, m)) moves.add(m);
     }
