@@ -50,9 +50,9 @@ export class GameService {
     return this.http.post<SavedGame>(`${this.base}/${gameId}/save`, {});
   }
 
-  /** Load all saved games for the current user */
+  /** Load all saved games for the current user (backend: GET /api/users/me/saved-games) */
   getSavedGames(): Observable<SavedGame[]> {
-    return this.http.get<SavedGame[]>(`${this.base}/saved`);
+    return this.http.get<SavedGame[]>(`${environment.apiUrl}/users/me/saved-games`);
   }
 
   /** Offer or accept a draw */

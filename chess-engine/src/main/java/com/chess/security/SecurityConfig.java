@@ -14,6 +14,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.*;
 
 import com.chess.persistence.repository.UserRepository;
+
 import java.util.List;
 
 @Configuration
@@ -48,12 +49,14 @@ public class SecurityConfig {
 
     @Bean
     public UserDetailsService userDetailsService() {
-        return username -> userRepository.findByUsername(username)
+        // Login uses email as the principal; JWT filter still passes the username claim.
+        return principal -> userRepository.findByEmail(principal)
+            .or(() -> userRepository.findByUsername(principal))
             .map(u -> User.withUsername(u.getUsername())
                 .password(u.getPasswordHash())
                 .roles("USER")
                 .build())
-            .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
+            .orElseThrow(() -> new UsernameNotFoundException("User not found: " + principal));
     }
 
     @Bean
