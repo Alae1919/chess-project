@@ -1,7 +1,7 @@
 -- ─── Custom enum types ────────────────────────────────────────────────────────
 
-CREATE TYPE player_rank      AS ENUM ('Bronze','Argent','Or','Platine','Diamant','Grand Maître');
-CREATE TYPE board_theme      AS ENUM ('classic-wood','marble-green','slate','blue-night');
+CREATE TYPE player_rank      AS ENUM ('Bronze','Argent','Or','Platine','Diamant','Grand_Maitre');
+CREATE TYPE board_theme      AS ENUM ('classic_wood','marble_green','slate','blue_night');
 CREATE TYPE piece_style      AS ENUM ('standard','modern','minimalist');
 CREATE TYPE subscription_plan AS ENUM ('Free','Silver','Gold','Platine');
 CREATE TYPE game_mode        AS ENUM ('ai','local','online','saved');
@@ -49,7 +49,7 @@ CREATE INDEX idx_users_elo      ON users(elo DESC);
 
 CREATE TABLE user_preferences (
     user_id                UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    board_theme            board_theme  NOT NULL DEFAULT 'classic-wood',
+    board_theme            board_theme  NOT NULL DEFAULT 'classic_wood',
     piece_style            piece_style  NOT NULL DEFAULT 'standard',
     language               VARCHAR(10)  NOT NULL DEFAULT 'fr',
     sound_enabled          BOOLEAN      NOT NULL DEFAULT TRUE,

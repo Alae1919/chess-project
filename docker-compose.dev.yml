@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: chess_db_dev
+    environment:
+      POSTGRES_DB: chess_db
+      POSTGRES_USER: chess_user
+      POSTGRES_PASSWORD: chess_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chess_user -d chess_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: maven:3.9-eclipse-temurin-17
+    container_name: chess_backend_dev
+    working_dir: /app
+    volumes:
+      - ./chess-engine:/app
+      - maven_cache:/root/.m2
+    command: mvn spring-boot:run
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/chess_db
+      - SPRING_DATASOURCE_USERNAME=chess_user
+      - SPRING_DATASOURCE_PASSWORD=chess_pass
+      - SPRING_DEVTOOLS_RESTART_ENABLED=true
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    image: node:20
+    container_name: chess_frontend_dev
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    command: sh -c "npm install && npm start -- --host 0.0.0.0 --poll 2000"
+    ports:
+      - "4200:4200"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data_dev:
+  maven_cache:
+  frontend_node_modules:

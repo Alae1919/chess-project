@@ -1,6 +1,8 @@
 package com.chess.persistence.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.util.UUID;
 
 @Entity
@@ -16,11 +18,15 @@ public class UserPreferencesEntity {
     @JoinColumn(name = "user_id")
     private UserEntity user;
 
-    @Column(name = "board_theme", nullable = false, length = 20)
-    private String boardTheme = "classic-wood";
+    @Enumerated(EnumType.STRING)
+    @Column(name = "board_theme", columnDefinition = "board_theme", nullable = false)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private BoardTheme boardTheme = BoardTheme.classic_wood;
 
-    @Column(name = "piece_style", nullable = false, length = 20)
-    private String pieceStyle = "standard";
+    @Enumerated(EnumType.STRING)
+    @Column(name = "piece_style", columnDefinition = "piece_style", nullable = false)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private PieceStyle pieceStyle = PieceStyle.standard;
 
     @Column(nullable = false, length = 10)
     private String language = "fr";
@@ -57,10 +63,10 @@ public class UserPreferencesEntity {
 
     // Getters / setters
     public UUID getUserId()                      { return userId; }
-    public String getBoardTheme()                { return boardTheme; }
-    public void setBoardTheme(String v)          { this.boardTheme = v; }
-    public String getPieceStyle()                { return pieceStyle; }
-    public void setPieceStyle(String v)          { this.pieceStyle = v; }
+    public BoardTheme getBoardTheme() {return boardTheme;}
+    public void setBoardTheme(BoardTheme boardTheme) {this.boardTheme = boardTheme;}
+    public PieceStyle getPieceStyle()            { return pieceStyle; }
+    public void setPieceStyle(PieceStyle pieceStyle) { this.pieceStyle = pieceStyle; }
     public String getLanguage()                  { return language; }
     public void setLanguage(String v)            { this.language = v; }
     public boolean isSoundEnabled()              { return soundEnabled; }
@@ -78,5 +84,20 @@ public class UserPreferencesEntity {
     public boolean isRealTimeAnalysis()          { return realTimeAnalysis; }
     public void setRealTimeAnalysis(boolean v)   { this.realTimeAnalysis = v; }
     public UserEntity getUser()                  { return user; }
-    public void setUser(UserEntity v)            { this.user = v; }
+
+    // ── Enums ──
+
+    public enum BoardTheme {
+        classic_wood,
+        marble_green,
+        slate,
+        blue_night
+    }
+    
+
+    public enum PieceStyle {
+        standard,
+        modern,
+        minimalist
+    }
 }

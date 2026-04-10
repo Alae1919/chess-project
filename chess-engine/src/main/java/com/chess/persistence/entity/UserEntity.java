@@ -1,6 +1,8 @@
 package com.chess.persistence.entity;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,9 +34,10 @@ public class UserEntity {
     @Column(nullable = false)
     private int elo = 1200;
 
-    @Column(nullable = false)
     @Enumerated(EnumType.STRING)
-    private PlayerRank rank = PlayerRank.BRONZE;
+    @Column(columnDefinition = "player_rank", nullable = false)
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private PlayerRank rank = PlayerRank.Bronze;
 
     // ── Denormalised stats ──
     @Column(name = "games_played", nullable = false)
@@ -56,9 +59,10 @@ public class UserEntity {
     private int bestStreak = 0;
 
     // ── Subscription ──
-    @Column(name = "subscription_plan", nullable = false)
+    @Column(name = "subscription_plan", columnDefinition = "subscription_plan", nullable = false)
     @Enumerated(EnumType.STRING)
-    private SubscriptionPlan subscriptionPlan = SubscriptionPlan.FREE;
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private SubscriptionPlan subscriptionPlan = SubscriptionPlan.Free;
 
     @Column(name = "subscription_active", nullable = false)
     private boolean subscriptionActive = true;
@@ -87,18 +91,12 @@ public class UserEntity {
 
     // ── Enums ──
     public enum PlayerRank {
-        BRONZE("Bronze"), ARGENT("Argent"), OR("Or"),
-        PLATINE("Platine"), DIAMANT("Diamant"), GRAND_MAITRE("Grand Maître");
-        private final String label;
-        PlayerRank(String label) { this.label = label; }
-        public String getLabel() { return label; }
+        Bronze, Argent, Or,
+        Platine, Diamant, Grand_Maitre;
     }
 
     public enum SubscriptionPlan {
-        FREE("Free"), SILVER("Silver"), GOLD("Gold"), PLATINE("Platine");
-        private final String label;
-        SubscriptionPlan(String label) { this.label = label; }
-        public String getLabel() { return label; }
+        Free, Silver, Gold, Platine;
     }
 
     // ── Getters / Setters ──
