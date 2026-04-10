@@ -12,7 +12,8 @@ import java.util.List;
  * @param gameId        UUID of the game.
  * @param fen           Current board in FEN notation.
  * @param activeColor   Whose turn it is: "WHITE" or "BLACK".
- * @param status        Game status: ONGOING, CHECK, CHECKMATE, STALEMATE, DRAW_50_MOVE.
+ * @param status        Game status, including ONGOING, CHECK, CHECKMATE, STALEMATE,
+ *                      DRAW_50_MOVE, or session outcomes WHITE_RESIGNED, BLACK_RESIGNED, DRAW_AGREED.
  * @param lastMove      Last move played in UCI format, or null if no move played yet.
  * @param moveHistory   Full list of moves played, oldest first, in UCI format.
  * @param legalMoves    All legal moves for the active player in UCI format.
@@ -30,7 +31,10 @@ public record GameStateResponse(
     String activeColor,
 
     @Schema(example = "ONGOING",
-            allowableValues = {"ONGOING","CHECK","CHECKMATE","STALEMATE","DRAW_50_MOVE"})
+            allowableValues = {
+                "ONGOING", "CHECK", "CHECKMATE", "STALEMATE", "DRAW_50_MOVE",
+                "WHITE_RESIGNED", "BLACK_RESIGNED", "DRAW_AGREED"
+            })
     String status,
 
     @Schema(example = "e2e4", nullable = true)

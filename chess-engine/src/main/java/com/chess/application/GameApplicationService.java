@@ -151,6 +151,32 @@ public final class GameApplicationService {
     }
 
     // ----------------------------------------------------------------
+    // USE CASE 7 — Resign / draw
+    // ----------------------------------------------------------------
+
+    /**
+     * Active player resigns ({@code username} reserved for future ownership checks).
+     */
+    public GameStateResponse resign(String gameId, String username) {
+        GameSession session = requireSession(gameId);
+        if (session.isOver())
+            throw new GameOverException(gameId);
+        session.resignAsActivePlayer();
+        return toResponse(session);
+    }
+
+    /**
+     * Agree to a draw ({@code username} reserved for future offer/accept flow).
+     */
+    public GameStateResponse offerDraw(String gameId, String username) {
+        GameSession session = requireSession(gameId);
+        if (session.isOver())
+            throw new GameOverException(gameId);
+        session.agreeDraw();
+        return toResponse(session);
+    }
+
+    // ----------------------------------------------------------------
     // Private helpers
     // ----------------------------------------------------------------
 

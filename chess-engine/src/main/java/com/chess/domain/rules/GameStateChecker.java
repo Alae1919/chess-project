@@ -14,10 +14,16 @@ import com.chess.domain.model.Color;
  *   STALEMATE    — not in check AND no legal moves.
  *   CHECK        — in check but has at least one legal escape.
  *   ONGOING      — normal position.
+ *
+ *   Session-only outcomes (not produced by evaluate(), set on GameSession):
+ *   WHITE_RESIGNED, BLACK_RESIGNED, DRAW_AGREED — game is over.
  */
 public final class GameStateChecker {
 
-    public enum State { ONGOING, CHECK, CHECKMATE, STALEMATE, DRAW_50_MOVE }
+    public enum State {
+        ONGOING, CHECK, CHECKMATE, STALEMATE, DRAW_50_MOVE,
+        WHITE_RESIGNED, BLACK_RESIGNED, DRAW_AGREED
+    }
 
     private GameStateChecker() {}
 
@@ -36,6 +42,9 @@ public final class GameStateChecker {
     public static boolean isTerminal(State state) {
         return state == State.CHECKMATE
             || state == State.STALEMATE
-            || state == State.DRAW_50_MOVE;
+            || state == State.DRAW_50_MOVE
+            || state == State.WHITE_RESIGNED
+            || state == State.BLACK_RESIGNED
+            || state == State.DRAW_AGREED;
     }
 }

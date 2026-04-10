@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * the service only depends on the method signatures below.
  */
 @Repository
-public final class GameStore {
+public class GameStore {
 
     private final Map<String, GameSession> games = new ConcurrentHashMap<>();
 

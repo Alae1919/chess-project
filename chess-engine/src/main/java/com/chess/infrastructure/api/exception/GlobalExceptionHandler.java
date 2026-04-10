@@ -1,6 +1,7 @@
 package com.chess.infrastructure.api.exception;
 
 import com.chess.domain.board.InvalidFenException;
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.*;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.*;
@@ -27,6 +28,11 @@ import java.net.URI;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+
+    @ExceptionHandler(EntityNotFoundException.class)
+    ProblemDetail handleEntityNotFound(EntityNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, "not-found", "Not Found", ex);
+    }
 
     @ExceptionHandler(GameNotFoundException.class)
     ProblemDetail handleGameNotFound(GameNotFoundException ex) {

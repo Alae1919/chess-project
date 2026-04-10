@@ -43,9 +43,26 @@ public final class GameSession {
     // ---- Mutation (called only from GameApplicationService) -----------
 
     public void applyMove(com.chess.domain.model.Move move) {
+        if (isOver())
+            throw new IllegalStateException("Cannot apply move: game is over");
         moveHistory.add(move.toString());
         board = board.apply(move);
         state = GameStateChecker.evaluate(board, board.activeColor());
+    }
+
+    /** The player to move resigns; opponent wins. */
+    public void resignAsActivePlayer() {
+        if (isOver()) return;
+        Color active = board.activeColor();
+        state = active == Color.WHITE
+            ? GameStateChecker.State.WHITE_RESIGNED
+            : GameStateChecker.State.BLACK_RESIGNED;
+    }
+
+    /** Ends the game as a draw by agreement. */
+    public void agreeDraw() {
+        if (isOver()) return;
+        state = GameStateChecker.State.DRAW_AGREED;
     }
 
     // ---- Read-only access --------------------------------------------
