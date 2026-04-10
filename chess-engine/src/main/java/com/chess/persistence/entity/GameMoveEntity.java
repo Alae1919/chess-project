@@ -1,6 +1,12 @@
 package com.chess.persistence.entity;
 
+import com.chess.persistence.entity.DatabaseEnums.PieceKind;
+import com.chess.persistence.entity.DatabaseEnums.PlayerSide;
+
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.Instant;
 
 @Entity
@@ -17,21 +23,40 @@ public class GameMoveEntity {
     @Column(name = "move_number", nullable = false)
     private int moveNumber;
 
-    @Column(nullable = false, length = 10)
-    private String color;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "piece_color")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private PlayerSide color;
 
     @Column(name = "from_row", nullable = false) private int fromRow;
     @Column(name = "from_col", nullable = false) private int fromCol;
     @Column(name = "to_row",   nullable = false) private int toRow;
     @Column(name = "to_col",   nullable = false) private int toCol;
 
-    @Column(name = "piece_type",   nullable = false, length = 10) private String pieceType;
-    @Column(name = "piece_color",  nullable = false, length = 10) private String pieceColor;
-    @Column(name = "captured_type",  length = 10) private String capturedType;
-    @Column(name = "captured_color", length = 10) private String capturedColor;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "piece_type", nullable = false, columnDefinition = "piece_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private PieceKind pieceType;
 
-    @Column(length = 10)
-    private String promotion;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "piece_color", nullable = false, columnDefinition = "piece_color")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private PlayerSide pieceColor;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "captured_type", columnDefinition = "piece_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private PieceKind capturedType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "captured_color", columnDefinition = "piece_color")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private PlayerSide capturedColor;
+
+    @Enumerated(EnumType.STRING)
+    @Column(columnDefinition = "piece_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private PieceKind promotion;
 
     @Column(name = "is_en_passant", nullable = false) private boolean isEnPassant = false;
     @Column(name = "is_castling",   length = 10)      private String isCastling;
@@ -51,8 +76,8 @@ public class GameMoveEntity {
     public void setGame(GameEntity v)      { this.game = v; }
     public int getMoveNumber()             { return moveNumber; }
     public void setMoveNumber(int v)       { this.moveNumber = v; }
-    public String getColor()               { return color; }
-    public void setColor(String v)         { this.color = v; }
+    public PlayerSide getColor()         { return color; }
+    public void setColor(PlayerSide v)   { this.color = v; }
     public int getFromRow()                { return fromRow; }
     public void setFromRow(int v)          { this.fromRow = v; }
     public int getFromCol()                { return fromCol; }
@@ -61,16 +86,16 @@ public class GameMoveEntity {
     public void setToRow(int v)            { this.toRow = v; }
     public int getToCol()                  { return toCol; }
     public void setToCol(int v)            { this.toCol = v; }
-    public String getPieceType()           { return pieceType; }
-    public void setPieceType(String v)     { this.pieceType = v; }
-    public String getPieceColor()          { return pieceColor; }
-    public void setPieceColor(String v)    { this.pieceColor = v; }
-    public String getCapturedType()        { return capturedType; }
-    public void setCapturedType(String v)  { this.capturedType = v; }
-    public String getCapturedColor()       { return capturedColor; }
-    public void setCapturedColor(String v) { this.capturedColor = v; }
-    public String getPromotion()           { return promotion; }
-    public void setPromotion(String v)     { this.promotion = v; }
+    public PieceKind getPieceType()      { return pieceType; }
+    public void setPieceType(PieceKind v){ this.pieceType = v; }
+    public PlayerSide getPieceColor()    { return pieceColor; }
+    public void setPieceColor(PlayerSide v) { this.pieceColor = v; }
+    public PieceKind getCapturedType()   { return capturedType; }
+    public void setCapturedType(PieceKind v) { this.capturedType = v; }
+    public PlayerSide getCapturedColor() { return capturedColor; }
+    public void setCapturedColor(PlayerSide v) { this.capturedColor = v; }
+    public PieceKind getPromotion()      { return promotion; }
+    public void setPromotion(PieceKind v){ this.promotion = v; }
     public boolean isEnPassant()           { return isEnPassant; }
     public void setEnPassant(boolean v)    { this.isEnPassant = v; }
     public String getIsCastling()          { return isCastling; }

@@ -5,6 +5,12 @@ import com.chess.api.dto.MatchHistoryDto;
 import com.chess.domain.board.FenParser;
 import com.chess.domain.model.Move;
 import com.chess.domain.rules.MoveGenerator;
+import com.chess.persistence.entity.DatabaseEnums.GameMode;
+import com.chess.persistence.entity.DatabaseEnums.GameStatus;
+import com.chess.persistence.entity.DatabaseEnums.PieceKind;
+import com.chess.persistence.entity.DatabaseEnums.PlayerSide;
+import com.chess.persistence.entity.DatabaseEnums.TimeControlKind;
+import com.chess.persistence.entity.DatabaseEnums.GameEndReason;
 import com.chess.persistence.entity.*;
 import com.chess.persistence.repository.*;
 import jakarta.persistence.EntityNotFoundException;
@@ -45,9 +51,9 @@ public class GamePersistenceService {
     public void persistNewGame(String gameId, GameDto.CreateGameRequest req,
                                UUID userId, String username) {
         var entity = new GameEntity();
-        entity.setMode(req.mode());
-        entity.setStatus("active");
-        entity.setCurrentTurn("white");
+        entity.setMode(GameMode.valueOf(req.mode()));
+        entity.setStatus(GameStatus.active);
+        entity.setCurrentTurn(PlayerSide.white);
 
         boolean userIsWhite = !"black".equalsIgnoreCase(req.playerColor());
         if (userIsWhite) {
@@ -65,7 +71,7 @@ public class GamePersistenceService {
         }
 
         var tc = req.timeControl();
-        entity.setTimeControlType(tc.type());
+        entity.setTimeControlType(TimeControlKind.valueOf(tc.type()));
         entity.setTimeControlInitialMs(tc.initialMs());
         entity.setTimeControlIncrementMs(tc.incrementMs());
         entity.setWhiteTimeRemainingMs(tc.initialMs());
@@ -88,24 +94,25 @@ public class GamePersistenceService {
                             int moveNumber, String color) {
         var game = gameRepo.findById(dbGameId).orElseThrow();
         game.setCurrentFen(newFen);
-        game.setCurrentTurn(color.equals("white") ? "black" : "white");
+        var played = PlayerSide.valueOf(color.toLowerCase());
+        game.setCurrentTurn(played == PlayerSide.white ? PlayerSide.black : PlayerSide.white);
 
         var moveEntity = new GameMoveEntity();
         moveEntity.setGame(game);
         moveEntity.setMoveNumber(moveNumber);
-        moveEntity.setColor(color);
+        moveEntity.setColor(played);
         moveEntity.setFromRow(engineMove.from().rank());
         moveEntity.setFromCol(engineMove.from().file());
         moveEntity.setToRow(engineMove.to().rank());
         moveEntity.setToCol(engineMove.to().file());
-        moveEntity.setPieceType(extractPieceType(newFen, engineMove));
-        moveEntity.setPieceColor(color);
+        moveEntity.setPieceType(PieceKind.valueOf(extractPieceType(newFen, engineMove)));
+        moveEntity.setPieceColor(played);
         moveEntity.setAlgebraicNotation(engineMove.toString());
         moveEntity.setEnPassant(engineMove.isEnPassant());
         if (engineMove.isCastling()) moveEntity.setIsCastling(
             engineMove.to().file() > engineMove.from().file() ? "kingside" : "queenside");
         if (engineMove.isPromotion())
-            moveEntity.setPromotion(engineMove.promotion().name().toLowerCase());
+            moveEntity.setPromotion(PieceKind.valueOf(engineMove.promotion().name().toLowerCase()));
 
         game.getMoves().add(moveEntity);
         gameRepo.save(game);
@@ -117,9 +124,9 @@ public class GamePersistenceService {
     @Transactional
     public void finaliseGame(UUID dbGameId, String winner, String reason) {
         var game = gameRepo.findById(dbGameId).orElseThrow();
-        game.setStatus("finished");
-        game.setResultWinner(winner);
-        game.setResultReason(reason);
+        game.setStatus(GameStatus.finished);
+        game.setResultWinner(winner != null ? PlayerSide.valueOf(winner.toLowerCase()) : null);
+        game.setResultReason(reason != null ? GameEndReason.valueOf(reason.toLowerCase()) : null);
         gameRepo.save(game);
 
         // Update stats for both registered players
@@ -179,15 +186,15 @@ public class GamePersistenceService {
         String  color   = isWhite ? "white" : "black";
         String  result;
         if (g.getResultWinner() == null)              result = "draw";
-        else if (g.getResultWinner().equals(color))   result = "win";
+        else if (g.getResultWinner().name().equals(color)) result = "win";
         else                                           result = "loss";
 
         String opponentUsername = isWhite ? g.getBlackUsername() : g.getWhiteUsername();
-        String tcLabel = g.getTimeControlType() + " "
+        String tcLabel = g.getTimeControlType().name() + " "
             + (g.getTimeControlInitialMs() / 60_000) + "m";
 
         return new MatchHistoryDto.MatchHistory(
-            g.getId().toString(), opponentUsername, g.getMode(),
+            g.getId().toString(), opponentUsername, g.getMode().name(),
             tcLabel, result, color,
             g.getMoves().size(), null, g.getUpdatedAt()
         );
@@ -195,8 +202,8 @@ public class GamePersistenceService {
 
     private GameDto.SavedGame toSavedGameDto(SavedGameEntity s) {
         return new GameDto.SavedGame(
-            s.getId().toString(), s.getOpponentName(), s.getMode(),
-            s.getTurnNumber(), s.getPlayerColor(),
+            s.getId().toString(), s.getOpponentName(), s.getMode().name(),
+            s.getTurnNumber(), s.getPlayerColor().name(),
             s.getOpening(), s.getSavedAt(), s.getThumbnailFen()
         );
     }

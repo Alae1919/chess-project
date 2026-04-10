@@ -1,6 +1,15 @@
 package com.chess.persistence.entity;
 
+import com.chess.persistence.entity.DatabaseEnums.GameMode;
+import com.chess.persistence.entity.DatabaseEnums.GameStatus;
+import com.chess.persistence.entity.DatabaseEnums.PlayerSide;
+import com.chess.persistence.entity.DatabaseEnums.TimeControlKind;
+import com.chess.persistence.entity.DatabaseEnums.GameEndReason;
+
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -13,14 +22,20 @@ public class GameEntity {
     @Id @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(nullable = false, length = 20)
-    private String mode;       // 'ai' | 'local' | 'online' | 'saved'
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "game_mode")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private GameMode mode;
 
-    @Column(nullable = false, length = 20)
-    private String status = "waiting";
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "game_status")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private GameStatus status = GameStatus.waiting;
 
-    @Column(name = "current_turn", nullable = false, length = 10)
-    private String currentTurn = "white";
+    @Enumerated(EnumType.STRING)
+    @Column(name = "current_turn", nullable = false, columnDefinition = "piece_color")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private PlayerSide currentTurn = PlayerSide.white;
 
     // ── White player ──
     @Column(name = "white_user_id")
@@ -71,13 +86,23 @@ public class GameEntity {
     @Column(name = "en_passant_col") private Integer enPassantCol;
 
     // ── Time control ──
-    @Column(name = "time_control_type",         nullable = false, length = 20) private String timeControlType = "rapid";
+    @Enumerated(EnumType.STRING)
+    @Column(name = "time_control_type", nullable = false, columnDefinition = "time_control_type")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private TimeControlKind timeControlType = TimeControlKind.rapid;
     @Column(name = "time_control_initial_ms",   nullable = false) private long timeControlInitialMs  = 600_000;
     @Column(name = "time_control_increment_ms", nullable = false) private long timeControlIncrementMs = 0;
 
     // ── Result ──
-    @Column(name = "result_winner",  length = 10) private String resultWinner;
-    @Column(name = "result_reason",  length = 30) private String resultReason;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "result_winner", columnDefinition = "piece_color")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private PlayerSide resultWinner;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "result_reason", columnDefinition = "game_end_reason")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private GameEndReason resultReason;
 
     @Column(length = 100)
     private String opening;
@@ -98,12 +123,12 @@ public class GameEntity {
 
     // ── Getters / Setters ─────────────────────────────────────────────────────
     public UUID getId()                          { return id; }
-    public String getMode()                      { return mode; }
-    public void setMode(String v)                { this.mode = v; }
-    public String getStatus()                    { return status; }
-    public void setStatus(String v)              { this.status = v; }
-    public String getCurrentTurn()               { return currentTurn; }
-    public void setCurrentTurn(String v)         { this.currentTurn = v; }
+    public GameMode getMode()                  { return mode; }
+    public void setMode(GameMode v)            { this.mode = v; }
+    public GameStatus getStatus()              { return status; }
+    public void setStatus(GameStatus v)        { this.status = v; }
+    public PlayerSide getCurrentTurn()         { return currentTurn; }
+    public void setCurrentTurn(PlayerSide v)   { this.currentTurn = v; }
     public UUID getWhiteUserId()                 { return whiteUserId; }
     public void setWhiteUserId(UUID v)           { this.whiteUserId = v; }
     public String getWhiteUsername()             { return whiteUsername; }
@@ -146,16 +171,16 @@ public class GameEntity {
     public void setEnPassantRow(Integer v)       { this.enPassantRow = v; }
     public Integer getEnPassantCol()             { return enPassantCol; }
     public void setEnPassantCol(Integer v)       { this.enPassantCol = v; }
-    public String getTimeControlType()           { return timeControlType; }
-    public void setTimeControlType(String v)     { this.timeControlType = v; }
+    public TimeControlKind getTimeControlType(){ return timeControlType; }
+    public void setTimeControlType(TimeControlKind v) { this.timeControlType = v; }
     public long getTimeControlInitialMs()        { return timeControlInitialMs; }
     public void setTimeControlInitialMs(long v)  { this.timeControlInitialMs = v; }
     public long getTimeControlIncrementMs()      { return timeControlIncrementMs; }
     public void setTimeControlIncrementMs(long v){ this.timeControlIncrementMs = v; }
-    public String getResultWinner()              { return resultWinner; }
-    public void setResultWinner(String v)        { this.resultWinner = v; }
-    public String getResultReason()              { return resultReason; }
-    public void setResultReason(String v)        { this.resultReason = v; }
+    public PlayerSide getResultWinner()        { return resultWinner; }
+    public void setResultWinner(PlayerSide v)  { this.resultWinner = v; }
+    public GameEndReason getResultReason() { return resultReason; }
+    public void setResultReason(GameEndReason resultReason) { this.resultReason = resultReason; }
     public String getOpening()                   { return opening; }
     public void setOpening(String v)             { this.opening = v; }
     public Instant getCreatedAt()                { return createdAt; }

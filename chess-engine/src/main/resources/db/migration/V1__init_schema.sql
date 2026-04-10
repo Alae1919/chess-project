@@ -11,7 +11,7 @@ CREATE TYPE piece_type       AS ENUM ('king','queen','rook','bishop','knight','p
 CREATE TYPE time_control_type AS ENUM ('blitz','rapid','classical','unlimited');
 CREATE TYPE game_end_reason  AS ENUM (
     'checkmate','stalemate','resignation','timeout',
-    'draw-agreement','threefold-repetition','fifty-move-rule','insufficient-material');
+    'draw_agreement','threefold_repetition','fifty_move_rule','insufficient_material');
 
 -- ─── users ────────────────────────────────────────────────────────────────────
 

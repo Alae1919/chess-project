@@ -1,6 +1,12 @@
 package com.chess.persistence.entity;
 
+import com.chess.persistence.entity.DatabaseEnums.GameMode;
+import com.chess.persistence.entity.DatabaseEnums.PlayerSide;
+
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -20,14 +26,18 @@ public class SavedGameEntity {
     @Column(name = "opponent_name", nullable = false, length = 50)
     private String opponentName;
 
-    @Column(nullable = false, length = 20)
-    private String mode;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, columnDefinition = "game_mode")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private GameMode mode;
 
     @Column(name = "turn_number", nullable = false)
     private int turnNumber;
 
-    @Column(name = "player_color", nullable = false, length = 10)
-    private String playerColor;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "player_color", nullable = false, columnDefinition = "piece_color")
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    private PlayerSide playerColor;
 
     @Column(length = 100)
     private String opening;
@@ -45,12 +55,12 @@ public class SavedGameEntity {
     public void setUserId(UUID v)    { this.userId = v; }
     public String getOpponentName()  { return opponentName; }
     public void setOpponentName(String v){ this.opponentName = v; }
-    public String getMode()          { return mode; }
-    public void setMode(String v)    { this.mode = v; }
+    public GameMode getMode()      { return mode; }
+    public void setMode(GameMode v){ this.mode = v; }
     public int getTurnNumber()       { return turnNumber; }
     public void setTurnNumber(int v) { this.turnNumber = v; }
-    public String getPlayerColor()   { return playerColor; }
-    public void setPlayerColor(String v){ this.playerColor = v; }
+    public PlayerSide getPlayerColor() { return playerColor; }
+    public void setPlayerColor(PlayerSide v) { this.playerColor = v; }
     public String getOpening()       { return opening; }
     public void setOpening(String v) { this.opening = v; }
     public String getThumbnailFen()  { return thumbnailFen; }
