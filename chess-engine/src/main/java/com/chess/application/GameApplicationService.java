@@ -142,6 +142,30 @@ public final class GameApplicationService {
     }
 
     // ----------------------------------------------------------------
+    // USE CASE — Session metadata (for save)
+    // ----------------------------------------------------------------
+
+    /** Returns the AI color for a session, or null for human-vs-human. */
+    public Color getAiColor(String gameId) {
+        return requireSession(gameId).aiColor();
+    }
+
+    /** Returns the number of moves played in the session. */
+    public int getMoveCount(String gameId) {
+        return requireSession(gameId).moveHistory().size();
+    }
+
+    // ----------------------------------------------------------------
+    // USE CASE — Undo the last move
+    // ----------------------------------------------------------------
+
+    public GameStateResponse undoLastMove(String gameId) {
+        GameSession session = requireSession(gameId);
+        session.undoLastMove();
+        return toResponse(session);
+    }
+
+    // ----------------------------------------------------------------
     // USE CASE 6 — Abandon / delete a game
     // ----------------------------------------------------------------
 

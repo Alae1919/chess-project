@@ -52,7 +52,7 @@ export class AuthService {
   }
 
   loadCurrentUser(): Observable<User> {
-    return this.http.get<User>(`${environment.apiUrl}/auth/me`).pipe(
+    return this.http.get<User>(`${environment.apiUrl}/users/me`).pipe(
       tap((user) => this.currentUserSubject.next(user))
     );
   }

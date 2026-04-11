@@ -76,4 +76,17 @@ public final class UserDto {
         Boolean enableUndo,
         Boolean realTimeAnalysis
     ) {}
+
+    // PATCH /me — all fields optional
+    public record UpdateProfileRequest(
+        @Size(min = 3, max = 50) String username,
+        String country,
+        String avatarUrl
+    ) {}
+
+    // POST /me/change-password
+    public record ChangePasswordRequest(
+        @NotBlank String oldPassword,
+        @NotBlank @Size(min = 6) String newPassword
+    ) {}
 }

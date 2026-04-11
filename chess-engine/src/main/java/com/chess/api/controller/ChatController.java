@@ -3,6 +3,7 @@ package com.chess.api.controller;
 import com.chess.api.dto.ChatDto;
 import com.chess.application.ChatService;
 import com.chess.application.UserService;
+import com.chess.infrastructure.websocket.WebSocketSessionManager;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -18,12 +19,15 @@ import java.util.UUID;
 @Tag(name = "Chat", description = "In-game chat messages")
 public class ChatController {
 
-    private final ChatService chatService;
-    private final UserService userService;
+    private final ChatService             chatService;
+    private final UserService             userService;
+    private final WebSocketSessionManager wsManager;
 
-    public ChatController(ChatService chatService, UserService userService) {
+    public ChatController(ChatService chatService, UserService userService,
+                          WebSocketSessionManager wsManager) {
         this.chatService = chatService;
         this.userService = userService;
+        this.wsManager   = wsManager;
     }
 
     @GetMapping
@@ -39,6 +43,8 @@ public class ChatController {
             @Valid @RequestBody ChatDto.SendMessageRequest req,
             @AuthenticationPrincipal UserDetails userDetails) {
         UUID userId = userService.getUserIdByUsername(userDetails.getUsername());
-        return chatService.send(gameId, userId, userDetails.getUsername(), req.content());
+        var message = chatService.send(gameId, userId, userDetails.getUsername(), req.content());
+        wsManager.broadcast(gameId.toString(), "CHAT_MESSAGE", message);
+        return message;
     }
 }

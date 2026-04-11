@@ -104,6 +104,7 @@ export interface Game {
   fullMoveNumber: number;
   result?: GameResult;
   opening?: string;
+  fen?: string;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -27,7 +27,7 @@ export const gameReducer = createReducer(
   })),
 
   on(GameActions.loadLegalMovesSuccess, (state, { squares }) => ({
-    ...state, legalMoves: squares,
+    ...state, legalMoves: squares ?? [],
   })),
 
   on(GameActions.submitMove, (state) => ({

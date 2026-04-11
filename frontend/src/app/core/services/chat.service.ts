@@ -10,13 +10,11 @@ import { ChatMessage } from '../models';
 @Injectable({ providedIn: 'root' })
 export class ChatService {
   private http = inject(HttpClient);
-  private base = `${environment.apiUrl}/chat`;
-
   getMessages(gameId: string): Observable<ChatMessage[]> {
-    return this.http.get<ChatMessage[]>(`${this.base}/${gameId}`);
+    return this.http.get<ChatMessage[]>(`${environment.apiUrl}/games/${gameId}/chat`);
   }
 
   sendMessage(gameId: string, content: string): Observable<ChatMessage> {
-    return this.http.post<ChatMessage>(`${this.base}/${gameId}`, { content });
+    return this.http.post<ChatMessage>(`${environment.apiUrl}/games/${gameId}/chat`, { content });
   }
 }

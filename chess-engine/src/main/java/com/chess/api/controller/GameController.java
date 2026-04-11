@@ -2,6 +2,10 @@ package com.chess.api.controller;
 
 import com.chess.api.dto.*;
 import com.chess.application.*;
+import com.chess.domain.board.FenParser;
+import com.chess.engine.eval.Evaluator;
+import com.chess.engine.search.AlphaBetaSearch;
+import com.chess.infrastructure.websocket.WebSocketSessionManager;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -17,16 +21,21 @@ import java.util.UUID;
 @Tag(name = "Games", description = "Chess game lifecycle — create, move, resign, chat")
 public class GameController {
 
-    private final GameApplicationService engineService;
-    private final GamePersistenceService persistService;
-    private final UserService            userService;
+    private final GameApplicationService  engineService;
+    private final GamePersistenceService  persistService;
+    private final UserService             userService;
+    private final WebSocketSessionManager wsManager;
+    private final AlphaBetaSearch         search    = new AlphaBetaSearch();
+    private final Evaluator               evaluator = new Evaluator();
 
     public GameController(GameApplicationService engineService,
                           GamePersistenceService persistService,
-                          UserService userService) {
+                          UserService userService,
+                          WebSocketSessionManager wsManager) {
         this.engineService  = engineService;
         this.persistService = persistService;
         this.userService    = userService;
+        this.wsManager      = wsManager;
     }
 
     @PostMapping
@@ -63,14 +72,17 @@ public class GameController {
     public GameDto.Game submitMove(
             @PathVariable String gameId,
             @Valid @RequestBody GameDto.MoveRequest req) {
-        var resp = engineService.submitMove(gameId, req.move());
-        return toGameDto(resp);
+        var game = toGameDto(engineService.submitMove(gameId, req.move()));
+        wsManager.broadcast(gameId, game.result() != null ? "GAME_OVER" : "MOVE_MADE", game);
+        return game;
     }
 
     @PostMapping("/{gameId}/ai-move")
     @Operation(summary = "Let the AI play its move")
     public GameDto.Game playAiMove(@PathVariable String gameId) {
-        return toGameDto(engineService.playAiMove(gameId));
+        var game = toGameDto(engineService.playAiMove(gameId));
+        wsManager.broadcast(gameId, game.result() != null ? "GAME_OVER" : "MOVE_MADE", game);
+        return game;
     }
 
     @PostMapping("/{gameId}/resign")
@@ -78,7 +90,9 @@ public class GameController {
     public GameDto.Game resign(
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        return toGameDto(engineService.resign(gameId, userDetails.getUsername()));
+        var game = toGameDto(engineService.resign(gameId, userDetails.getUsername()));
+        wsManager.broadcast(gameId, "GAME_OVER", game);
+        return game;
     }
 
     @PostMapping("/{gameId}/draw-offer")
@@ -86,7 +100,42 @@ public class GameController {
     public GameDto.Game offerDraw(
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        return toGameDto(engineService.offerDraw(gameId, userDetails.getUsername()));
+        var game = toGameDto(engineService.offerDraw(gameId, userDetails.getUsername()));
+        wsManager.broadcast(gameId, "GAME_OVER", game);
+        return game;
+    }
+
+    @DeleteMapping("/{gameId}/moves/last")
+    @Operation(summary = "Undo the last move")
+    public GameDto.Game undoMove(@PathVariable String gameId) {
+        return toGameDto(engineService.undoLastMove(gameId));
+    }
+
+    @PostMapping("/{gameId}/save")
+    @Operation(summary = "Save the current game state")
+    public GameDto.SavedGame saveGame(
+            @PathVariable String gameId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        var state     = engineService.getGame(gameId);
+        int moveCount = engineService.getMoveCount(gameId);
+        var aiColor   = engineService.getAiColor(gameId);
+        UUID userId   = userService.getUserIdByUsername(userDetails.getUsername());
+        return persistService.saveCurrentGame(
+            gameId, state.fen(), moveCount, aiColor, userId, userDetails.getUsername());
+    }
+
+    @GetMapping("/{gameId}/evaluation")
+    @Operation(summary = "Evaluate the current position using the chess engine")
+    public EvaluationDto.PositionEvaluation evaluate(@PathVariable String gameId) {
+        String fen   = engineService.getGame(gameId).fen();
+        var    board = FenParser.parse(fen);
+        int    score = evaluator.evaluate(board, board.activeColor());
+        var    best  = search.findBestMove(board, 4);
+        return new EvaluationDto.PositionEvaluation(
+            score, 4,
+            best.map(Object::toString).orElse(null),
+            null
+        );
     }
 
     @DeleteMapping("/{gameId}")

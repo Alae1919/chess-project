@@ -88,7 +88,7 @@ export class ChessBoardComponent implements OnInit {
     const piece = this.getPiece(sq, vm.board);
 
     if (vm.selected) {
-      const isLegal = vm.legalMoves.some((m: Square) => m.row === sq.row && m.col === sq.col);
+      const isLegal = (vm.legalMoves ?? []).some((m: Square) => m.row === sq.row && m.col === sq.col);
       if (isLegal) {
         // Dispatch move
         this.store.dispatch(
@@ -127,7 +127,7 @@ export class ChessBoardComponent implements OnInit {
   }
 
   isLegalMove(sq: Square, legalMoves: Square[]): boolean {
-    return legalMoves.some((m) => m.row === sq.row && m.col === sq.col);
+    return (legalMoves ?? []).some((m) => m.row === sq.row && m.col === sq.col);
   }
 
   hasPiece(sq: Square, board: any): boolean {

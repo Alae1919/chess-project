@@ -2,10 +2,10 @@ package com.chess.api.controller;
 
 import com.chess.api.dto.*;
 import com.chess.application.*;
-//import com.chess.security.CurrentUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
@@ -30,6 +30,14 @@ public class UserController {
     @Operation(summary = "Get the full profile of the authenticated user")
     public UserDto.User getMe(@AuthenticationPrincipal UserDetails userDetails) {
         return userService.getFullProfile(extractId(userDetails));
+    }
+
+    @PatchMapping("/me")
+    @Operation(summary = "Update username, country, or avatar URL")
+    public UserDto.User updateProfile(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody UserDto.UpdateProfileRequest req) {
+        return userService.updateProfile(extractId(userDetails), req);
     }
 
     @PatchMapping("/me/preferences")
@@ -71,6 +79,22 @@ public class UserController {
             result.getContent(), page, size,
             result.getTotalElements(), result.getTotalPages()
         );
+    }
+
+    @PostMapping("/me/change-password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Change the authenticated user's password")
+    public void changePassword(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody UserDto.ChangePasswordRequest req) {
+        userService.changePassword(extractId(userDetails), req);
+    }
+
+    @DeleteMapping("/me")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Delete the authenticated user's account")
+    public void deleteAccount(@AuthenticationPrincipal UserDetails userDetails) {
+        userService.deleteAccount(extractId(userDetails));
     }
 
     // ── Saved games ──────────────────────────────────────────────────────────

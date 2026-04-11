@@ -38,13 +38,13 @@ export class AccountService {
   }
 
   changePassword(oldPassword: string, newPassword: string): Observable<void> {
-    return this.http.post<void>(`${environment.apiUrl}/account/change-password`, {
+    return this.http.post<void>(`${environment.apiUrl}/users/me/change-password`, {
       oldPassword,
       newPassword,
     });
   }
 
   deleteAccount(): Observable<void> {
-    return this.http.delete<void>(`${environment.apiUrl}/account`);
+    return this.http.delete<void>(`${environment.apiUrl}/users/me`);
   }
 }

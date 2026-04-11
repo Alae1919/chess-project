@@ -5,8 +5,10 @@ import com.chess.domain.model.Color;
 import com.chess.domain.rules.GameStateChecker;
 
 import java.time.Instant;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
 
 /**
@@ -24,20 +26,22 @@ public final class GameSession {
     private final String id;
     private final Instant createdAt;
     private Board board;
-    private final List<String> moveHistory;
+    private final List<String>  moveHistory;
+    private final Deque<Board>  boardHistory;
     private final Color aiColor;   // null = no AI
     private final int   aiDepth;
     private GameStateChecker.State state;
 
     public GameSession(String id, Board initialBoard,
                        Color aiColor, int aiDepth) {
-        this.id          = id;
-        this.board       = initialBoard;
-        this.aiColor     = aiColor;
-        this.aiDepth     = aiDepth;
-        this.moveHistory = new ArrayList<>();
-        this.createdAt   = Instant.now();
-        this.state       = GameStateChecker.evaluate(board, board.activeColor());
+        this.id           = id;
+        this.board        = initialBoard;
+        this.aiColor      = aiColor;
+        this.aiDepth      = aiDepth;
+        this.moveHistory  = new ArrayList<>();
+        this.boardHistory = new ArrayDeque<>();
+        this.createdAt    = Instant.now();
+        this.state        = GameStateChecker.evaluate(board, board.activeColor());
     }
 
     // ---- Mutation (called only from GameApplicationService) -----------
@@ -45,8 +49,19 @@ public final class GameSession {
     public void applyMove(com.chess.domain.model.Move move) {
         if (isOver())
             throw new IllegalStateException("Cannot apply move: game is over");
+        boardHistory.push(board);
         moveHistory.add(move.toString());
         board = board.apply(move);
+        state = GameStateChecker.evaluate(board, board.activeColor());
+    }
+
+    /** Reverts the last move. Throws if no move has been played yet. */
+    public void undoLastMove() {
+        if (boardHistory.isEmpty())
+            throw new IllegalStateException("No moves to undo");
+        board = boardHistory.pop();
+        if (!moveHistory.isEmpty())
+            moveHistory.remove(moveHistory.size() - 1);
         state = GameStateChecker.evaluate(board, board.activeColor());
     }
 

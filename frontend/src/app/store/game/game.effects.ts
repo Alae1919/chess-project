@@ -107,10 +107,7 @@ export class GameEffects {
       filter(([, game]) => !!game),
       switchMap(([, game]) =>
         this.gameService.getAiMove(game!.id).pipe(
-          map((move) => {
-            // AI move is returned; trigger submitMove to let backend apply it
-            return GameActions.submitMove({ move });
-          }),
+          map((updatedGame) => GameActions.submitMoveSuccess({ game: updatedGame })),
           catchError(() => of(GameActions.createGameFailure({ error: 'AI move failed' })))
         )
       )

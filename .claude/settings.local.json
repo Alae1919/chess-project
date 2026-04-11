@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep:*)",
+      "Bash(dir \"c:\\\\Users\\\\elhao\\\\Desktop\\\\chess-project\\\\frontend\\\\node_modules\")",
+      "Bash(cmd /c \"dir c:\\\\Users\\\\elhao\\\\Desktop\\\\chess-project\\\\frontend\\\\node_modules 2>&1\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(npm install:*)"
+    ]
+  }
+}

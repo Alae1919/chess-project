@@ -144,6 +144,26 @@ public class GamePersistenceService {
             .stream().map(this::toSavedGameDto).toList();
     }
 
+    @Transactional
+    public GameDto.SavedGame saveCurrentGame(String engineGameId, String fen, int moveCount,
+                                              com.chess.domain.model.Color aiColor,
+                                              UUID userId, String username) {
+        var sg = new com.chess.persistence.entity.SavedGameEntity();
+        sg.setGameId(UUID.fromString(engineGameId));
+        sg.setUserId(userId);
+
+        boolean userIsWhite = aiColor == null || aiColor != com.chess.domain.model.Color.WHITE;
+        sg.setPlayerColor(userIsWhite
+            ? com.chess.persistence.entity.DatabaseEnums.PlayerSide.white
+            : com.chess.persistence.entity.DatabaseEnums.PlayerSide.black);
+        sg.setOpponentName(aiColor != null ? "AI" : "Opponent");
+        sg.setMode(com.chess.persistence.entity.DatabaseEnums.GameMode.ai);
+        sg.setTurnNumber(moveCount);
+        sg.setThumbnailFen(fen);
+        savedGameRepo.save(sg);
+        return toSavedGameDto(sg);
+    }
+
     public void deleteSavedGame(UUID savedGameId, UUID userId) {
         var sg = savedGameRepo.findById(savedGameId)
             .orElseThrow(() -> new EntityNotFoundException("Saved game not found"));
