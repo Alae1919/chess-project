@@ -19,8 +19,10 @@ import java.util.UUID;
 @Table(name = "games")
 public class GameEntity {
 
-    @Id @GeneratedValue(strategy = GenerationType.UUID)
+    @Id
+    @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
+
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, columnDefinition = "game_mode")
@@ -123,6 +125,7 @@ public class GameEntity {
 
     // ── Getters / Setters ─────────────────────────────────────────────────────
     public UUID getId()                          { return id; }
+    public void setId(UUID id)                  {this.id = id;}
     public GameMode getMode()                  { return mode; }
     public void setMode(GameMode v)            { this.mode = v; }
     public GameStatus getStatus()              { return status; }

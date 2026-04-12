@@ -32,11 +32,16 @@ export class GameEffects {
     )
   );
 
-  navigateAfterCreate$ = createEffect(
+  navigateAfterCreateOrLoad$ = createEffect(
     () =>
       this.actions$.pipe(
-        ofType(GameActions.createGameSuccess),
-        tap(({ game }) => this.router.navigate(['/game', game.id]))
+        ofType(GameActions.createGameSuccess, GameActions.loadGameSuccess),
+        tap(({ game }) => {
+          const targetUrl = `/game/${game.id}`;
+          if (this.router.url !== targetUrl) {
+            this.router.navigate(['/game', game.id]);
+          }
+        })
       ),
     { dispatch: false }
   );

@@ -202,6 +202,7 @@ export interface GameOptions {
 
 export interface SavedGame {
   id: string;
+  gameId: string;
   opponentName: string;
   mode: GameMode;
   turnNumber: number;

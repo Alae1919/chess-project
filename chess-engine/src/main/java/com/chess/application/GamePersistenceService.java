@@ -51,6 +51,8 @@ public class GamePersistenceService {
     public void persistNewGame(String gameId, GameDto.CreateGameRequest req,
                                UUID userId, String username) {
         var entity = new GameEntity();
+
+        entity.setId(UUID.fromString(gameId)); 
         entity.setMode(GameMode.valueOf(req.mode()));
         entity.setStatus(GameStatus.active);
         entity.setCurrentTurn(PlayerSide.white);
@@ -148,19 +150,29 @@ public class GamePersistenceService {
     public GameDto.SavedGame saveCurrentGame(String engineGameId, String fen, int moveCount,
                                               com.chess.domain.model.Color aiColor,
                                               UUID userId, String username) {
-        var sg = new com.chess.persistence.entity.SavedGameEntity();
-        sg.setGameId(UUID.fromString(engineGameId));
-        sg.setUserId(userId);
+        UUID gameId = UUID.fromString(engineGameId);
+        SavedGameEntity sg = savedGameRepo.findByGameIdAndUserId(gameId, userId)
+            .orElseGet(() -> {
+                               SavedGameEntity newSg = new SavedGameEntity();
+                newSg.setGameId(gameId);
+                newSg.setUserId(userId);
+                newSg.setMode(com.chess.persistence.entity.DatabaseEnums.GameMode.ai);
+                
+                boolean userIsWhite = aiColor == null || aiColor != com.chess.domain.model.Color.WHITE;
+                newSg.setPlayerColor(userIsWhite
+                    ? com.chess.persistence.entity.DatabaseEnums.PlayerSide.white
+                    : com.chess.persistence.entity.DatabaseEnums.PlayerSide.black);
+                
+                newSg.setOpponentName(aiColor != null ? "AI" : "Opponent");
+                return newSg;
+            });                                            
 
-        boolean userIsWhite = aiColor == null || aiColor != com.chess.domain.model.Color.WHITE;
-        sg.setPlayerColor(userIsWhite
-            ? com.chess.persistence.entity.DatabaseEnums.PlayerSide.white
-            : com.chess.persistence.entity.DatabaseEnums.PlayerSide.black);
-        sg.setOpponentName(aiColor != null ? "AI" : "Opponent");
         sg.setMode(com.chess.persistence.entity.DatabaseEnums.GameMode.ai);
         sg.setTurnNumber(moveCount);
         sg.setThumbnailFen(fen);
+
         savedGameRepo.save(sg);
+
         return toSavedGameDto(sg);
     }
 
@@ -222,7 +234,7 @@ public class GamePersistenceService {
 
     private GameDto.SavedGame toSavedGameDto(SavedGameEntity s) {
         return new GameDto.SavedGame(
-            s.getId().toString(), s.getOpponentName(), s.getMode().name(),
+            s.getId().toString(),s.getGameId().toString(), s.getOpponentName(), s.getMode().name(),
             s.getTurnNumber(), s.getPlayerColor().name(),
             s.getOpening(), s.getSavedAt(), s.getThumbnailFen()
         );

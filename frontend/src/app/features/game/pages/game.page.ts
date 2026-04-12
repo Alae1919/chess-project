@@ -46,19 +46,29 @@ export class GamePage implements OnInit, OnDestroy {
     aiThinking:   this.store.select(selectIsAiThinking),
   });
 
-  chatInput = '';
+  chatInput     = '';
+  leftOpen      = true;
+  rightOpen     = true;
+  mobileChatOpen = false;
 
   ngOnInit(): void {
+    const mobile = window.innerWidth <= 768;
+    this.leftOpen  = !mobile;
+    this.rightOpen = !mobile;
+
     if (this.id) {
       this.store.dispatch(GameActions.loadGame({ gameId: this.id }));
     }
-    // Fetch user ID for the chat UI
     this.sub.add(
       this.store.select(selectUser).subscribe(user => {
         this.currentUserId = user?.id;
       })
     );
   }
+
+  toggleLeft():       void { this.leftOpen      = !this.leftOpen; }
+  toggleRight():      void { this.rightOpen     = !this.rightOpen; }
+  toggleMobileChat(): void { this.mobileChatOpen = !this.mobileChatOpen; }
 
   ngOnDestroy(): void {
     this.store.dispatch(GameActions.resetGame());

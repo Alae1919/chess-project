@@ -1,169 +1,243 @@
 <!-- src/app/features/game/pages/game.page.html -->
-<div class="game-layout" *ngIf="vm$ | async as vm">
+<div class="game-layout"
+     [class.game-layout--left-collapsed]="!leftOpen"
+     [class.game-layout--right-collapsed]="!rightOpen"
+     *ngIf="vm$ | async as vm">
 
-  <!-- ── LEFT PANEL ───────────────────────────────────────────────── -->
-  <aside class="game-left">
+  <!-- ── LEFT PANEL (desktop only) ────────────────────────────────── -->
+  <aside class="game-left" [class.game-left--collapsed]="!leftOpen">
 
-    <!-- Black player -->
-    <div class="player-bar" [class.player-bar--active]="vm.game?.currentTurn === 'black'">
-      <div class="player-bar__avatar player-bar__avatar--black">
-        <span *ngIf="!vm.black?.isAi">{{ vm.black?.username?.slice(0,2)?.toUpperCase() }}</span>
-        <span *ngIf="vm.black?.isAi">🤖</span>
-      </div>
-      <div class="player-bar__info">
-        <div class="player-bar__name">{{ vm.black?.username }}</div>
-        <div class="player-bar__sub" *ngIf="vm.black?.isAi">
-          Niveau {{ vm.black?.aiDifficulty }}/6
+    <button class="panel-tab panel-tab--left" (click)="toggleLeft()" [title]="leftOpen ? 'Réduire' : 'Ouvrir'">
+      <span class="panel-tab__icon">{{ leftOpen ? '◀' : '▶' }}</span>
+    </button>
+
+    <div class="panel-body" *ngIf="leftOpen">
+
+      <!-- Black player -->
+      <div class="player-bar" [class.player-bar--active]="vm.game?.currentTurn === 'black'">
+        <div class="player-bar__avatar player-bar__avatar--black">
+          <span *ngIf="!vm.black?.isAi">{{ vm.black?.username?.slice(0,2)?.toUpperCase() }}</span>
+          <span *ngIf="vm.black?.isAi">🤖</span>
         </div>
-        <div class="player-bar__sub" *ngIf="!vm.black?.isAi && vm.black?.elo">
-          ELO {{ vm.black?.elo }}
+        <div class="player-bar__info">
+          <div class="player-bar__name">{{ vm.black?.username }}</div>
+          <div class="player-bar__sub" *ngIf="vm.black?.isAi">Niveau {{ vm.black?.aiDifficulty }}/6</div>
+          <div class="player-bar__sub" *ngIf="!vm.black?.isAi && vm.black?.elo">ELO {{ vm.black?.elo }}</div>
+          <div class="player-bar__captures">
+            <span *ngFor="let p of vm.black?.capturedPieces">{{ getPieceSym(p) }}</span>
+          </div>
         </div>
-        <div class="player-bar__captures">
-          <span *ngFor="let p of vm.black?.capturedPieces">{{ getPieceSym(p) }}</span>
-        </div>
-      </div>
-      <div class="player-bar__timer" [class.player-bar__timer--running]="vm.game?.currentTurn === 'black'">
-        {{ formatTime(vm.black?.timeRemainingMs ?? 0) }}
-      </div>
-    </div>
-
-    <!-- Evaluation bar -->
-    <div class="eval-bar-wrap" *ngIf="vm.evaluation">
-      <div class="eval-bar-labels">
-        <span>Évaluation</span>
-        <span [class.eval-pos]="vm.evaluation.score > 0" [class.eval-neg]="vm.evaluation.score < 0">
-          {{ vm.evaluation.score > 0 ? '+' : '' }}{{ (vm.evaluation.score / 100).toFixed(1) }}
-        </span>
-      </div>
-      <div class="eval-bar">
-        <div class="eval-bar__fill" [style.width.%]="evalPercent(vm.evaluation.score)"></div>
-      </div>
-    </div>
-
-    <!-- AI thinking indicator -->
-    <div class="ai-thinking" *ngIf="vm.aiThinking">
-      <div class="ai-thinking__dots">
-        <span></span><span></span><span></span>
-      </div>
-      <span>L'IA réfléchit…</span>
-    </div>
-
-    <!-- Action buttons -->
-    <div class="action-section">
-      <p class="action-section__label">Actions</p>
-      <div class="action-grid">
-        <button class="action-btn" (click)="undo()" title="Annuler le dernier coup">↩ Annuler</button>
-        <button class="action-btn" title="Retourner l'échiquier">⇅ Retourner</button>
-        <button class="action-btn" (click)="save()" title="Sauvegarder">💾 Sauvegarder</button>
-        <button class="action-btn" (click)="offerDraw()" title="Proposer la nulle">🤝 Nulle</button>
-        <button class="action-btn action-btn--danger action-btn--full" (click)="resign()">
-          🏳 Abandonner la partie
-        </button>
-      </div>
-    </div>
-
-    <div class="spacer"></div>
-
-    <!-- White player -->
-    <div class="player-bar" [class.player-bar--active]="vm.game?.currentTurn === 'white'">
-      <div class="player-bar__avatar player-bar__avatar--white">
-        {{ vm.white?.username?.slice(0,2)?.toUpperCase() }}
-      </div>
-      <div class="player-bar__info">
-        <div class="player-bar__name">{{ vm.white?.username }}</div>
-        <div class="player-bar__sub" *ngIf="vm.white?.elo">ELO {{ vm.white?.elo }}</div>
-        <div class="player-bar__captures">
-          <span *ngFor="let p of vm.white?.capturedPieces">{{ getPieceSym(p) }}</span>
+        <div class="player-bar__timer" [class.player-bar__timer--running]="vm.game?.currentTurn === 'black'">
+          {{ formatTime(vm.black?.timeRemainingMs ?? 0) }}
         </div>
       </div>
-      <div class="player-bar__timer" [class.player-bar__timer--running]="vm.game?.currentTurn === 'white'">
-        {{ formatTime(vm.white?.timeRemainingMs ?? 0) }}
+
+      <!-- Evaluation bar -->
+      <div class="eval-bar-wrap" *ngIf="vm.evaluation">
+        <div class="eval-bar-labels">
+          <span>Évaluation</span>
+          <span [class.eval-pos]="vm.evaluation.score > 0" [class.eval-neg]="vm.evaluation.score < 0">
+            {{ vm.evaluation.score > 0 ? '+' : '' }}{{ (vm.evaluation.score / 100).toFixed(1) }}
+          </span>
+        </div>
+        <div class="eval-bar">
+          <div class="eval-bar__fill" [style.width.%]="evalPercent(vm.evaluation.score)"></div>
+        </div>
       </div>
+
+      <!-- AI thinking -->
+      <div class="ai-thinking" *ngIf="vm.aiThinking">
+        <div class="ai-thinking__dots"><span></span><span></span><span></span></div>
+        <span>L'IA réfléchit…</span>
+      </div>
+
+      <!-- Actions -->
+      <div class="action-section">
+        <p class="action-section__label">Actions</p>
+        <div class="action-grid">
+          <button class="action-btn" (click)="undo()">↩ Annuler</button>
+          <button class="action-btn">⇅ Retourner</button>
+          <button class="action-btn" (click)="save()">💾 Sauvegarder</button>
+          <button class="action-btn" (click)="offerDraw()">🤝 Nulle</button>
+          <button class="action-btn action-btn--danger action-btn--full" (click)="resign()">
+            🏳 Abandonner
+          </button>
+        </div>
+      </div>
+
+      <div class="spacer"></div>
+
+      <!-- White player -->
+      <div class="player-bar" [class.player-bar--active]="vm.game?.currentTurn === 'white'">
+        <div class="player-bar__avatar player-bar__avatar--white">
+          {{ vm.white?.username?.slice(0,2)?.toUpperCase() }}
+        </div>
+        <div class="player-bar__info">
+          <div class="player-bar__name">{{ vm.white?.username }}</div>
+          <div class="player-bar__sub" *ngIf="vm.white?.elo">ELO {{ vm.white?.elo }}</div>
+          <div class="player-bar__captures">
+            <span *ngFor="let p of vm.white?.capturedPieces">{{ getPieceSym(p) }}</span>
+          </div>
+        </div>
+        <div class="player-bar__timer" [class.player-bar__timer--running]="vm.game?.currentTurn === 'white'">
+          {{ formatTime(vm.white?.timeRemainingMs ?? 0) }}
+        </div>
+      </div>
+
     </div>
   </aside>
 
-  <!-- ── BOARD ─────────────────────────────────────────────────────── -->
+  <!-- ── BOARD CENTER ───────────────────────────────────────────────── -->
   <div class="game-center">
     <app-chess-board />
 
-    <!-- Status bar -->
-    <div class="status-bar" *ngIf="vm.game?.status === 'active'">
+    <!-- Status bar (desktop / tablet) -->
+    <div class="status-bar status-bar--desktop" *ngIf="vm.game?.status === 'active'">
       <div class="status-bar__dot"></div>
       Tour {{ vm.game?.fullMoveNumber }} ·
       {{ vm.game?.currentTurn === 'white' ? 'Blancs' : 'Noirs' }} jouent
       <span *ngIf="vm.game?.opening"> · {{ vm.game?.opening }}</span>
     </div>
-
-    <div class="status-bar status-bar--finished" *ngIf="vm.game?.status === 'finished'">
+    <div class="status-bar status-bar--finished status-bar--desktop" *ngIf="vm.game?.status === 'finished'">
       Partie terminée — {{ getResultLabel(vm.game?.result) }}
     </div>
-  </div>
 
-  <!-- ── RIGHT PANEL ───────────────────────────────────────────────── -->
-  <aside class="game-right">
-
-    <!-- Notation -->
-    <div class="right-section right-section--notation">
-      <div class="right-section__header">
-        <span class="right-section__title">Notation</span>
-        <span class="tag tag--em">Coup {{ vm.game?.fullMoveNumber }}</span>
+    <!-- ── MOBILE PLAYER STRIP (hidden on desktop) ─────────────────── -->
+    <div class="mobile-player-strip">
+      <!-- Black (left) -->
+      <div class="mobile-player" [class.mobile-player--active]="vm.game?.currentTurn === 'black'">
+        <div class="mobile-player__avatar mobile-player__avatar--black">
+          <span *ngIf="!vm.black?.isAi">{{ vm.black?.username?.slice(0,2)?.toUpperCase() }}</span>
+          <span *ngIf="vm.black?.isAi">🤖</span>
+        </div>
+        <span class="mobile-player__name">{{ vm.black?.username }}</span>
+        <span class="mobile-player__timer"
+              [class.mobile-player__timer--running]="vm.game?.currentTurn === 'black'">
+          {{ formatTime(vm.black?.timeRemainingMs ?? 0) }}
+        </span>
       </div>
-      <div class="notation-scroll">
-        <table class="notation-table">
-          <tbody>
-            <tr *ngFor="let grp of moveGroups(vm.moves)">
-              <td class="notation-table__num">{{ grp.num }}.</td>
-              <td class="notation-table__mv" [class.notation-table__mv--last]="!grp.black && grp.white">
-                {{ grp.white }}
-              </td>
-              <td class="notation-table__mv" [class.notation-table__mv--last]="grp.black && !moveGroups(vm.moves)[grp.num]">
-                {{ grp.black }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- White (right) -->
+      <div class="mobile-player" [class.mobile-player--active]="vm.game?.currentTurn === 'white'">
+        <span class="mobile-player__timer"
+              [class.mobile-player__timer--running]="vm.game?.currentTurn === 'white'">
+          {{ formatTime(vm.white?.timeRemainingMs ?? 0) }}
+        </span>
+        <span class="mobile-player__name mobile-player__name--right">{{ vm.white?.username }}</span>
+        <div class="mobile-player__avatar mobile-player__avatar--white">
+          {{ vm.white?.username?.slice(0,2)?.toUpperCase() }}
+        </div>
       </div>
     </div>
 
-    <!-- Opening info -->
-    <div class="right-section" *ngIf="vm.game?.opening">
-      <div class="right-section__header">
-        <span class="right-section__title">Ouverture</span>
-      </div>
-      <div class="opening-info">
-        <div class="opening-info__name">{{ vm.game?.opening }}</div>
-      </div>
+    <!-- ── MOBILE ACTION BAR (hidden on desktop) ────────────────────── -->
+    <div class="mobile-action-bar">
+      <button class="mobile-action-btn" (click)="undo()" title="Annuler">↩</button>
+      <button class="mobile-action-btn" title="Retourner">⇅</button>
+      <button class="mobile-action-btn" (click)="save()" title="Sauvegarder">💾</button>
+      <button class="mobile-action-btn" (click)="offerDraw()" title="Nulle">🤝</button>
+      <button class="mobile-action-btn mobile-action-btn--danger" (click)="resign()" title="Abandonner">🏳</button>
+      <button class="mobile-action-btn mobile-action-btn--chat"
+              [class.mobile-action-btn--chat-open]="mobileChatOpen"
+              (click)="toggleMobileChat()" title="Chat">💬</button>
     </div>
 
-    <!-- Chat -->
-    <div class="right-section right-section--chat">
-      <div class="right-section__header">
-        <span class="right-section__title">Chat</span>
-        <span class="tag tag--em">En ligne</span>
+    <!-- ── MOBILE CHAT OVERLAY (slides up over board) ───────────────── -->
+    <div class="mobile-chat" [class.mobile-chat--open]="mobileChatOpen">
+      <div class="mobile-chat__header">
+        <span>Chat</span>
+        <button (click)="toggleMobileChat()">✕</button>
       </div>
-      <div class="chat-messages" #chatContainer>
-        <div
-          class="chat-msg"
-          *ngFor="let msg of vm.chat"
-          [class.chat-msg--me]="msg.senderId === currentUserId"
-        >
-          <span class="chat-msg__from" [class.chat-msg__from--me]="msg.senderId === currentUserId">
+      <div class="mobile-chat__messages">
+        <div class="chat-msg"
+             *ngFor="let msg of vm.chat"
+             [class.chat-msg--me]="msg.senderId === currentUserId">
+          <span class="chat-msg__from"
+                [class.chat-msg__from--me]="msg.senderId === currentUserId">
             {{ msg.senderUsername }}
           </span>
           <span class="chat-msg__text">{{ msg.content }}</span>
         </div>
       </div>
-      <div class="chat-input-row">
-        <input
-          class="chat-input"
-          [(ngModel)]="chatInput"
-          placeholder="Message…"
-          (keydown.enter)="sendChat()"
-        />
+      <div class="mobile-chat__input-row">
+        <input class="chat-input"
+               [(ngModel)]="chatInput"
+               placeholder="Message…"
+               (keydown.enter)="sendChat()" />
         <button class="chat-send" (click)="sendChat()">↑</button>
       </div>
     </div>
 
+  </div>
+
+  <!-- ── RIGHT PANEL (desktop only) ───────────────────────────────── -->
+  <aside class="game-right" [class.game-right--collapsed]="!rightOpen">
+
+    <button class="panel-tab panel-tab--right" (click)="toggleRight()" [title]="rightOpen ? 'Réduire' : 'Ouvrir'">
+      <span class="panel-tab__icon">{{ rightOpen ? '▶' : '◀' }}</span>
+    </button>
+
+    <div class="panel-body" *ngIf="rightOpen">
+
+      <!-- Notation -->
+      <div class="right-section right-section--notation">
+        <div class="right-section__header">
+          <span class="right-section__title">Notation</span>
+          <span class="tag tag--em">Coup {{ vm.game?.fullMoveNumber }}</span>
+        </div>
+        <div class="notation-scroll">
+          <table class="notation-table">
+            <tbody>
+              <tr *ngFor="let grp of moveGroups(vm.moves)">
+                <td class="notation-table__num">{{ grp.num }}.</td>
+                <td class="notation-table__mv" [class.notation-table__mv--last]="!grp.black && grp.white">
+                  {{ grp.white }}
+                </td>
+                <td class="notation-table__mv" [class.notation-table__mv--last]="grp.black && !moveGroups(vm.moves)[grp.num]">
+                  {{ grp.black }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Opening -->
+      <div class="right-section" *ngIf="vm.game?.opening">
+        <div class="right-section__header">
+          <span class="right-section__title">Ouverture</span>
+        </div>
+        <div class="opening-info">
+          <div class="opening-info__name">{{ vm.game?.opening }}</div>
+        </div>
+      </div>
+
+      <!-- Chat -->
+      <div class="right-section right-section--chat">
+        <div class="right-section__header">
+          <span class="right-section__title">Chat</span>
+          <span class="tag tag--em">En ligne</span>
+        </div>
+        <div class="chat-messages" #chatContainer>
+          <div class="chat-msg"
+               *ngFor="let msg of vm.chat"
+               [class.chat-msg--me]="msg.senderId === currentUserId">
+            <span class="chat-msg__from"
+                  [class.chat-msg__from--me]="msg.senderId === currentUserId">
+              {{ msg.senderUsername }}
+            </span>
+            <span class="chat-msg__text">{{ msg.content }}</span>
+          </div>
+        </div>
+        <div class="chat-input-row">
+          <input class="chat-input"
+                 [(ngModel)]="chatInput"
+                 placeholder="Message…"
+                 (keydown.enter)="sendChat()" />
+          <button class="chat-send" (click)="sendChat()">↑</button>
+        </div>
+      </div>
+
+    </div>
   </aside>
 </div>
 

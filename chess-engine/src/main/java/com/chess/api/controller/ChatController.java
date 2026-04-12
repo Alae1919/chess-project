@@ -42,6 +42,8 @@ public class ChatController {
             @PathVariable UUID gameId,
             @Valid @RequestBody ChatDto.SendMessageRequest req,
             @AuthenticationPrincipal UserDetails userDetails) {
+        // add logs here for debugging
+        System.out.println("Sending chat message for game: " + gameId);
         UUID userId = userService.getUserIdByUsername(userDetails.getUsername());
         var message = chatService.send(gameId, userId, userDetails.getUsername(), req.content());
         wsManager.broadcast(gameId.toString(), "CHAT_MESSAGE", message);

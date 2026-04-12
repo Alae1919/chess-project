@@ -96,6 +96,7 @@ public final class GameDto {
 
     public record SavedGame(
         String  id,
+        String  gameId,
         String  opponentName,
         String  mode,
         int     turnNumber,

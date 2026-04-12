@@ -74,7 +74,7 @@
         <div
           class="saved-item"
           *ngFor="let sg of savedGames$ | async"
-          (click)="loadSaved(sg.id)"
+          (click)="loadSaved(sg.gameId)"
         >
           <span class="saved-item__thumb">♟</span>
           <div class="saved-item__info">
