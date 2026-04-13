@@ -113,10 +113,23 @@ export class GameEffects {
       filter(([, game]) => !!game),
       switchMap(([, game]) =>
         this.gameService.getAiMove(game!.id).pipe(
-          map((updatedGame) => GameActions.submitMoveSuccess({ game: updatedGame })),
+          map((updatedGame) => GameActions.aIMoveSuccess({ game: updatedGame })),
           catchError(() => of(GameActions.createGameFailure({ error: 'AI move failed' })))
         )
       )
+    )
+  );
+
+  triggerAiMove$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(GameActions.submitMoveSuccess, GameActions.createGameSuccess, GameActions.loadGameSuccess),
+      filter(({ game }) => {
+        const isAiTurn =
+          (game.playerWhite?.isAi && game.currentTurn === 'white') ||
+          (game.playerBlack?.isAi && game.currentTurn === 'black');
+        return !!isAiTurn && isPlayableStatus(game.status);
+      }),
+      map(() => GameActions.requestAIMove())
     )
   );
 
