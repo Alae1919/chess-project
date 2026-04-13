@@ -13,6 +13,7 @@ import {
 } from '../../../store/game/game.selectors';
 import { GameActions } from '../../../store/game/game.actions';
 import { Piece, PieceColor, PieceType, Square } from '../../../core/models';
+import { isPlayableStatus } from '../../../core/utils/game-status.utils';
 
 const UNICODE_PIECES: Record<PieceColor, Record<PieceType, string>> = {
   white: { king: '♔', queen: '♕', rook: '♖', bishop: '♗', knight: '♘', pawn: '♙' },
@@ -83,7 +84,7 @@ export class ChessBoardComponent implements OnInit {
   ngOnInit(): void {}
 
   onSquareClick(sq: Square, vm: any): void {
-    if (!vm.game || vm.game.status !== 'active') return;
+    if (!vm.game || !isPlayableStatus(vm.game.status)) return;
 
     const piece = this.getPiece(sq, vm.board);
 
@@ -148,7 +149,7 @@ export class ChessBoardComponent implements OnInit {
     return (
       piece?.type === 'king' &&
       piece.color === vm.currentTurn &&
-      vm.game?.status === 'active' // extend: add inCheck flag from backend
+      vm.game?.status === 'check'
     );
   }
 }

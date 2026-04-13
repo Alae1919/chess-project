@@ -92,13 +92,13 @@
     <app-chess-board />
 
     <!-- Status bar (desktop / tablet) -->
-    <div class="status-bar status-bar--desktop" *ngIf="vm.game?.status === 'active'">
+    <div class="status-bar status-bar--desktop" *ngIf="vm.game?.status === 'active' || vm.game?.status === 'check'">
       <div class="status-bar__dot"></div>
       Tour {{ vm.game?.fullMoveNumber }} ·
       {{ vm.game?.currentTurn === 'white' ? 'Blancs' : 'Noirs' }} jouent
       <span *ngIf="vm.game?.opening"> · {{ vm.game?.opening }}</span>
     </div>
-    <div class="status-bar status-bar--finished status-bar--desktop" *ngIf="vm.game?.status === 'finished'">
+    <div class="status-bar status-bar--finished status-bar--desktop" *ngIf="isTerminal(vm.game?.status)">
       Partie terminée — {{ getResultLabel(vm.game?.result) }}
     </div>
 

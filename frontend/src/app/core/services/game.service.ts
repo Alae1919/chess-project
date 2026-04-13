@@ -47,7 +47,13 @@ export class GameService {
 
   private mapStatus(s: string): GameStatus {
     const statusMap: Record<string, GameStatus> = {
-      ONGOING: 'active', WAITING: 'waiting', PAUSED: 'paused',
+      ONGOING: 'active',          CHECK: 'check',
+      CHECKMATE: 'checkmate',     STALEMATE: 'stalemate',
+      DRAW_50_MOVE: 'draw_50_move',
+      WHITE_RESIGNED: 'white_resigned',
+      BLACK_RESIGNED: 'black_resigned',
+      DRAW_AGREED: 'draw_agreed',
+      WAITING: 'waiting',  PAUSED: 'paused',
       FINISHED: 'finished', ABORTED: 'aborted',
     };
     return statusMap[s] ?? (s as GameStatus);
@@ -57,7 +63,7 @@ export class GameService {
     return { username: color === 'white' ? 'White' : 'Black', color, timeRemainingMs: 0, capturedPieces: [] };
   }
 
-  private mapGame(raw: any): Game {
+  mapGame(raw: any): Game {
     return {
       ...raw,
       board:       raw.board       ?? (raw.fen ? this.parseFen(raw.fen) : null),

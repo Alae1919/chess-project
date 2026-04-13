@@ -5,6 +5,7 @@ import { Store } from '@ngrx/store';
 import { interval, of } from 'rxjs';
 import { catchError, filter, map, switchMap, tap, withLatestFrom } from 'rxjs/operators';
 import { GameActions } from './game.actions';
+import { isPlayableStatus } from '../../core/utils/game-status.utils';
 import { selectCurrentGame, selectSelectedSquare } from './game.selectors';
 import { GameService } from '../../core/services/game.service';
 import { ChatService } from '../../core/services/chat.service';
@@ -66,11 +67,11 @@ export class GameEffects {
           this.wsService.connect(game.id);
           this.wsService.messages$.subscribe((event) => {
             if (event.type === 'MOVE_MADE')
-              this.store.dispatch(GameActions.receiveMove({ game: event.payload as any }));
+              this.store.dispatch(GameActions.receiveMove({ game: this.gameService.mapGame(event.payload) }));
             if (event.type === 'CHAT_MESSAGE')
               this.store.dispatch(GameActions.receiveChatMessage({ message: event.payload as any }));
             if (event.type === 'GAME_OVER')
-              this.store.dispatch(GameActions.gameOver({ game: event.payload as any }));
+              this.store.dispatch(GameActions.gameOver({ game: this.gameService.mapGame(event.payload) }));
           });
         })
       ),
@@ -189,7 +190,7 @@ export class GameEffects {
   timer$ = createEffect(() =>
     interval(1000).pipe(
       withLatestFrom(this.store.select(selectCurrentGame)),
-      filter(([, game]) => game?.status === 'active'),
+      filter(([, game]) => isPlayableStatus(game?.status)),
       map(() => GameActions.tickTimer())
     )
   );

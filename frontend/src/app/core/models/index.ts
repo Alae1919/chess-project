@@ -110,7 +110,10 @@ export interface Game {
 }
 
 export type GameMode = 'ai' | 'local' | 'online' | 'saved';
-export type GameStatus = 'waiting' | 'active' | 'paused' | 'finished' | 'aborted';
+export type GameStatus =
+  | 'waiting' | 'active' | 'check' | 'paused' | 'finished' | 'aborted'
+  | 'checkmate' | 'stalemate' | 'draw_50_move'
+  | 'white_resigned' | 'black_resigned' | 'draw_agreed';
 export type PieceColor = 'white' | 'black';
 
 export interface GamePlayer {

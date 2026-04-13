@@ -1,5 +1,6 @@
 // src/app/store/game/game.reducer.ts
 import { createReducer, on } from '@ngrx/store';
+import { isPlayableStatus } from '../../core/utils/game-status.utils';
 import { GameActions } from './game.actions';
 import { GameState, initialGameState } from './game.state';
 
@@ -75,7 +76,7 @@ export const gameReducer = createReducer(
   })),
 
   on(GameActions.tickTimer, (state) => {
-    if (!state.currentGame || state.currentGame.status !== 'active') return state;
+    if (!state.currentGame || !isPlayableStatus(state.currentGame.status)) return state;
     const game = state.currentGame;
     const isWhiteTurn = game.currentTurn === 'white';
     return {

@@ -11,6 +11,7 @@ import { combineLatest, Subscription } from 'rxjs'; // <-- Subscription added
 import { ChessBoardComponent } from '../../../shared/components/chess-board/chess-board.component';
 import { GameActions } from '../../../store/game/game.actions';
 import { selectUser } from '../../../store/account/account.reducer'; // <-- ADDED THIS
+import { isTerminalStatus } from '../../../core/utils/game-status.utils';
 import {
   selectCurrentGame,
   selectWhitePlayer,
@@ -35,6 +36,7 @@ export class GamePage implements OnInit, OnDestroy {
   private sub = new Subscription(); // To manage our current user subscription
 
   currentUserId?: string; // <-- ADDED THIS to fix 'currentUserId does not exist'
+  isTerminal = isTerminalStatus;
 
   vm$ = combineLatest({
     game:         this.store.select(selectCurrentGame),
