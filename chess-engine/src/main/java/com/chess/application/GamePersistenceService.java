@@ -392,7 +392,9 @@ public class GamePersistenceService {
             m.createdAt(),
             null,              // updatedAt — not cached (changes every move)
             engineState.fen(),
-            engineState.legalMoves());
+            engineState.legalMoves(),
+            engineState.moveHistory(),
+            engineState.lastMove());
     }
 
     private GameDto.Game buildFromEntity(GameEntity e, GameStateResponse engineState) {
@@ -427,7 +429,8 @@ public class GamePersistenceService {
             e.getHalfMoveClock(), e.getFullMoveNumber(),
             buildResult(engineState.status(), engineState.activeColor()),
             e.getOpening(), e.getCreatedAt(), e.getUpdatedAt(),
-            engineState.fen(), engineState.legalMoves());
+            engineState.fen(), engineState.legalMoves(),
+            engineState.moveHistory(), engineState.lastMove());
     }
 
     private GameMetadata buildMetadata(GameEntity e) {

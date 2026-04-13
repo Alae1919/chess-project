@@ -1,15 +1,20 @@
 package com.chess.infrastructure.api;
 
 import com.chess.ChessApplication;
+import com.chess.application.UserService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
@@ -26,25 +31,50 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest(classes = ChessApplication.class)
 @AutoConfigureMockMvc
+@WithMockUser(username = "user")
 @DisplayName("GameController Integration Tests")
 class GameControllerTest {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
+    @MockBean  UserService userService;
+
+    @BeforeEach
+    void stubUserService() {
+        // white_user_id / black_user_id are nullable FKs — null is valid
+        Mockito.when(userService.getUserIdByUsername(Mockito.anyString())).thenReturn(null);
+    }
 
     // ----------------------------------------------------------------
-    // Helper: create a game and return its ID
+    // Helpers
     // ----------------------------------------------------------------
 
+    /** Builds a minimal valid POST /api/games request body. */
+    private Map<String, Object> gameBody(String aiColor) {
+        Map<String, Object> tc   = Map.of("type", "unlimited", "initialMs", 0L, "incrementMs", 0L);
+        Map<String, Object> body = new LinkedHashMap<>();
+        if ("NONE".equals(aiColor)) {
+            body.put("mode", "local");
+            body.put("playerColor", "white");
+        } else {
+            body.put("mode", "ai");
+            // "BLACK" means AI plays black → human plays white
+            body.put("playerColor", "WHITE".equals(aiColor) ? "black" : "white");
+        }
+        body.put("aiDifficulty", 4);
+        body.put("timeControl", tc);
+        return body;
+    }
+
+    /** Creates a game and returns its ID. */
     private String createGame(String aiColor) throws Exception {
-        String body = json.writeValueAsString(Map.of("aiColor", aiColor));
         MvcResult result = mvc.perform(post("/api/games")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(body))
+                .content(json.writeValueAsString(gameBody(aiColor))))
             .andExpect(status().isCreated())
             .andReturn();
         return json.readTree(result.getResponse().getContentAsString())
-            .get("gameId").asText();
+            .get("id").asText();
     }
 
     private String createGameDefault() throws Exception {
@@ -64,32 +94,35 @@ class GameControllerTest {
         void createDefault() throws Exception {
             mvc.perform(post("/api/games")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("{}"))
+                    .content(json.writeValueAsString(gameBody("BLACK"))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.gameId").isNotEmpty())
-                .andExpect(jsonPath("$.activeColor").value("WHITE"))
+                .andExpect(jsonPath("$.id").isNotEmpty())
+                .andExpect(jsonPath("$.currentTurn").value("white"))
                 .andExpect(jsonPath("$.status").value("ONGOING"))
                 .andExpect(jsonPath("$.legalMoves", hasSize(20)))
                 .andExpect(jsonPath("$.moveHistory", hasSize(0)))
-                .andExpect(jsonPath("$.lastMove").doesNotExist());
+                .andExpect(jsonPath("$.lastMove").value(is(nullValue())));
         }
 
         @Test
-        @DisplayName("creates a game with no request body (all defaults)")
+        @DisplayName("creates a game with minimal body (all defaults)")
         void createNoBody() throws Exception {
-            mvc.perform(post("/api/games"))
+            mvc.perform(post("/api/games")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(gameBody("BLACK"))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.gameId").isNotEmpty());
+                .andExpect(jsonPath("$.id").isNotEmpty());
         }
 
         @Test
         @DisplayName("creates a game from a custom FEN")
         void createFromFen() throws Exception {
             String fen = "4k3/8/8/8/8/8/8/R3K3 w - - 0 1";
-            String body = json.writeValueAsString(Map.of("fen", fen));
+            Map<String, Object> body = new LinkedHashMap<>(gameBody("BLACK"));
+            body.put("fen", fen);
             mvc.perform(post("/api/games")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(body))
+                    .content(json.writeValueAsString(body)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.fen", startsWith("4k3")));
         }
@@ -97,31 +130,33 @@ class GameControllerTest {
         @Test
         @DisplayName("creates a human-vs-human game (aiColor=NONE)")
         void createHumanVsHuman() throws Exception {
-            String body = json.writeValueAsString(Map.of("aiColor", "NONE"));
             mvc.perform(post("/api/games")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(body))
+                    .content(json.writeValueAsString(gameBody("NONE"))))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.gameId").isNotEmpty());
+                .andExpect(jsonPath("$.id").isNotEmpty());
         }
 
         @Test
         @DisplayName("returns 400 on invalid FEN")
         void createInvalidFen() throws Exception {
-            String body = json.writeValueAsString(Map.of("fen", "not-a-fen"));
+            Map<String, Object> body = new LinkedHashMap<>(gameBody("BLACK"));
+            body.put("fen", "not-a-fen");
             mvc.perform(post("/api/games")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(body))
+                    .content(json.writeValueAsString(body)))
                 .andExpect(status().isBadRequest());
         }
 
         @Test
-        @DisplayName("returns 400 on invalid aiColor")
+        @DisplayName("returns 400 on blank mode")
         void createInvalidAiColor() throws Exception {
-            String body = json.writeValueAsString(Map.of("aiColor", "PURPLE"));
+            Map<String, Object> body = Map.of(
+                "mode", "",
+                "timeControl", Map.of("type", "unlimited", "initialMs", 0L, "incrementMs", 0L));
             mvc.perform(post("/api/games")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content(body))
+                    .content(json.writeValueAsString(body)))
                 .andExpect(status().isBadRequest());
         }
     }
@@ -140,8 +175,8 @@ class GameControllerTest {
             String id = createGameDefault();
             mvc.perform(get("/api/games/" + id))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.gameId").value(id))
-                .andExpect(jsonPath("$.activeColor").value("WHITE"))
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.currentTurn").value("white"))
                 .andExpect(jsonPath("$.status").value("ONGOING"))
                 .andExpect(jsonPath("$.fen").isNotEmpty())
                 .andExpect(jsonPath("$.legalMoves").isArray())
@@ -202,7 +237,7 @@ class GameControllerTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(body))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.activeColor").value("BLACK"))
+                .andExpect(jsonPath("$.currentTurn").value("black"))
                 .andExpect(jsonPath("$.lastMove").value("e2e4"))
                 .andExpect(jsonPath("$.moveHistory", hasSize(1)));
         }
@@ -247,7 +282,7 @@ class GameControllerTest {
         }
 
         @Test
-        @DisplayName("move sequence: two white moves update history correctly")
+        @DisplayName("move sequence: two moves update history correctly")
         void twoMovesUpdateHistory() throws Exception {
             // Human vs Human
             String id    = createGame("NONE");
@@ -299,7 +334,7 @@ class GameControllerTest {
             // AI responds
             mvc.perform(post("/api/games/" + id + "/ai-move"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.activeColor").value("WHITE"))
+                .andExpect(jsonPath("$.currentTurn").value("white"))
                 .andExpect(jsonPath("$.moveHistory", hasSize(2)));
         }
 
@@ -394,4 +429,3 @@ class GameControllerTest {
         }
     }
 }
-

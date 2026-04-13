@@ -156,6 +156,7 @@ public final class GameApplicationService {
     public void deleteGame(String gameId) {
         requireSession(gameId);
         store.delete(gameId);
+        gameRepository.deleteById(UUID.fromString(gameId));
     }
 
     // ----------------------------------------------------------------
@@ -202,7 +203,13 @@ public final class GameApplicationService {
     }
 
     private GameSession restoreGameFromDatabase(String gameId) {
-        GameEntity dbGame = gameRepository.findById(UUID.fromString(gameId))
+        UUID uuid;
+        try {
+            uuid = UUID.fromString(gameId);
+        } catch (IllegalArgumentException e) {
+            throw new GameNotFoundException("Game not found: " + gameId);
+        }
+        GameEntity dbGame = gameRepository.findById(uuid)
                 .orElseThrow(() -> new GameNotFoundException("Game not found: " + gameId));
 
         Board board = FenParser.parse(dbGame.getCurrentFen());

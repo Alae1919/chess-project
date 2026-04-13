@@ -69,7 +69,9 @@ public final class GameDto {
         Instant       updatedAt,
         // Extended fields for convenience
         String        fen,
-        List<String>  legalMoves
+        List<String>  legalMoves,
+        List<String>  moveHistory,
+        String        lastMove
     ) {}
 
     // POST /api/games request body
