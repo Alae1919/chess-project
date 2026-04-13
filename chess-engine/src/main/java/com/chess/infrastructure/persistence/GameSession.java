@@ -4,6 +4,7 @@ import com.chess.domain.board.Board;
 import com.chess.domain.model.Color;
 import com.chess.domain.rules.GameStateChecker;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -31,6 +32,10 @@ public final class GameSession {
     private final Color aiColor;   // null = no AI
     private final int   aiDepth;
     private GameStateChecker.State state;
+    private GameMetadata metadata;       // set by GamePersistenceService after DB persist
+    private long   whiteTimeRemainingMs; // mutable — decremented on each move
+    private long   blackTimeRemainingMs;
+    private Instant turnStartAt;         // when the current player's clock started
 
     public GameSession(String id, Board initialBoard,
                        Color aiColor, int aiDepth) {
@@ -46,13 +51,41 @@ public final class GameSession {
 
     // ---- Mutation (called only from GameApplicationService) -----------
 
+    /**
+     * Initialises the chess clock.  Must be called once after the session is
+     * created (by GamePersistenceService after persisting the row).
+     * For unlimited time controls pass 0 for both values — the clock is not started.
+     */
+    public void initClock(long whiteMs, long blackMs) {
+        this.whiteTimeRemainingMs = whiteMs;
+        this.blackTimeRemainingMs = blackMs;
+        if (whiteMs > 0 || blackMs > 0) {
+            this.turnStartAt = Instant.now();
+        }
+    }
+
     public void applyMove(com.chess.domain.model.Move move) {
         if (isOver())
             throw new IllegalStateException("Cannot apply move: game is over");
+
+        // Decrement the active player's clock (skip for unlimited / uninitialised)
+        if (turnStartAt != null) {
+            long elapsed = Duration.between(turnStartAt, Instant.now()).toMillis();
+            if (board.activeColor() == Color.WHITE) {
+                whiteTimeRemainingMs = Math.max(0, whiteTimeRemainingMs - elapsed);
+            } else {
+                blackTimeRemainingMs = Math.max(0, blackTimeRemainingMs - elapsed);
+            }
+        }
+
         boardHistory.push(board);
         moveHistory.add(move.toString());
         board = board.apply(move);
         state = GameStateChecker.evaluate(board, board.activeColor());
+
+        if (turnStartAt != null) {
+            turnStartAt = Instant.now(); // start the next player's clock
+        }
     }
 
     /** Reverts the last move. Throws if no move has been played yet. */
@@ -90,6 +123,10 @@ public final class GameSession {
     public List<String>              moveHistory() { return Collections.unmodifiableList(moveHistory); }
     public Instant                   createdAt()   { return createdAt; }
     public boolean                   isOver()      { return GameStateChecker.isTerminal(state); }
+    public GameMetadata              metadata()              { return metadata; }
+    public void                      setMetadata(GameMetadata m) { this.metadata = m; }
+    public long                      whiteTimeRemainingMs()  { return whiteTimeRemainingMs; }
+    public long                      blackTimeRemainingMs()  { return blackTimeRemainingMs; }
 
     public String lastMove() {
         return moveHistory.isEmpty() ? null : moveHistory.get(moveHistory.size() - 1);

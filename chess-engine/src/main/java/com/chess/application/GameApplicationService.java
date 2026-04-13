@@ -1,6 +1,8 @@
 package com.chess.application;
 
+import com.chess.domain.board.Board;
 import com.chess.domain.board.BoardFactory;
+import com.chess.domain.board.FenParser;
 import com.chess.domain.model.*;
 import com.chess.domain.rules.*;
 import com.chess.engine.player.AiPlayer;
@@ -9,47 +11,53 @@ import com.chess.infrastructure.api.FenSerializer;
 import com.chess.infrastructure.api.dto.*;
 import com.chess.infrastructure.api.exception.*;
 import com.chess.infrastructure.persistence.*;
+import com.chess.persistence.entity.GameEntity;
+import com.chess.persistence.repository.GameRepository;
+
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
  * API-facing use-case orchestrator.
  *
- * Each public method corresponds to one REST endpoint.
- * This class holds no chess rules — it delegates to the domain layer.
- * It does hold application logic: session lifecycle, AI triggering,
- * turn ownership, response mapping.
+ * Responsibilities:
+ *  - Drive the in-memory chess engine (GameStore / GameSession)
+ *  - Delegate DB persistence to GamePersistenceService after every state change
+ *  - Restore sessions from DB when they are no longer in memory
+ *
+ * Chess rules live exclusively in the domain layer; HTTP concerns stay in the controller.
  */
 @Service
 public final class GameApplicationService {
 
-    private final GameStore store;
+    private final GameStore              store;
+    private final GameRepository         gameRepository;
+    private final GamePersistenceService persistenceService;
 
-    public GameApplicationService(GameStore store) {
-        this.store = store;
+    public GameApplicationService(GameStore store,
+                                   GameRepository gameRepository,
+                                   GamePersistenceService persistenceService) {
+        this.store              = store;
+        this.gameRepository     = gameRepository;
+        this.persistenceService = persistenceService;
     }
 
     // ----------------------------------------------------------------
     // USE CASE 1 — Create a game
     // ----------------------------------------------------------------
 
-    /**
-     * Creates a new game session and returns the initial state.
-     *
-     * @param request Parameters (FEN, aiColor, aiDepth).
-     * @return The full initial game state.
-     */
     public GameStateResponse createGame(CreateGameRequest request) {
         var board = (request.fen() == null || request.fen().isBlank())
-            ? BoardFactory.startingPosition()
-            : BoardFactory.fromFen(request.fen());
+                ? BoardFactory.startingPosition()
+                : BoardFactory.fromFen(request.fen());
 
         Color aiColor = parseAiColor(request.aiColor());
-        String id     = GameStore.newId();
-        var session   = new GameSession(id, board, aiColor, request.aiDepth());
+        String id = GameStore.newId();
+        var session = new GameSession(id, board, aiColor, request.aiDepth());
         store.save(session);
 
         return toResponse(session);
@@ -69,90 +77,63 @@ public final class GameApplicationService {
 
     public LegalMovesResponse getLegalMoves(String gameId) {
         GameSession session = requireSession(gameId);
-        List<String> moves  = legalMoveStrings(session);
-        return new LegalMovesResponse(
-            gameId,
-            session.board().activeColor().name(),
-            moves
-        );
+        return new LegalMovesResponse(gameId, session.board().activeColor().name(),
+                legalMoveStrings(session));
     }
 
     // ----------------------------------------------------------------
     // USE CASE 4 — Human submits a move
     // ----------------------------------------------------------------
 
-    /**
-     * Applies a human move and returns the updated game state.
-     *
-     * Validation order:
-     *   1. Game exists
-     *   2. Game is not over
-     *   3. It is not the AI's turn
-     *   4. The move is in the legal move list
-     */
     public GameStateResponse submitMove(String gameId, String uciMove) {
         GameSession session = requireSession(gameId);
 
-        if (session.isOver())
-            throw new GameOverException(gameId);
+        if (session.isOver()) throw new GameOverException(gameId);
 
         Color active = session.board().activeColor();
         if (session.aiColor() != null && session.aiColor() == active)
             throw new NotYourTurnException(
-                "It is the AI's turn (" + active + "). Call /ai-move instead.");
+                    "It is the AI's turn (" + active + "). Call /ai-move instead.");
 
+        String colorPlayed = active.name().toLowerCase();
         Move move = parseMoveFromLegalList(session, uciMove);
         session.applyMove(move);
-        return toResponse(session);
+
+        GameStateResponse r = toResponse(session);
+        persistenceService.persistMove(UUID.fromString(gameId), uciMove,
+                r.fen(), r.moveHistory().size(), colorPlayed);
+        finaliseIfTerminal(gameId, r.status(), r.activeColor());
+        return r;
     }
 
     // ----------------------------------------------------------------
     // USE CASE 5 — Ask the AI to play
     // ----------------------------------------------------------------
 
-    /**
-     * Lets the AI choose and apply a move, then returns the updated state.
-     *
-     * Validation order:
-     *   1. Game exists
-     *   2. Game is not over
-     *   3. It is the AI's turn
-     *   4. AI finds a move (always true if game is not over)
-     */
     public GameStateResponse playAiMove(String gameId) {
         GameSession session = requireSession(gameId);
 
-        if (session.isOver())
-            throw new GameOverException(gameId);
+        if (session.isOver()) throw new GameOverException(gameId);
 
         Color active = session.board().activeColor();
         if (session.aiColor() == null || session.aiColor() != active)
             throw new NotYourTurnException(
-                "It is the human's turn (" + active + "). Call /moves instead.");
+                    "It is the human's turn (" + active + "). Call /moves instead.");
 
+        String colorPlayed = active.name().toLowerCase();
         AlphaBetaSearch search = new AlphaBetaSearch();
-        Optional<Move> best = search.findBestMove(session.board(), session.aiDepth());
-
-        // This should never be empty if isOver() returned false, but guard anyway
-        Move move = best.orElseThrow(() ->
-            new IllegalStateException("AI found no move in a non-terminal position"));
+        Move move = search.findBestMove(session.board(), session.aiDepth())
+                .orElseThrow(() -> new IllegalStateException(
+                        "AI found no move in a non-terminal position"));
 
         session.applyMove(move);
-        return toResponse(session);
-    }
 
-    // ----------------------------------------------------------------
-    // USE CASE — Session metadata (for save)
-    // ----------------------------------------------------------------
-
-    /** Returns the AI color for a session, or null for human-vs-human. */
-    public Color getAiColor(String gameId) {
-        return requireSession(gameId).aiColor();
-    }
-
-    /** Returns the number of moves played in the session. */
-    public int getMoveCount(String gameId) {
-        return requireSession(gameId).moveHistory().size();
+        GameStateResponse r = toResponse(session);
+        if (r.lastMove() != null)
+            persistenceService.persistMove(UUID.fromString(gameId), r.lastMove(),
+                    r.fen(), r.moveHistory().size(), colorPlayed);
+        finaliseIfTerminal(gameId, r.status(), r.activeColor());
+        return r;
     }
 
     // ----------------------------------------------------------------
@@ -162,7 +143,10 @@ public final class GameApplicationService {
     public GameStateResponse undoLastMove(String gameId) {
         GameSession session = requireSession(gameId);
         session.undoLastMove();
-        return toResponse(session);
+        GameStateResponse r = toResponse(session);
+        persistenceService.undoLastMove(UUID.fromString(gameId),
+                r.fen(), r.activeColor().toLowerCase());
+        return r;
     }
 
     // ----------------------------------------------------------------
@@ -170,7 +154,7 @@ public final class GameApplicationService {
     // ----------------------------------------------------------------
 
     public void deleteGame(String gameId) {
-        requireSession(gameId); // ensures it exists
+        requireSession(gameId);
         store.delete(gameId);
     }
 
@@ -178,26 +162,34 @@ public final class GameApplicationService {
     // USE CASE 7 — Resign / draw
     // ----------------------------------------------------------------
 
-    /**
-     * Active player resigns ({@code username} reserved for future ownership checks).
-     */
     public GameStateResponse resign(String gameId, String username) {
         GameSession session = requireSession(gameId);
-        if (session.isOver())
-            throw new GameOverException(gameId);
+        if (session.isOver()) throw new GameOverException(gameId);
         session.resignAsActivePlayer();
-        return toResponse(session);
+        GameStateResponse r = toResponse(session);
+        finaliseIfTerminal(gameId, r.status(), r.activeColor());
+        return r;
     }
 
-    /**
-     * Agree to a draw ({@code username} reserved for future offer/accept flow).
-     */
     public GameStateResponse offerDraw(String gameId, String username) {
         GameSession session = requireSession(gameId);
-        if (session.isOver())
-            throw new GameOverException(gameId);
+        if (session.isOver()) throw new GameOverException(gameId);
         session.agreeDraw();
-        return toResponse(session);
+        GameStateResponse r = toResponse(session);
+        finaliseIfTerminal(gameId, r.status(), r.activeColor());
+        return r;
+    }
+
+    // ----------------------------------------------------------------
+    // USE CASE — Session metadata
+    // ----------------------------------------------------------------
+
+    public Color getAiColor(String gameId) {
+        return requireSession(gameId).aiColor();
+    }
+
+    public int getMoveCount(String gameId) {
+        return requireSession(gameId).moveHistory().size();
     }
 
     // ----------------------------------------------------------------
@@ -206,52 +198,88 @@ public final class GameApplicationService {
 
     private GameSession requireSession(String gameId) {
         return store.findById(gameId)
-            .orElseThrow(() -> new GameNotFoundException(gameId));
+                .orElseGet(() -> restoreGameFromDatabase(gameId));
+    }
+
+    private GameSession restoreGameFromDatabase(String gameId) {
+        GameEntity dbGame = gameRepository.findById(UUID.fromString(gameId))
+                .orElseThrow(() -> new GameNotFoundException("Game not found: " + gameId));
+
+        Board board = FenParser.parse(dbGame.getCurrentFen());
+
+        Color aiColor = null;
+        int aiDifficulty = 1;
+        if (Boolean.TRUE.equals(dbGame.isWhiteIsAi())) {
+            aiColor = Color.WHITE;
+            if (dbGame.getWhiteAiDifficulty() != null)
+                aiDifficulty = dbGame.getWhiteAiDifficulty();
+        } else if (Boolean.TRUE.equals(dbGame.isBlackIsAi())) {
+            aiColor = Color.BLACK;
+            if (dbGame.getBlackAiDifficulty() != null)
+                aiDifficulty = dbGame.getBlackAiDifficulty();
+        }
+
+        GameSession session = new GameSession(gameId, board, aiColor, aiDifficulty);
+        session.initClock(dbGame.getWhiteTimeRemainingMs(), dbGame.getBlackTimeRemainingMs());
+        store.save(session);
+        return session;
     }
 
     /**
-     * Finds the Move object matching a UCI string in the legal move list.
-     * Throws IllegalMoveException if the string matches no legal move.
+     * Maps terminal engine status → winner/reason and delegates to persistenceService.
+     * No-op for non-terminal statuses (ONGOING, CHECK).
      */
+    private void finaliseIfTerminal(String gameId, String status, String activeColor) {
+        String winner = null, reason = null;
+        switch (status) {
+            case "CHECKMATE"      -> { winner = activeColor.equalsIgnoreCase("WHITE") ? "black" : "white";
+                                       reason = "checkmate"; }
+            case "STALEMATE"      -> reason = "stalemate";
+            case "DRAW_50_MOVE"   -> reason = "fifty_move_rule";
+            case "WHITE_RESIGNED" -> { winner = "black"; reason = "resignation"; }
+            case "BLACK_RESIGNED" -> { winner = "white"; reason = "resignation"; }
+            case "DRAW_AGREED"    -> reason = "draw_agreement";
+            default               -> { return; }
+        }
+        persistenceService.finaliseGame(UUID.fromString(gameId), winner, reason);
+    }
+
     private Move parseMoveFromLegalList(GameSession session, String uciMove) {
         String normalized = uciMove.toLowerCase().trim();
         return MoveGenerator.generateLegalMoves(session.board())
-            .stream()
-            .filter(m -> m.toString().equals(normalized))
-            .findFirst()
-            .orElseThrow(() -> new IllegalMoveException(uciMove));
+                .stream()
+                .filter(m -> m.toString().equals(normalized))
+                .findFirst()
+                .orElseThrow(() -> new IllegalMoveException(uciMove));
     }
 
     private List<String> legalMoveStrings(GameSession session) {
         if (session.isOver()) return List.of();
         return MoveGenerator.generateLegalMoves(session.board())
-            .stream()
-            .map(Move::toString)
-            .sorted()                    // deterministic order
-            .collect(Collectors.toList());
+                .stream()
+                .map(Move::toString)
+                .sorted()
+                .collect(Collectors.toList());
     }
 
-    /** Maps a GameSession to the full API response. */
     private GameStateResponse toResponse(GameSession session) {
         return new GameStateResponse(
-            session.id(),
-            FenSerializer.toFen(session.board()),
-            session.board().activeColor().name(),
-            session.state().name(),
-            session.lastMove(),
-            session.moveHistory(),
-            legalMoveStrings(session)
-        );
+                session.id(),
+                FenSerializer.toFen(session.board()),
+                session.board().activeColor().name(),
+                session.state().name(),
+                session.lastMove(),
+                session.moveHistory(),
+                legalMoveStrings(session));
     }
 
-    /** Parses "WHITE" / "BLACK" / "NONE" → Color or null. */
     private Color parseAiColor(String s) {
         return switch (s.toUpperCase()) {
             case "WHITE" -> Color.WHITE;
             case "BLACK" -> Color.BLACK;
             case "NONE"  -> null;
-            default -> throw new IllegalArgumentException(
-                "aiColor must be WHITE, BLACK, or NONE");
+            default      -> throw new IllegalArgumentException(
+                    "aiColor must be WHITE, BLACK, or NONE");
         };
     }
 }

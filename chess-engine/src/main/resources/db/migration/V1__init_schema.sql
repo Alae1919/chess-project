@@ -198,23 +198,6 @@ CREATE TABLE captured_pieces (
     PRIMARY KEY (game_id, player_color, piece_type, piece_color)
 );
 
--- ─── saved_games ──────────────────────────────────────────────────────────────
-
-CREATE TABLE saved_games (
-    id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    game_id         UUID         NOT NULL REFERENCES games(id) ON DELETE CASCADE,
-    user_id         UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    opponent_name   VARCHAR(50)  NOT NULL,
-    mode            game_mode    NOT NULL,
-    turn_number     INT          NOT NULL,
-    player_color    piece_color  NOT NULL,
-    opening         VARCHAR(100),
-    thumbnail_fen   TEXT,
-    saved_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_saved_games_user ON saved_games(user_id, saved_at DESC);
-
 -- ─── chat_messages ────────────────────────────────────────────────────────────
 
 CREATE TABLE chat_messages (

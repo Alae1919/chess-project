@@ -21,21 +21,21 @@ import java.util.UUID;
 @Tag(name = "Games", description = "Chess game lifecycle — create, move, resign, chat")
 public class GameController {
 
-    private final GameApplicationService  engineService;
-    private final GamePersistenceService  persistService;
-    private final UserService             userService;
+    private final GameApplicationService engineService;
+    private final GamePersistenceService persistService;
+    private final UserService userService;
     private final WebSocketSessionManager wsManager;
-    private final AlphaBetaSearch         search    = new AlphaBetaSearch();
-    private final Evaluator               evaluator = new Evaluator();
+    private final AlphaBetaSearch search = new AlphaBetaSearch();
+    private final Evaluator evaluator = new Evaluator();
 
     public GameController(GameApplicationService engineService,
-                          GamePersistenceService persistService,
-                          UserService userService,
-                          WebSocketSessionManager wsManager) {
-        this.engineService  = engineService;
+            GamePersistenceService persistService,
+            UserService userService,
+            WebSocketSessionManager wsManager) {
+        this.engineService = engineService;
         this.persistService = persistService;
-        this.userService    = userService;
-        this.wsManager      = wsManager;
+        this.userService = userService;
+        this.wsManager = wsManager;
     }
 
     @PostMapping
@@ -44,20 +44,21 @@ public class GameController {
     public GameDto.Game createGame(
             @Valid @RequestBody GameDto.CreateGameRequest req,
             @AuthenticationPrincipal UserDetails userDetails) {
-        UUID userId   = userService.getUserIdByUsername(userDetails.getUsername());
+        UUID userId = userService.getUserIdByUsername(userDetails.getUsername());
         String username = userDetails.getUsername();
         // 1. Start in the engine (in-memory, fast)
         var engineResp = engineService.createGame(toEngineRequest(req));
         // 2. Persist to DB
         persistService.persistNewGame(engineResp.gameId(), req, userId, username);
-        // 3. Return full game DTO
-        return toGameDto(engineResp);
+        // 3. Return full game DTO (engine state + DB metadata)
+        return persistService.toFullGameDto(engineResp.gameId(), engineResp);
     }
 
     @GetMapping("/{gameId}")
     @Operation(summary = "Get current game state")
     public GameDto.Game getGame(@PathVariable String gameId) {
-        return toGameDto(engineService.getGame(gameId));
+        var r = engineService.getGame(gameId);
+        return persistService.toFullGameDto(gameId, r);
     }
 
     @GetMapping("/{gameId}/legal-moves")
@@ -72,7 +73,8 @@ public class GameController {
     public GameDto.Game submitMove(
             @PathVariable String gameId,
             @Valid @RequestBody GameDto.MoveRequest req) {
-        var game = toGameDto(engineService.submitMove(gameId, req.move()));
+        var r = engineService.submitMove(gameId, req.move());
+        var game = persistService.toFullGameDto(gameId, r);
         wsManager.broadcast(gameId, game.result() != null ? "GAME_OVER" : "MOVE_MADE", game);
         return game;
     }
@@ -80,7 +82,8 @@ public class GameController {
     @PostMapping("/{gameId}/ai-move")
     @Operation(summary = "Let the AI play its move")
     public GameDto.Game playAiMove(@PathVariable String gameId) {
-        var game = toGameDto(engineService.playAiMove(gameId));
+        var r = engineService.playAiMove(gameId);
+        var game = persistService.toFullGameDto(gameId, r);
         wsManager.broadcast(gameId, game.result() != null ? "GAME_OVER" : "MOVE_MADE", game);
         return game;
     }
@@ -90,7 +93,8 @@ public class GameController {
     public GameDto.Game resign(
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        var game = toGameDto(engineService.resign(gameId, userDetails.getUsername()));
+        var r = engineService.resign(gameId, userDetails.getUsername());
+        var game = persistService.toFullGameDto(gameId, r);
         wsManager.broadcast(gameId, "GAME_OVER", game);
         return game;
     }
@@ -100,7 +104,8 @@ public class GameController {
     public GameDto.Game offerDraw(
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        var game = toGameDto(engineService.offerDraw(gameId, userDetails.getUsername()));
+        var r = engineService.offerDraw(gameId, userDetails.getUsername());
+        var game = persistService.toFullGameDto(gameId, r);
         wsManager.broadcast(gameId, "GAME_OVER", game);
         return game;
     }
@@ -108,7 +113,8 @@ public class GameController {
     @DeleteMapping("/{gameId}/moves/last")
     @Operation(summary = "Undo the last move")
     public GameDto.Game undoMove(@PathVariable String gameId) {
-        return toGameDto(engineService.undoLastMove(gameId));
+        var r = engineService.undoLastMove(gameId);
+        return persistService.toFullGameDto(gameId, r);
     }
 
     @PostMapping("/{gameId}/save")
@@ -116,26 +122,21 @@ public class GameController {
     public GameDto.SavedGame saveGame(
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        var state     = engineService.getGame(gameId);
-        int moveCount = engineService.getMoveCount(gameId);
-        var aiColor   = engineService.getAiColor(gameId);
-        UUID userId   = userService.getUserIdByUsername(userDetails.getUsername());
-        return persistService.saveCurrentGame(
-            gameId, state.fen(), moveCount, aiColor, userId, userDetails.getUsername());
+        UUID userId = userService.getUserIdByUsername(userDetails.getUsername());
+        return persistService.saveCurrentGame(gameId, userId);
     }
 
     @GetMapping("/{gameId}/evaluation")
     @Operation(summary = "Evaluate the current position using the chess engine")
     public EvaluationDto.PositionEvaluation evaluate(@PathVariable String gameId) {
-        String fen   = engineService.getGame(gameId).fen();
-        var    board = FenParser.parse(fen);
-        int    score = evaluator.evaluate(board, board.activeColor());
-        var    best  = search.findBestMove(board, 4);
+        String fen = engineService.getGame(gameId).fen();
+        var board = FenParser.parse(fen);
+        int score = evaluator.evaluate(board, board.activeColor());
+        var best = search.findBestMove(board, 4);
         return new EvaluationDto.PositionEvaluation(
-            score, 4,
-            best.map(Object::toString).orElse(null),
-            null
-        );
+                score, 4,
+                best.map(Object::toString).orElse(null),
+                null);
     }
 
     @DeleteMapping("/{gameId}")
@@ -150,26 +151,11 @@ public class GameController {
     private com.chess.infrastructure.api.dto.CreateGameRequest toEngineRequest(
             GameDto.CreateGameRequest req) {
         String aiColor = "ai".equals(req.mode())
-            ? ("black".equalsIgnoreCase(req.playerColor()) ? "WHITE" : "BLACK")
-            : "NONE";
+                ? ("black".equalsIgnoreCase(req.playerColor()) ? "WHITE" : "BLACK")
+                : "NONE";
         return new com.chess.infrastructure.api.dto.CreateGameRequest(
-            req.fen(), aiColor, req.aiDifficulty());
+                req.fen(), aiColor, req.aiDifficulty());
     }
 
-    private GameDto.Game toGameDto(com.chess.infrastructure.api.dto.GameStateResponse r) {
-        return new GameDto.Game(
-            r.gameId(), null, r.status(),
-            null, null,             // playerWhite / playerBlack — fetched from DB if needed
-            null,                   // board — derived from FEN on the frontend
-            null,                   // moves list — from /legal-moves or DB
-            r.activeColor().toLowerCase(),
-            null, null, null, 0, 0, // timeControl, ep, castling, clocks
-            r.status().contains("CHECKMATE") || r.status().contains("STALEMATE")
-                ? new GameDto.GameResult(null, r.status().toLowerCase()) : null,
-            null,
-            null, null,
-            r.fen(),
-            r.legalMoves()
-        );
-    }
+
 }
