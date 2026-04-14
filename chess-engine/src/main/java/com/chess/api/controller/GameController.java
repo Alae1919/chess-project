@@ -6,6 +6,9 @@ import com.chess.domain.board.FenParser;
 import com.chess.engine.eval.Evaluator;
 import com.chess.engine.search.AlphaBetaSearch;
 import com.chess.infrastructure.websocket.WebSocketSessionManager;
+import com.chess.persistence.entity.DatabaseEnums.GameMode;
+import com.chess.persistence.entity.DatabaseEnums.PlayerSide;
+import com.chess.persistence.repository.GameRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -25,17 +28,20 @@ public class GameController {
     private final GamePersistenceService persistService;
     private final UserService userService;
     private final WebSocketSessionManager wsManager;
+    private final GameRepository gameRepository;
     private final AlphaBetaSearch search = new AlphaBetaSearch();
     private final Evaluator evaluator = new Evaluator();
 
     public GameController(GameApplicationService engineService,
             GamePersistenceService persistService,
             UserService userService,
-            WebSocketSessionManager wsManager) {
-        this.engineService = engineService;
+            WebSocketSessionManager wsManager,
+            GameRepository gameRepository) {
+        this.engineService  = engineService;
         this.persistService = persistService;
-        this.userService = userService;
-        this.wsManager = wsManager;
+        this.userService    = userService;
+        this.wsManager      = wsManager;
+        this.gameRepository = gameRepository;
     }
 
     @PostMapping
@@ -72,7 +78,23 @@ public class GameController {
     @Operation(summary = "Submit a human move (UCI format)")
     public GameDto.Game submitMove(
             @PathVariable String gameId,
-            @Valid @RequestBody GameDto.MoveRequest req) {
+            @Valid @RequestBody GameDto.MoveRequest req,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        // For online games, verify the caller is the player whose turn it is
+        if (userDetails != null) {
+            var dbGame = gameRepository.findById(UUID.fromString(gameId));
+            dbGame.ifPresent(g -> {
+                if (g.getMode() == GameMode.online) {
+                    UUID callerId = userService.getUserIdByUsername(userDetails.getUsername());
+                    PlayerSide turn = g.getCurrentTurn();
+                    UUID expectedId = turn == PlayerSide.white ? g.getWhiteUserId() : g.getBlackUserId();
+                    if (!callerId.equals(expectedId)) {
+                        throw new org.springframework.web.server.ResponseStatusException(
+                            HttpStatus.FORBIDDEN, "It is not your turn");
+                    }
+                }
+            });
+        }
         var r = engineService.submitMove(gameId, req.move());
         var game = persistService.toFullGameDto(gameId, r);
         wsManager.broadcast(gameId, game.result() != null ? "GAME_OVER" : "MOVE_MADE", game);

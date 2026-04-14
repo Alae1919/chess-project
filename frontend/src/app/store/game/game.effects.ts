@@ -124,6 +124,7 @@ export class GameEffects {
     this.actions$.pipe(
       ofType(GameActions.submitMoveSuccess, GameActions.createGameSuccess, GameActions.loadGameSuccess),
       filter(({ game }) => {
+        if (game.mode === 'online') return false; // online games never trigger AI
         const isAiTurn =
           (game.playerWhite?.isAi && game.currentTurn === 'white') ||
           (game.playerBlack?.isAi && game.currentTurn === 'black');

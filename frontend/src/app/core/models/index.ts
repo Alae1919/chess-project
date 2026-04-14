@@ -248,3 +248,41 @@ export interface PositionEvaluation {
   bestMove?: string;   // algebraic
   openingName?: string;
 }
+
+// ─── Online / Lobby ───────────────────────────────────────────────────────────
+
+export interface UserSummary {
+  id: string;
+  username: string;
+  elo: number;
+  avatarUrl?: string;
+}
+
+export interface QueueEntry {
+  queueEntryId: string;
+  status: 'queued' | 'matched';
+  joinedAt: string;
+  estimatedWaitSeconds?: number;
+}
+
+export interface GameInvitation {
+  invitationId: string;
+  inviterUsername: string;
+  inviteeUsername: string;
+  status: 'pending' | 'accepted' | 'declined' | 'expired' | 'cancelled';
+  timeControlType: string;
+  timeControlInitialMs: number;
+  timeControlIncrementMs: number;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface MatchFoundPayload {
+  gameId: string;
+  opponentUsername: string;
+  opponentElo: number;
+  playerColor: PieceColor;
+  timeControlType: string;
+  timeControlInitialMs: number;
+  timeControlIncrementMs: number;
+}

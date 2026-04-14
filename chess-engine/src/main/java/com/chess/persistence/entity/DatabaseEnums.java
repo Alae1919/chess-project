@@ -52,4 +52,13 @@ public final class DatabaseEnums {
         classical,
         unlimited
     }
+
+    /** {@code invitation_status} */
+    public enum InvitationStatus {
+        pending,
+        accepted,
+        declined,
+        expired,
+        cancelled
+    }
 }

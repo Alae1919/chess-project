@@ -12,8 +12,10 @@ import { authInterceptor } from './core/interceptors/auth.interceptor';
 import { errorInterceptor } from './core/interceptors/error.interceptor';
 import { gameReducer } from './store/game/game.reducer';
 import { accountReducer } from './store/account/account.reducer';
+import { lobbyReducer } from './store/lobby/lobby.reducer';
 import { GameEffects } from './store/game/game.effects';
 import { AccountEffects } from './store/account/account.effects';
+import { LobbyEffects } from './store/lobby/lobby.effects';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -23,8 +25,9 @@ export const appConfig: ApplicationConfig = {
     provideStore({
       game: gameReducer,
       account: accountReducer,
+      lobby: lobbyReducer,
     }),
-    provideEffects([GameEffects, AccountEffects]),
+    provideEffects([GameEffects, AccountEffects, LobbyEffects]),
     provideStoreDevtools({ maxAge: 25, logOnly: false }),
   ],
 };

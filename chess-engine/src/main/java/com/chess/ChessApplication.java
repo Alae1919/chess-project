@@ -2,6 +2,7 @@ package com.chess;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Spring Boot entry point.
@@ -12,6 +13,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  *   • @ComponentScan   — scans com.chess.** for @Component, @Service, etc.
  */
 @SpringBootApplication
+@EnableScheduling
 public class ChessApplication {
     public static void main(String[] args) {
         SpringApplication.run(ChessApplication.class, args);

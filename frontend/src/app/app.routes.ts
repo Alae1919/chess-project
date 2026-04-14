@@ -40,6 +40,12 @@ export const routes: Routes = [
     //canActivate: [authGuard],
   },
   {
+    path: 'online',
+    loadComponent: () =>
+      import('./features/online/pages/online-lobby.page').then((m) => m.OnlineLobbyPage),
+    canActivate: [authGuard],
+  },
+  {
     path: '**',
     redirectTo: 'home',
   },

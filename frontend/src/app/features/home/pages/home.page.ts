@@ -65,6 +65,10 @@ export class HomePage implements OnInit {
   }
 
   startGame(): void {
+    if (this.selectedMode === 'online') {
+      this.router.navigate(['/online']);
+      return;
+    }
     const options: GameOptions = {
       mode: this.selectedMode,
       aiDifficulty: this.selectedDifficulty,

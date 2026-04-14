@@ -6,6 +6,14 @@ import java.util.List;
 
 public final class UserDto {
 
+    /** Lightweight user summary for search results and opponent info. */
+    public record UserSummary(
+        String id,
+        String username,
+        Integer elo,
+        String avatarUrl
+    ) {}
+
     public record EloPoint(Instant date, int elo) {}
 
     public record UserStats(

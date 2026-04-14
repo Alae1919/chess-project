@@ -45,6 +45,43 @@ public class GamePersistenceService {
     // ── Game creation ─────────────────────────────────────────────────────────
 
     /**
+     * Creates a DB record for an online game that was paired by matchmaking or friend invite.
+     * Both players are known upfront; color assignment is done by the caller.
+     */
+    @Transactional
+    public void persistNewOnlineGame(String gameId,
+                                     UUID whiteUserId, String whiteUsername, Integer whiteElo,
+                                     UUID blackUserId, String blackUsername, Integer blackElo,
+                                     TimeControlKind tcType, long initialMs, long incrementMs) {
+        var entity = new GameEntity();
+        entity.setId(UUID.fromString(gameId));
+        entity.setMode(GameMode.online);
+        entity.setStatus(GameStatus.active);
+        entity.setCurrentTurn(PlayerSide.white);
+
+        entity.setWhiteUserId(whiteUserId);
+        entity.setWhiteUsername(whiteUsername);
+        entity.setWhiteElo(whiteElo);
+
+        entity.setBlackUserId(blackUserId);
+        entity.setBlackUsername(blackUsername);
+        entity.setBlackElo(blackElo);
+
+        entity.setTimeControlType(tcType);
+        entity.setTimeControlInitialMs(initialMs);
+        entity.setTimeControlIncrementMs(incrementMs);
+        entity.setWhiteTimeRemainingMs(initialMs);
+        entity.setBlackTimeRemainingMs(initialMs);
+
+        gameRepo.save(entity);
+
+        gameStore.findById(gameId).ifPresent(s -> {
+            s.setMetadata(buildMetadata(entity));
+            s.initClock(entity.getWhiteTimeRemainingMs(), entity.getBlackTimeRemainingMs());
+        });
+    }
+
+    /**
      * Creates a DB record for a newly started game.
      * Called by GameApplicationService.createGame() after the in-memory session is ready.
      */

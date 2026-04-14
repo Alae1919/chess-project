@@ -2,6 +2,7 @@ package com.chess.api.controller;
 
 import com.chess.api.dto.*;
 import com.chess.application.*;
+import com.chess.persistence.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -18,12 +19,15 @@ import java.util.UUID;
 @Tag(name = "Users", description = "User profile, stats, achievements, preferences")
 public class UserController {
 
-    private final UserService           userService;
+    private final UserService            userService;
     private final GamePersistenceService gamePersist;
+    private final UserRepository         userRepository;
 
-    public UserController(UserService userService, GamePersistenceService gamePersist) {
-        this.userService  = userService;
-        this.gamePersist  = gamePersist;
+    public UserController(UserService userService, GamePersistenceService gamePersist,
+                          UserRepository userRepository) {
+        this.userService    = userService;
+        this.gamePersist    = gamePersist;
+        this.userRepository = userRepository;
     }
 
     @GetMapping("/me")
@@ -111,6 +115,17 @@ public class UserController {
     public void deleteSavedGame(@PathVariable UUID savedGameId,
                                 @AuthenticationPrincipal UserDetails userDetails) {
         gamePersist.deleteSavedGame(savedGameId, extractId(userDetails));
+    }
+
+    // ── User search ───────────────────────────────────────────────────────────
+
+    @GetMapping("/search")
+    @Operation(summary = "Search users by username prefix (for friend invites)")
+    public List<UserDto.UserSummary> searchUsers(@RequestParam String username) {
+        return userRepository.searchByUsernamePrefix(username).stream()
+                .map(u -> new UserDto.UserSummary(
+                        u.getId().toString(), u.getUsername(), u.getElo(), u.getAvatarUrl()))
+                .toList();
     }
 
     // ── Helper ───────────────────────────────────────────────────────────────
