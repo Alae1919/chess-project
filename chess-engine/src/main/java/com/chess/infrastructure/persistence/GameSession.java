@@ -3,6 +3,7 @@ package com.chess.infrastructure.persistence;
 import com.chess.domain.board.Board;
 import com.chess.domain.model.Color;
 import com.chess.domain.rules.GameStateChecker;
+import com.chess.engine.player.AiPlayer;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -29,8 +30,9 @@ public final class GameSession {
     private Board board;
     private final List<String>  moveHistory;
     private final Deque<Board>  boardHistory;
-    private final Color aiColor;   // null = no AI
-    private final int   aiDepth;
+    private final Color    aiColor;   // null = no AI
+    private final int      aiDepth;
+    private final AiPlayer aiPlayer;  // null for human-vs-human; holds TT across moves
     private GameStateChecker.State state;
     private GameMetadata metadata;       // set by GamePersistenceService after DB persist
     private long   whiteTimeRemainingMs; // mutable — decremented on each move
@@ -43,6 +45,7 @@ public final class GameSession {
         this.board        = initialBoard;
         this.aiColor      = aiColor;
         this.aiDepth      = aiDepth;
+        this.aiPlayer     = (aiColor != null) ? new AiPlayer(aiColor, aiDepth) : null;
         this.moveHistory  = new ArrayList<>();
         this.boardHistory = new ArrayDeque<>();
         this.createdAt    = Instant.now();
@@ -119,6 +122,7 @@ public final class GameSession {
     public Board                     board()       { return board; }
     public Color                     aiColor()     { return aiColor; }
     public int                       aiDepth()     { return aiDepth; }
+    public AiPlayer                  aiPlayer()    { return aiPlayer; }
     public GameStateChecker.State    state()       { return state; }
     public List<String>              moveHistory() { return Collections.unmodifiableList(moveHistory); }
     public Instant                   createdAt()   { return createdAt; }

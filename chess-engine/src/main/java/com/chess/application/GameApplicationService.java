@@ -6,7 +6,6 @@ import com.chess.domain.board.FenParser;
 import com.chess.domain.model.*;
 import com.chess.domain.rules.*;
 import com.chess.engine.player.AiPlayer;
-import com.chess.engine.search.AlphaBetaSearch;
 import com.chess.infrastructure.api.FenSerializer;
 import com.chess.infrastructure.api.dto.*;
 import com.chess.infrastructure.api.exception.*;
@@ -121,10 +120,7 @@ public final class GameApplicationService {
                     "It is the human's turn (" + active + "). Call /moves instead.");
 
         String colorPlayed = active.name().toLowerCase();
-        AlphaBetaSearch search = new AlphaBetaSearch();
-        Move move = search.findBestMove(session.board(), session.aiDepth())
-                .orElseThrow(() -> new IllegalStateException(
-                        "AI found no move in a non-terminal position"));
+        Move move = session.aiPlayer().chooseMove(session.board());
 
         session.applyMove(move);
 
