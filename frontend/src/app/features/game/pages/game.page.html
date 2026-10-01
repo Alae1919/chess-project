@@ -21,9 +21,24 @@
     </div>
 
     <div class="topbar__right">
+      <button type="button" class="act-btn" (click)="toggleSettings()" [attr.aria-expanded]="settingsOpen" title="Réglages du plateau">
+        ⚙ <span class="act-btn__txt">Plateau</span>
+      </button>
       <a class="act-btn" routerLink="/home" title="Quitter">← <span class="act-btn__txt">Quitter</span></a>
     </div>
   </header>
+
+  <!-- Board settings: mode and style, applied live -->
+  <ng-container *ngIf="settingsOpen">
+    <div class="settings-backdrop" (click)="closeSettings()"></div>
+    <section class="settings-pop glass" role="dialog" aria-label="Réglages du plateau">
+      <div class="settings-pop__head">
+        <span class="settings-pop__title">Plateau</span>
+        <button type="button" class="settings-pop__close" (click)="closeSettings()" aria-label="Fermer">✕</button>
+      </div>
+      <app-board-style-picker />
+    </section>
+  </ng-container>
 
   <!-- ══ MAIN BODY ═══════════════════════════════════════════════════ -->
   <div class="game-layout"
@@ -88,7 +103,7 @@
             <button class="action-btn" (click)="flipBoard()"><span class="action-btn__ico">⇅</span>Retourner</button>
             <button class="action-btn" (click)="save()"><span class="action-btn__ico">⎙</span>Sauvegarder</button>
             <button class="action-btn" (click)="offerDraw()"><span class="action-btn__ico">½</span>Nulle</button>
-            <button class="action-btn action-btn--full" *ngIf="webgl" (click)="toggleView()"
+            <button class="action-btn action-btn--full" *ngIf="(boardView$ | async)?.mode === '3d'" (click)="toggleView()"
                     [attr.aria-pressed]="topView">
               <span class="action-btn__ico">{{ topView ? '◈' : '⬒' }}</span>{{ topView ? 'Vue 3D' : 'Vue du dessus' }}
             </button>
@@ -123,12 +138,17 @@
 
     <!-- ── BOARD CENTER ───────────────────────────────────────────── -->
     <div class="game-center">
-      <div class="board-stage" [style.--board-aspect]="boardAspect">
-        <app-chess-board-3d *ngIf="webgl; else flatBoard" [interactive]="true" [aspect]="boardAspect" [flipped]="boardFlipped" [topView]="topView" (topViewChange)="setTopView($event)" />
-        <ng-template #flatBoard>
-          <app-chess-board [flipped]="boardFlipped" />
-        </ng-template>
-      </div>
+      <ng-container *ngIf="boardView$ | async as bv">
+        <div class="board-stage" [class.board-stage--flat]="bv.mode === '2d'" [style.--board-aspect]="boardAspect">
+          <app-chess-board-3d
+            *ngIf="bv.mode === '3d'; else flatBoard"
+            [interactive]="true" [aspect]="boardAspect" [flipped]="boardFlipped"
+            [look]="bv.prefs.style3d" [topView]="topView" (topViewChange)="setTopView($event)" />
+          <ng-template #flatBoard>
+            <app-chess-board [flipped]="boardFlipped" [boardStyle]="bv.prefs.style2d" />
+          </ng-template>
+        </div>
+      </ng-container>
 
       <div class="status-bar status-bar--finished status-bar--desktop" *ngIf="isTerminal(vm.game.status)">
         Partie terminée — {{ getResultLabel(vm.game.result) }}
@@ -165,7 +185,7 @@
       <div class="mobile-action-bar">
         <button class="mobile-action-btn" (click)="undo()" title="Annuler">↩</button>
         <button class="mobile-action-btn" (click)="flipBoard()" title="Retourner">⇅</button>
-        <button class="mobile-action-btn" *ngIf="webgl" (click)="toggleView()" [title]="topView ? 'Vue 3D' : 'Vue du dessus'">{{ topView ? '◈' : '⬒' }}</button>
+        <button class="mobile-action-btn" *ngIf="(boardView$ | async)?.mode === '3d'" (click)="toggleView()" [title]="topView ? 'Vue 3D' : 'Vue du dessus'">{{ topView ? '◈' : '⬒' }}</button>
         <button class="mobile-action-btn" (click)="save()" title="Sauvegarder">⎙</button>
         <button class="mobile-action-btn" (click)="offerDraw()" title="Nulle">½</button>
         <button class="mobile-action-btn mobile-action-btn--danger" (click)="resign()" title="Abandonner">⚑</button>

@@ -97,7 +97,7 @@
 
     <!-- Decorative board -->
     <div class="home__preview">
-      <app-chess-board-3d />
+      <app-chess-board-3d [look]="(look$ | async) ?? 'marble-gold'" />
     </div>
   </div>
 

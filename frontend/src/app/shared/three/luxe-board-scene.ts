@@ -3,9 +3,9 @@
 // gilded frame, gold & lacquer Staunton pieces. The Angular wrapper feeds it the
 // position / selection from the store and listens for square clicks.
 import * as THREE from 'three';
-import { Piece, PieceType, Square } from '../../core/models';
+import { Piece, PieceType, Square, Style3D } from '../../core/models';
 import { buildFrame, buildPiece, glowPiece, LuxeMaterials, makeLuxeMaterials, PieceLetter } from './luxe-pieces';
-import { makeMarble } from './marble';
+import { LOOKS_3D, lookTextures } from './board-looks';
 
 const LETTER: Record<PieceType, PieceLetter> = {
   king: 'K', queen: 'Q', rook: 'R', bishop: 'B', knight: 'N', pawn: 'P',
@@ -29,6 +29,8 @@ export interface Highlights {
 export interface SceneOptions {
   /** Interactive boards react to clicks and can be orbited by dragging; the others follow the mouse. */
   interactive: boolean;
+  /** Board style; defaults to marble & gold */
+  look?: Style3D;
   onSquareClick?: (sq: Square) => void;
   /** Fired when a drag ends: true when the board was left more than halfway towards the top-down view. */
   onTopViewChange?: (top: boolean) => void;
@@ -80,28 +82,6 @@ export function isWebGLAvailable(): boolean {
   }
 }
 
-/* ── shared marble textures (built once, shared by every board on the page) ─── */
-interface MarbleSet { frame: THREE.CanvasTexture; light: THREE.CanvasTexture; dark: THREE.CanvasTexture; }
-let marbleSet: MarbleSet | null = null;
-
-function marbleTextures(): MarbleSet {
-  if (marbleSet) return marbleSet;
-  const tex = (canvas: HTMLCanvasElement): THREE.CanvasTexture => {
-    const t = new THREE.CanvasTexture(canvas);
-    t.colorSpace = THREE.SRGBColorSpace;
-    return t;
-  };
-  const frame = tex(makeMarble(1024, '#1c1410', 'rgba(150,104,62,', ['rgba(60,38,24,.4)', 'rgba(0,0,0,.5)'], 3));
-  frame.wrapS = frame.wrapT = THREE.RepeatWrapping;
-  frame.repeat.set(0.11, 0.11);
-  marbleSet = {
-    frame,
-    light: tex(makeMarble(1024, '#d8c9b2', 'rgba(140,108,80,', ['rgba(240,228,210,.5)', 'rgba(170,145,115,.3)'], 11)),
-    dark: tex(makeMarble(1024, '#121010', 'rgba(198,160,96,', ['rgba(40,34,28,.5)', 'rgba(0,0,0,.5)'], 5)),
-  };
-  return marbleSet;
-}
-
 const sqCenter = (row: number, col: number): [number, number] => [-3.5 + col, -3.5 + row];
 const keyOf = (row: number, col: number): string => `${row},${col}`;
 const sameSq = (a: Square | null, row: number, col: number): boolean => !!a && a.row === row && a.col === col;
@@ -115,7 +95,11 @@ export class LuxeBoardScene {
   private sqMeshes: THREE.Mesh[] = [];
   private sqTextures: THREE.Texture[] = [];
   private pieces = new Map<string, PieceEntry>();
-  private mats: LuxeMaterials = makeLuxeMaterials();
+  private look: Style3D = 'marble-gold';
+  private mats!: LuxeMaterials;
+  /** Everything buildBoard() adds to the board group, so a style change can swap it out */
+  private boardParts: THREE.Object3D[] = [];
+  private lastSquares: Squares | null = null;
   private ownedMaterials: THREE.Material[] = [];
   /** Marble materials (squares + frame) whose reflections are dimmed in the top view */
   private boardMaterials: THREE.MeshPhysicalMaterial[] = [];
@@ -166,6 +150,8 @@ export class LuxeBoardScene {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
 
+    this.look = opts.look ?? 'marble-gold';
+    this.mats = makeLuxeMaterials(LOOKS_3D[this.look]);
     this.camera = new THREE.PerspectiveCamera(46, width / height, 0.01, 100);
     this.envTexture = this.buildLighting();
     this.scene.add(this.boardGroup);
@@ -201,12 +187,25 @@ export class LuxeBoardScene {
     if (top) this.dragYaw = 0; // look straight down the files, not at a sideways angle
   }
 
+  /** Re-dress the board and pieces in another style, keeping the position, selection and camera. */
+  setLook(look: Style3D): void {
+    if (look === this.look || this.disposed) return;
+    this.disposeBoard();
+    this.look = look;
+    this.mats = makeLuxeMaterials(LOOKS_3D[look]);
+    this.buildBoard();
+    this.applyCamera(); // re-applies the top-view reflection dimming to the new materials
+    if (this.lastSquares) this.setPosition(this.lastSquares, false);
+    else this.applyHighlights();
+  }
+
   setFlipped(flipped: boolean): void {
     this.flipYaw = flipped ? Math.PI : 0;
   }
 
   /** Sync the pieces with `squares`, animating small changes (a move) and snapping big ones (a new game). */
   setPosition(squares: Squares, animate = true): void {
+    this.lastSquares = squares;
     const desired = new Map<string, { letter: PieceLetter; white: boolean }>();
     for (let r = 0; r < 8; r++) {
       for (let c = 0; c < 8; c++) {
@@ -259,19 +258,34 @@ export class LuxeBoardScene {
     this.applyHighlights();
   }
 
-  dispose(): void {
-    this.disposed = true;
-    cancelAnimationFrame(this.raf);
-    this.listeners.forEach((off) => off());
+  /** Free everything that belongs to the current style: squares, frame, labels, pieces. */
+  private disposeBoard(): void {
     this.clearMarkers();
+    this.tweens = [];
+    this.boardParts.forEach((o) => this.boardGroup.remove(o));
+    this.boardParts = [];
+    this.sqMeshes = [];
+    this.boardMaterials = [];
     this.sqTextures.forEach((t) => t.dispose());
+    this.sqTextures = [];
     this.ownedMaterials.forEach((m) => m.dispose());
+    this.ownedMaterials = [];
     this.ownedGeometries.forEach((g) => g.dispose());
+    this.ownedGeometries = [];
     this.pieces.forEach((e) => e.group.traverse((o) => {
       const mat = (o as THREE.Mesh).material as THREE.Material | undefined;
       if (mat && mat.userData['body']) mat.dispose();
     }));
+    this.pieces.clear();
+    this.pieceGroup.clear();
     Object.values(this.mats).forEach((m: THREE.Material) => m.dispose());
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    cancelAnimationFrame(this.raf);
+    this.listeners.forEach((off) => off());
+    this.disposeBoard();
     [this.dotGeo, this.ringGeo].forEach((g) => g.dispose());
     [this.dotMat, this.ringMat].forEach((m) => m.dispose());
     this.envTexture.dispose();
@@ -333,17 +347,23 @@ export class LuxeBoardScene {
 
   private buildBoard(): void {
     const bg = this.boardGroup;
-    const marble = marbleTextures();
+    const look = LOOKS_3D[this.look];
+    const tex = lookTextures(this.look);
+    const add = <T extends THREE.Object3D>(o: T): T => {
+      bg.add(o);
+      this.boardParts.push(o);
+      return o;
+    };
 
-    const frameMat = new THREE.MeshPhysicalMaterial({ map: marble.frame, roughness: 0.22, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.08 });
+    const frameMat = new THREE.MeshPhysicalMaterial({ map: tex.frame, roughness: 0.22, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.08 });
     this.ownedMaterials.push(frameMat);
     this.boardMaterials.push(frameMat);
     const frame = buildFrame(frameMat, 0.1, 4.02, 4.92);
     frame.traverse((o) => { if ((o as THREE.Mesh).geometry) this.ownedGeometries.push((o as THREE.Mesh).geometry); });
-    bg.add(frame);
+    add(frame);
 
-    // gold inlay lines
-    const goldMat = new THREE.MeshStandardMaterial({ color: 0xd6a94e, metalness: 1, roughness: 0.22 });
+    // inlay lines
+    const goldMat = new THREE.MeshStandardMaterial({ color: look.inlay, metalness: 1, roughness: 0.22 });
     this.ownedMaterials.push(goldMat);
     ([[4.1, 0.035], [4.78, 0.025]] as Array<[number, number]>).forEach(([d, t]) => {
       ([[0, -d, 2 * d + t, t], [0, d, 2 * d + t, t], [-d, 0, t, 2 * d + t], [d, 0, t, 2 * d + t]] as Array<[number, number, number, number]>).forEach(([x, z, w, dd]) => {
@@ -351,7 +371,7 @@ export class LuxeBoardScene {
         this.ownedGeometries.push(geo);
         const line = new THREE.Mesh(geo, goldMat);
         line.position.set(x, 0.105, z);
-        bg.add(line);
+        add(line);
       });
     });
 
@@ -361,10 +381,13 @@ export class LuxeBoardScene {
     for (let r = 0; r < 8; r++) {
       for (let c = 0; c < 8; c++) {
         const light = (r + c) % 2 === 0;
-        const tx = (light ? marble.light : marble.dark).clone();
+        const tx = (light ? tex.light : tex.dark).clone();
         tx.needsUpdate = true;
         tx.repeat.set(0.25, 0.25);
         tx.offset.set(Math.random() * 0.75, Math.random() * 0.75);
+        // a quarter turn keeps wood grain from running the same way on every square
+        tx.center.set(0.5, 0.5);
+        tx.rotation = Math.floor(Math.random() * 4) * (Math.PI / 2);
         this.sqTextures.push(tx);
         const mat = new THREE.MeshPhysicalMaterial({ map: tx, color: 0xffffff, roughness: 0.16, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.06 });
         this.ownedMaterials.push(mat);
@@ -373,7 +396,7 @@ export class LuxeBoardScene {
         mesh.position.set(-3.5 + c, 0.04, -3.5 + r);
         mesh.receiveShadow = true;
         mesh.userData = { row: r, col: c, light };
-        bg.add(mesh);
+        add(mesh);
         this.sqMeshes.push(mesh);
       }
     }
@@ -392,7 +415,7 @@ export class LuxeBoardScene {
     c.width = 64;
     c.height = 64;
     const ctx = c.getContext('2d')!;
-    ctx.fillStyle = 'rgba(214,169,78,.85)';
+    ctx.fillStyle = LOOKS_3D[this.look].label;
     ctx.font = 'italic 500 40px "Cormorant Garamond", serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -405,6 +428,7 @@ export class LuxeBoardScene {
     sprite.position.set(x, y, z);
     sprite.scale.set(0.28, 0.28, 1);
     this.boardGroup.add(sprite);
+    this.boardParts.push(sprite);
   }
 
   /** Back the camera off until the whole frame stays on screen, for both the tilted and the top-down view. */

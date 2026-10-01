@@ -11,7 +11,8 @@ import { Store } from '@ngrx/store';
 import { combineLatest, Subscription, take } from 'rxjs'; // <-- Subscription added
 import { ChessBoardComponent } from '../../../shared/components/chess-board/chess-board.component';
 import { ChessBoard3DComponent } from '../../../shared/components/chess-board-3d/chess-board-3d.component';
-import { isWebGLAvailable } from '../../../shared/three/luxe-board-scene';
+import { BoardStylePickerComponent } from '../../../shared/components/board-style-picker/board-style-picker.component';
+import { BoardPrefsService } from '../../../core/services/board-prefs.service';
 import { GameActions } from '../../../store/game/game.actions';
 import { selectUser } from '../../../store/account/account.reducer'; // <-- ADDED THIS
 import { isTerminalStatus } from '../../../core/utils/game-status.utils';
@@ -31,7 +32,7 @@ const VIEW_KEY = 'rex_board_view';
 @Component({
   selector: 'app-game-page',
   standalone: true,
-  imports: [CommonModule, AsyncPipe, RouterLink, ChessBoardComponent, ChessBoard3DComponent, FormsModule],
+  imports: [CommonModule, AsyncPipe, RouterLink, ChessBoardComponent, ChessBoard3DComponent, BoardStylePickerComponent, FormsModule],
   templateUrl: './game.page.html',
   styleUrls: ['./game.page.scss'],
 })
@@ -56,8 +57,10 @@ export class GamePage implements OnInit, OnDestroy {
     loading:      this.store.select(selectIsLoading),
   });
 
-  /** Falls back to the flat 2D board when the browser can't do WebGL */
-  readonly webgl = isWebGLAvailable();
+  private boardPrefs = inject(BoardPrefsService);
+  /** Which board to draw (3D or 2D, falling back to 2D without WebGL) and its style */
+  readonly boardView$ = this.boardPrefs.view$;
+  settingsOpen = false;
 
   /** Canvas shape of the 3D board: wide on desktop, square on phones */
   boardAspect   = window.innerWidth <= 768 ? 1 : 1.5;
@@ -94,6 +97,11 @@ export class GamePage implements OnInit, OnDestroy {
 
   @HostListener('window:resize')
   onResize(): void { this.boardAspect = window.innerWidth <= 768 ? 1 : 1.5; }
+
+  toggleSettings(): void { this.settingsOpen = !this.settingsOpen; }
+
+  @HostListener('document:keydown.escape')
+  closeSettings(): void { this.settingsOpen = false; }
 
   toggleView(): void { this.setTopView(!this.topView); }
 

@@ -57,6 +57,10 @@ export interface EloPoint {
 export interface UserPreferences {
   boardTheme: BoardTheme;
   pieceStyle: PieceStyle;
+  /** Which board the game page draws, and the look chosen for each */
+  boardMode?: BoardMode;
+  boardStyle3d?: Style3D;
+  boardStyle2d?: Style2D;
   language: string;
   soundEnabled: boolean;
   animationsEnabled: boolean;
@@ -67,6 +71,9 @@ export interface UserPreferences {
   realTimeAnalysis: boolean;
 }
 
+export type BoardMode = '2d' | '3d';
+export type Style3D = 'marble-gold' | 'classic-wood' | 'ebony-ivory';
+export type Style2D = 'classic-wood' | 'luxe' | 'slate-blue';
 export type BoardTheme = 'classic-wood' | 'marble-green' | 'slate' | 'blue-night';
 export type PieceStyle = 'standard' | 'modern' | 'minimalist';
 

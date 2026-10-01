@@ -1,18 +1,23 @@
 // src/app/features/landing/pages/landing.page.ts
-import { Component } from '@angular/core';
-import { NgFor, NgIf } from '@angular/common';
+import { Component, inject } from '@angular/core';
+import { AsyncPipe, NgFor, NgIf } from '@angular/common';
 import { RouterLink } from '@angular/router';
+import { BoardPrefsService } from '../../../core/services/board-prefs.service';
+import { map } from 'rxjs';
 import { ChessBoard3DComponent } from '../../../shared/components/chess-board-3d/chess-board-3d.component';
 import { FloatyPiecesComponent } from '../../../shared/components/floaty-pieces/floaty-pieces.component';
 
 @Component({
   selector: 'app-landing-page',
   standalone: true,
-  imports: [NgFor, NgIf, RouterLink, ChessBoard3DComponent, FloatyPiecesComponent],
+  imports: [AsyncPipe, NgFor, NgIf, RouterLink, ChessBoard3DComponent, FloatyPiecesComponent],
   templateUrl: './landing.page.html',
   styleUrls: ['./landing.page.scss'],
 })
 export class LandingPage {
+  /** The decorative board wears the player's chosen 3D style */
+  readonly look$ = inject(BoardPrefsService).prefs$.pipe(map((p) => p.style3d));
+
   readonly stats = [
     { value: '12 847', label: 'Joueurs actifs' },
     { value: '3,2 M', label: 'Parties jouées' },

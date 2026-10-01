@@ -174,3 +174,10 @@
 }
 
 .empty-state { font-size: .82rem; color: var(--text3); padding: 12px 0; }
+
+.setting-block {
+  display: flex; flex-direction: column; gap: 4px; padding-bottom: 14px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+
+  app-board-style-picker { margin-top: 10px; }
+}

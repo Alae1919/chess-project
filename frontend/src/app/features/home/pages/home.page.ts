@@ -9,6 +9,8 @@ import { Store } from '@ngrx/store';
 import { GameActions } from '../../../store/game/game.actions';
 import { selectSavedGames } from '../../../store/game/game.selectors';
 import { AiDifficulty, GameMode, GameOptions, PieceColor, TimeControl } from '../../../core/models';
+import { BoardPrefsService } from '../../../core/services/board-prefs.service';
+import { map } from 'rxjs';
 import { ChessBoard3DComponent } from '../../../shared/components/chess-board-3d/chess-board-3d.component';
 import { FloatyPiecesComponent } from '../../../shared/components/floaty-pieces/floaty-pieces.component';
 
@@ -20,6 +22,8 @@ import { FloatyPiecesComponent } from '../../../shared/components/floaty-pieces/
   styleUrls: ['./home.page.scss'],
 })
 export class HomePage implements OnInit {
+  /** The decorative board wears the player's chosen 3D style */
+  readonly look$ = inject(BoardPrefsService).prefs$.pipe(map((p) => p.style3d));
   private store = inject(Store);
   private fb = inject(FormBuilder);
   private router = inject(Router);

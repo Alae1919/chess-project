@@ -12,7 +12,7 @@ import {
   selectCurrentGame,
 } from '../../../store/game/game.selectors';
 import { GameActions } from '../../../store/game/game.actions';
-import { Piece, PieceColor, PieceType, Square } from '../../../core/models';
+import { Piece, PieceColor, PieceType, Square, Style2D } from '../../../core/models';
 import { isPlayableStatus } from '../../../core/utils/game-status.utils';
 
 // Solid glyphs for both colors (distinguished by CSS) — ︎ forces text, not emoji, rendering
@@ -25,7 +25,7 @@ const SOLID_PIECES: Record<PieceType, string> = {
   standalone: true,
   imports: [CommonModule, AsyncPipe],
   template: `
-    <div class="board-wrap" *ngIf="vm$ | async as vm">
+    <div class="board-wrap" [ngClass]="'board--' + boardStyle" *ngIf="vm$ | async as vm">
       <!-- Rank coordinates -->
       <div class="coord-ranks">
         <span *ngFor="let r of displayRanks">{{ r }}</span>
@@ -66,6 +66,8 @@ export class ChessBoardComponent implements OnInit {
 
   /** When true, the board is shown from Black's point of view */
   @Input() flipped = false;
+  /** Colour scheme of the flat board */
+  @Input() boardStyle: Style2D = 'classic-wood';
 
   readonly files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
   readonly ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];

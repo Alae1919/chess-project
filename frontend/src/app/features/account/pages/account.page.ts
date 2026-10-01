@@ -19,11 +19,12 @@ import {
 } from '../../../store/account/account.reducer';
 import { Achievement, UserPreferences } from '../../../core/models/index';
 import { AuthService } from '../../../core/services/auth.service';
+import { BoardStylePickerComponent } from '../../../shared/components/board-style-picker/board-style-picker.component';
 
 @Component({
   selector: 'app-account-page',
   standalone: true, 
-  imports: [CommonModule, AsyncPipe],
+  imports: [CommonModule, AsyncPipe, BoardStylePickerComponent],
   templateUrl: './account.page.html',
   styleUrls: ['./account.page.scss'],
 })

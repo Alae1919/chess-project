@@ -10,7 +10,7 @@ import {
   selectSelectedSquare,
 } from '../../../store/game/game.selectors';
 import { GameActions } from '../../../store/game/game.actions';
-import { Piece, Square } from '../../../core/models';
+import { Piece, Square, Style3D } from '../../../core/models';
 import { isPlayableStatus } from '../../../core/utils/game-status.utils';
 import { initialSquares, LuxeBoardScene, Squares } from '../../three/luxe-board-scene';
 
@@ -45,6 +45,8 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
   @Input() flipped = false;
   /** Bind to the game store and accept moves; otherwise render a decorative start position */
   @Input() interactive = false;
+  /** Board and piece style */
+  @Input() look: Style3D = 'marble-gold';
   /** View the board straight from above instead of at an angle */
   @Input() topView = false;
   /** Emits when dragging the board ends up in (or out of) the top-down view */
@@ -74,6 +76,7 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
       try {
         this.scene = new LuxeBoardScene(canvas, {
           interactive: this.interactive,
+          look: this.look,
           onSquareClick: (sq) => this.zone.run(() => this.onSquareClick(sq)),
           onTopViewChange: (top) => this.zone.run(() => {
             this.reportedTopView = top;
@@ -117,6 +120,7 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['flipped']) this.scene?.setFlipped(this.flipped);
+    if (changes['look']) this.scene?.setLook(this.look);
     if (changes['topView']) {
       // a drag that left the board part-way reports a side; the page echoing it back must not pull it to that end
       const echo = this.topView === this.reportedTopView;

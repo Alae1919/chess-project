@@ -2,6 +2,7 @@
 // Staunton pieces in gold & black lacquer, built from lathe profiles. Port of the
 // REXCHESS Luxe design's LuxePieces.js.
 import * as THREE from 'three';
+import { Look3D } from './board-looks';
 
 export type PieceLetter = 'P' | 'R' | 'N' | 'B' | 'Q' | 'K';
 
@@ -249,12 +250,12 @@ function geoFor(type: PieceLetter): PieceParts {
   return parts;
 }
 
-export function makeLuxeMaterials(): LuxeMaterials {
+export function makeLuxeMaterials(look: Pick<Look3D, 'white' | 'black' | 'trim' | 'groove'>): LuxeMaterials {
   return {
-    gold: new THREE.MeshPhysicalMaterial({ color: 0xf3cf88, metalness: 1, roughness: 0.16, envMapIntensity: 1.35 }),
-    lacquer: new THREE.MeshPhysicalMaterial({ color: 0x0c0b0a, metalness: 0.15, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1.6 }),
-    trim: new THREE.MeshStandardMaterial({ color: 0xd6a94e, metalness: 1, roughness: 0.22 }),
-    groove: new THREE.MeshStandardMaterial({ color: 0x3a2610, metalness: 0.7, roughness: 0.45 }),
+    gold: new THREE.MeshPhysicalMaterial(look.white),
+    lacquer: new THREE.MeshPhysicalMaterial(look.black),
+    trim: new THREE.MeshStandardMaterial({ color: look.trim, metalness: 1, roughness: 0.22 }),
+    groove: new THREE.MeshStandardMaterial({ color: look.groove, metalness: 0.7, roughness: 0.45 }),
   };
 }
 

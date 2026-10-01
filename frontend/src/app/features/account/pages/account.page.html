@@ -116,31 +116,10 @@
       <p class="panel__title">Préférences</p>
       <div class="settings-list">
 
-        <div class="setting-row">
-          <div class="setting-row__label">Thème échiquier</div>
-          <select
-            class="setting-select"
-            [value]="vm.prefs?.boardTheme"
-            (change)="updatePref('boardTheme', $any($event.target).value)"
-          >
-            <option value="classic-wood">Classique Bois</option>
-            <option value="marble-green">Marbre Vert</option>
-            <option value="slate">Ardoise</option>
-            <option value="blue-night">Bleu Nuit</option>
-          </select>
-        </div>
-
-        <div class="setting-row">
-          <div class="setting-row__label">Style des pièces</div>
-          <select
-            class="setting-select"
-            [value]="vm.prefs?.pieceStyle"
-            (change)="updatePref('pieceStyle', $any($event.target).value)"
-          >
-            <option value="standard">Standard</option>
-            <option value="modern">Moderne</option>
-            <option value="minimalist">Minimaliste</option>
-          </select>
+        <div class="setting-block">
+          <div class="setting-row__label">Plateau de jeu</div>
+          <div class="setting-row__hint">Mode et style — modifiables aussi en pleine partie.</div>
+          <app-board-style-picker [both]="true" />
         </div>
 
         <div class="setting-row">
