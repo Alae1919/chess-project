@@ -8,6 +8,7 @@ import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule, AsyncPipe } from '@angular/common';
 import { Store } from '@ngrx/store';
 import { combineLatest } from 'rxjs';
+import { GameActions } from '../../../store/game/game.actions';
 import { AccountActions } from '../../../store/account/account.actions';
 import {
   selectUser,
@@ -49,6 +50,7 @@ export class AccountPage implements OnInit {
   }
 
   logout(): void {
+    this.store.dispatch(GameActions.resetGame());
     this.auth.logout();
   }
 
@@ -63,8 +65,8 @@ export class AccountPage implements OnInit {
     return `${Math.round(stats.winRate * 100)}%`;
   }
 
-  eloDeltaLabel(delta?: number): string {
-    if (delta === undefined) return '—';
+  eloDeltaLabel(delta?: number | null): string {
+    if (delta == null) return '—';
     return delta > 0 ? `+${delta}` : `${delta}`;
   }
 

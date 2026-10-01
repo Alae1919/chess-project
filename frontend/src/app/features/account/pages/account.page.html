@@ -74,7 +74,7 @@
             class="history-row__elo"
             [class.history-row__elo--pos]="(match.eloDelta ?? 0) > 0"
             [class.history-row__elo--neg]="(match.eloDelta ?? 0) < 0"
-            [class.history-row__elo--neu]="match.eloDelta === 0 || match.eloDelta === undefined"
+            [class.history-row__elo--neu]="match.eloDelta === 0 || match.eloDelta == null"
           >
             {{ eloDeltaLabel(match.eloDelta) }}
           </div>
