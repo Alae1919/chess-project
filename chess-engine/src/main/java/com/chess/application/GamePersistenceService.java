@@ -389,6 +389,24 @@ public class GamePersistenceService {
 
     // ── Private DTO builders ──────────────────────────────────────────────────
 
+    /** Move list for the UI: coordinates plus SAN; row follows the frontend convention (0 = rank 8). */
+    private List<GameDto.Move> buildMoves(GameStateResponse st) {
+        List<String> uci = st.moveHistory();
+        List<String> san = st.sanHistory();
+        if (uci == null || san == null) return List.of();
+        List<GameDto.Move> out = new java.util.ArrayList<>();
+        for (int i = 0; i < uci.size() && i < san.size(); i++) {
+            String m = uci.get(i);
+            var from = new GameDto.Square(8 - (m.charAt(1) - '0'), m.charAt(0) - 'a');
+            var to   = new GameDto.Square(8 - (m.charAt(3) - '0'), m.charAt(2) - 'a');
+            String notation = san.get(i);
+            out.add(new GameDto.Move(from, to, null, null, null, null, null,
+                notation.endsWith("+") || notation.endsWith("#"),
+                notation.endsWith("#"), notation, null));
+        }
+        return out;
+    }
+
     private GameDto.Game buildFromMetadata(GameMetadata m, GameStateResponse engineState,
                                            long whiteTimeMs, long blackTimeMs) {
         var white = new GameDto.GamePlayer(
@@ -421,7 +439,7 @@ public class GamePersistenceService {
         return new GameDto.Game(
             engineState.gameId(), m.mode(), engineState.status(),
             white, black,
-            null, null,
+            null, buildMoves(engineState),
             engineState.activeColor().toLowerCase(),
             tc, ep, castling, halfMove, fullMove,
             buildResult(engineState.status(), engineState.activeColor()),
@@ -460,7 +478,7 @@ public class GamePersistenceService {
         return new GameDto.Game(
             e.getId().toString(), e.getMode().name().toLowerCase(), engineState.status(),
             white, black,
-            null, null,
+            null, buildMoves(engineState),
             engineState.activeColor().toLowerCase(),
             tc, ep, castling,
             e.getHalfMoveClock(), e.getFullMoveNumber(),

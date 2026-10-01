@@ -43,6 +43,9 @@ public record GameStateResponse(
     @Schema(example = "[\"e2e4\"]")
     List<String> moveHistory,
 
+    @Schema(example = "[\"e4\"]", description = "Same moves as moveHistory, in standard algebraic notation")
+    List<String> sanHistory,
+
     @Schema(example = "[\"e7e5\",\"d7d5\"]")
     List<String> legalMoves
 ) {}

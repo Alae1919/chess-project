@@ -273,6 +273,7 @@ public final class GameApplicationService {
                 session.state().name(),
                 session.lastMove(),
                 session.moveHistory(),
+                session.sanHistory(),
                 legalMoveStrings(session));
     }
 

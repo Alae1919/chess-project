@@ -3,6 +3,7 @@ package com.chess.infrastructure.persistence;
 import com.chess.domain.board.Board;
 import com.chess.domain.model.Color;
 import com.chess.domain.rules.GameStateChecker;
+import com.chess.domain.rules.SanFormatter;
 import com.chess.engine.player.AiPlayer;
 
 import java.time.Duration;
@@ -29,6 +30,7 @@ public final class GameSession {
     private final Instant createdAt;
     private Board board;
     private final List<String>  moveHistory;
+    private final List<String>  sanHistory;
     private final Deque<Board>  boardHistory;
     private final Color    aiColor;   // null = no AI
     private final int      aiDepth;
@@ -47,6 +49,7 @@ public final class GameSession {
         this.aiDepth      = aiDepth;
         this.aiPlayer     = (aiColor != null) ? new AiPlayer(aiColor, aiDepth) : null;
         this.moveHistory  = new ArrayList<>();
+        this.sanHistory   = new ArrayList<>();
         this.boardHistory = new ArrayDeque<>();
         this.createdAt    = Instant.now();
         this.state        = GameStateChecker.evaluate(board, board.activeColor());
@@ -83,8 +86,10 @@ public final class GameSession {
 
         boardHistory.push(board);
         moveHistory.add(move.toString());
+        Board before = board;
         board = board.apply(move);
         state = GameStateChecker.evaluate(board, board.activeColor());
+        sanHistory.add(SanFormatter.format(before, move, state));
 
         if (turnStartAt != null) {
             turnStartAt = Instant.now(); // start the next player's clock
@@ -98,6 +103,8 @@ public final class GameSession {
         board = boardHistory.pop();
         if (!moveHistory.isEmpty())
             moveHistory.remove(moveHistory.size() - 1);
+        if (!sanHistory.isEmpty())
+            sanHistory.remove(sanHistory.size() - 1);
         state = GameStateChecker.evaluate(board, board.activeColor());
     }
 
@@ -125,6 +132,7 @@ public final class GameSession {
     public AiPlayer                  aiPlayer()    { return aiPlayer; }
     public GameStateChecker.State    state()       { return state; }
     public List<String>              moveHistory() { return Collections.unmodifiableList(moveHistory); }
+    public List<String>              sanHistory()  { return Collections.unmodifiableList(sanHistory); }
     public Instant                   createdAt()   { return createdAt; }
     public boolean                   isOver()      { return GameStateChecker.isTerminal(state); }
     public GameMetadata              metadata()              { return metadata; }

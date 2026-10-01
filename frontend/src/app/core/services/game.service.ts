@@ -11,6 +11,7 @@ import {
   GamePlayer,
   GameStatus,
   Move,
+  PieceType,
   Piece,
   PieceColor,
   SavedGame,
@@ -63,6 +64,16 @@ export class GameService {
     return { username: color === 'white' ? 'White' : 'Black', color, timeRemainingMs: 0, capturedPieces: [] };
   }
 
+  /** Backend only sends UCI strings (moveHistory); build minimal Move objects for the notation panel. */
+  private movesFromHistory(history?: string[]): Move[] {
+    return (history ?? []).map(uci => ({
+      from: { col: uci.charCodeAt(0) - 97, row: 8 - Number(uci[1]) },
+      to:   { col: uci.charCodeAt(2) - 97, row: 8 - Number(uci[3]) },
+      promotion: uci.length > 4 ? ({ q: 'queen', r: 'rook', b: 'bishop', n: 'knight' } as Record<string, PieceType>)[uci[4].toLowerCase()] : undefined,
+      algebraicNotation: uci.length > 4 ? `${uci.slice(0, 2)}-${uci.slice(2, 4)}=${uci[4].toUpperCase()}` : `${uci.slice(0, 2)}-${uci.slice(2)}`,
+    }) as Move);
+  }
+
   mapGame(raw: any): Game {
     return {
       ...raw,
@@ -70,7 +81,7 @@ export class GameService {
       status:      this.mapStatus(raw.status ?? ''),
       playerWhite: raw.playerWhite ?? this.defaultPlayer('white'),
       playerBlack: raw.playerBlack ?? this.defaultPlayer('black'),
-      moves:       raw.moves       ?? [],
+      moves:       raw.moves?.length ? raw.moves : this.movesFromHistory(raw.moveHistory),
     };
   }
 
