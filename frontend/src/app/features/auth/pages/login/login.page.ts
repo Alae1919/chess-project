@@ -3,13 +3,14 @@ import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngrx/store';
+import { FloatyPiecesComponent } from '../../../../shared/components/floaty-pieces/floaty-pieces.component';
 import { AuthService } from '../../../../core/services/auth.service';
 import { AccountActions } from '../../../../store/account/account.actions';
 
 @Component({
   selector: 'app-login-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, FloatyPiecesComponent],
   templateUrl: './login.page.html',
   styleUrls: ['./login.page.scss'],
 })
@@ -45,7 +46,7 @@ export class LoginPage {
       },
       error: (err) => {
         this.isLoading = false;
-        this.errorMessage = err.error?.message || 'Identifiants incorrects. Veuillez réessayer.';
+        this.errorMessage = err.error?.detail || 'Identifiants incorrects. Veuillez réessayer.';
       },
     });
   }

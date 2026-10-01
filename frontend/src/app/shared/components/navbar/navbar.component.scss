@@ -1,41 +1,85 @@
 .nav {
-  height: 56px; flex-shrink: 0;
-  background: rgba(12,15,10,0.96);
-  backdrop-filter: blur(12px);
+  position: sticky; top: 0; z-index: 100; flex-shrink: 0;
+  height: 62px; padding: 0 36px;
+  display: flex; align-items: center; gap: 28px;
+  background: rgba(11, 9, 7, .88);
   border-bottom: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 28px; position: sticky; top: 0; z-index: 100;
+  backdrop-filter: blur(20px);
 
-  &__brand {
-    font-family: var(--font-display); font-size: 1.4rem; font-weight: 700;
-    letter-spacing: .08em; color: var(--em3);
-    span { color: var(--gold); }
+  &__logo {
+    font: 600 22px var(--serif); letter-spacing: .32em; flex-shrink: 0;
+    background: linear-gradient(135deg, #f3dda2, var(--p) 60%, #9a7633);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+    &:hover { color: transparent; }
   }
 
-  &__links { display: flex; gap: 4px; }
+  &__links { display: flex; gap: 28px; margin: 0 auto; }
 
-  &__btn {
-    background: none; border: none; color: var(--text3);
-    padding: 7px 16px; border-radius: 5px;
-    font-size: .82rem; letter-spacing: .04em;
-    transition: all .2s; cursor: pointer;
-    &:hover, &--active { color: var(--em3); background: var(--em-glow); }
+  &__link {
+    color: var(--textd); font: 500 13px var(--font); letter-spacing: .02em;
+    transition: color .2s;
+    &:hover, &.active { color: var(--p); }
   }
 
-  &__right { display: flex; align-items: center; gap: 10px; }
+  &__right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+
+  &__cta { padding: 8px 20px; font-size: 13px; }
 
   &__notif {
-    width: 34px; height: 34px; background: var(--surface);
+    width: 34px; height: 34px; background: var(--bg2);
     border: 1px solid var(--border); border-radius: 6px;
     display: flex; align-items: center; justify-content: center;
-    cursor: pointer; font-size: 1rem;
+    cursor: pointer; font-size: 1rem; transition: border-color .2s;
+    &:hover { border-color: var(--borderh); }
   }
 
   &__avatar {
     width: 34px; height: 34px; border-radius: 50%;
-    background: linear-gradient(135deg, var(--em), var(--em2));
+    background: var(--gold-grad); color: #140f08;
     display: flex; align-items: center; justify-content: center;
-    font-size: .78rem; font-weight: 500;
-    border: 1.5px solid var(--em3); color: var(--text);
+    font: 600 12px var(--font);
+    border: 1.5px solid var(--gold);
+    &:hover { color: #140f08; box-shadow: var(--pg); }
+  }
+
+  /* Hamburger — hidden on desktop */
+  &__hamburger {
+    display: none; background: none; border: none; color: var(--textd);
+    font-size: 1.3rem; padding: 6px 8px; line-height: 1; cursor: pointer; transition: color .2s;
+    &:hover { color: var(--p); }
+  }
+}
+
+@media (max-width: 768px) {
+  .nav {
+    height: 56px; padding: 0 16px; gap: 12px;
+
+    &__logo { flex: 1; font-size: 18px; }
+    &__hamburger { display: flex; order: 3; }
+    &__right { order: 2; margin-left: 0; }
+    &__cta { padding: 7px 12px; font-size: 11px; letter-spacing: .08em; }
+
+    /* desktop links row becomes a dropdown */
+    &__links {
+      display: none; position: absolute; top: 56px; left: 0; right: 0;
+      flex-direction: column; gap: 2px; margin: 0;
+      background: rgba(11, 9, 7, .98); backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--borderh);
+      padding: 8px 12px 14px; z-index: 200;
+
+      &--open { display: flex; }
+    }
+    &__link { padding: 10px 14px; border-radius: var(--radius-sm); font-size: .9rem; }
+  }
+}
+
+@media (max-width: 480px) {
+  .nav {
+    padding: 0 12px; gap: 8px;
+    &__logo { font-size: 15px; letter-spacing: .2em; }
+    &__right { gap: 6px; }
+    &__cta { padding: 6px 10px; font-size: 10px; letter-spacing: .06em; }
+    &__hamburger { padding: 4px; }
   }
 }

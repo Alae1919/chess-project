@@ -1,0 +1,88 @@
+<div class="landing">
+  <app-floaty-pieces />
+
+  <!-- ── HERO ─────────────────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="hero__copy">
+      <div class="hero__eyebrow"><span class="hero__rule"></span>REXCHESS — La référence des échecs</div>
+      <h1 class="hero__title">
+        <span class="hero__t1">Maîtrisez</span>
+        <span class="hero__t2">les échecs</span>
+      </h1>
+      <p class="hero__sub">
+        Affrontez une IA haute performance, jouez en ligne et analysez chaque coup en temps réel.
+      </p>
+      <div class="hero__ctas">
+        <a class="btn-p hero__cta" routerLink="/home">Jouer maintenant →</a>
+        <a class="btn-g hero__cta" href="#features" (click)="$event.preventDefault(); scrollTo('features')">En savoir plus</a>
+      </div>
+      <div class="hero__stats">
+        <div *ngFor="let s of stats">
+          <span class="hstat-val">{{ s.value }}</span>
+          <span class="hstat-lbl">{{ s.label }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="hero__board">
+      <div class="hero__halo"></div>
+      <app-chess-board-3d />
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- ── FEATURES ─────────────────────────────────────────────────── -->
+  <section id="features" class="features">
+    <div class="section-head">
+      <div class="eyebrow">Fonctionnalités</div>
+      <h2 class="section-title">Conçu pour les maîtres</h2>
+      <p class="section-sub">Chaque détail pensé pour vous aider à progresser.</p>
+    </div>
+    <div class="feat-grid">
+      <div class="feat-card glass" *ngFor="let f of features">
+        <div class="feat-icon">{{ f.icon }}</div>
+        <div class="feat-title">{{ f.title }}</div>
+        <div class="feat-desc">{{ f.desc }}</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── GAME MODES ───────────────────────────────────────────────── -->
+  <section class="modes">
+    <div class="modes__panel">
+      <div>
+        <div class="eyebrow">Modes de jeu</div>
+        <h2 class="modes__title">Jouez comme vous voulez</h2>
+        <p class="modes__text">
+          IA adaptative, parties locales ou tournois en ligne — chaque mode offre une expérience unique.
+        </p>
+        <a class="btn-p" routerLink="/home">Choisir un mode →</a>
+      </div>
+      <div class="modes__list">
+        <a class="mode-row" *ngFor="let m of modes" routerLink="/home">
+          <span class="mode-row__icon">{{ m.icon }}</span>
+          <span class="mode-row__label">{{ m.label }}</span>
+          <span *ngIf="m.tag" class="tag" [class.tag-gold]="m.gold">{{ m.tag }}</span>
+          <span class="mode-row__chev">›</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA ──────────────────────────────────────────────────────── -->
+  <section class="cta">
+    <div class="eyebrow">Commencez gratuitement</div>
+    <h2 class="cta__title">Prêt à jouer ?</h2>
+    <p class="cta__sub">Créez votre compte gratuitement et commencez en secondes.</p>
+    <div class="cta__buttons">
+      <a class="btn-p" routerLink="/register">S'inscrire →</a>
+      <a class="btn-g" routerLink="/home">Jouer maintenant</a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <span class="footer__logo">REXCHESS</span>
+    <span class="footer__note">© 2026 REXCHESS. Tous droits réservés.</span>
+  </footer>
+</div>

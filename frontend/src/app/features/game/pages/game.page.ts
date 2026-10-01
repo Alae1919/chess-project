@@ -3,12 +3,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // src/app/features/game/pages/game.page.ts
 // ─────────────────────────────────────────────────────────────────────────────
-import { Component, inject, OnInit, OnDestroy, Input } from '@angular/core';
+import { Component, HostListener, inject, OnInit, OnDestroy, Input } from '@angular/core';
 import { CommonModule, AsyncPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms'; // <-- ADDED THIS
+import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngrx/store';
-import { combineLatest, Subscription } from 'rxjs'; // <-- Subscription added
+import { combineLatest, Subscription, take } from 'rxjs'; // <-- Subscription added
 import { ChessBoardComponent } from '../../../shared/components/chess-board/chess-board.component';
+import { ChessBoard3DComponent } from '../../../shared/components/chess-board-3d/chess-board-3d.component';
+import { isWebGLAvailable } from '../../../shared/three/luxe-board-scene';
 import { GameActions } from '../../../store/game/game.actions';
 import { selectUser } from '../../../store/account/account.reducer'; // <-- ADDED THIS
 import { isTerminalStatus } from '../../../core/utils/game-status.utils';
@@ -20,12 +23,13 @@ import {
   selectEvaluation,
   selectChatMessages,
   selectIsAiThinking,
+  selectIsLoading,
 } from '../../../store/game/game.selectors';
 
 @Component({
   selector: 'app-game-page',
   standalone: true,
-  imports: [CommonModule, AsyncPipe, ChessBoardComponent,FormsModule],
+  imports: [CommonModule, AsyncPipe, RouterLink, ChessBoardComponent, ChessBoard3DComponent, FormsModule],
   templateUrl: './game.page.html',
   styleUrls: ['./game.page.scss'],
 })
@@ -33,6 +37,7 @@ export class GamePage implements OnInit, OnDestroy {
   @Input() id?: string;   // route param via withComponentInputBinding
 
   private store = inject(Store);
+  private router = inject(Router);
   private sub = new Subscription(); // To manage our current user subscription
 
   currentUserId?: string; // <-- ADDED THIS to fix 'currentUserId does not exist'
@@ -46,8 +51,16 @@ export class GamePage implements OnInit, OnDestroy {
     evaluation:   this.store.select(selectEvaluation),
     chat:         this.store.select(selectChatMessages),
     aiThinking:   this.store.select(selectIsAiThinking),
+    loading:      this.store.select(selectIsLoading),
   });
 
+  /** Falls back to the flat 2D board when the browser can't do WebGL */
+  readonly webgl = isWebGLAvailable();
+
+  /** Canvas shape of the 3D board: wide on desktop, square on phones */
+  boardAspect   = window.innerWidth <= 768 ? 1 : 1.5;
+  boardFlipped  = false;
+  rightTab: 'notation' | 'chat' = 'notation';
   chatInput     = '';
   leftOpen      = true;
   rightOpen     = true;
@@ -60,6 +73,13 @@ export class GamePage implements OnInit, OnDestroy {
 
     if (this.id) {
       this.store.dispatch(GameActions.loadGame({ gameId: this.id }));
+    } else {
+      // /game without id: resume the current game if there is one, otherwise nothing to show
+      this.sub.add(
+        this.store.select(selectCurrentGame).pipe(take(1)).subscribe((game) => {
+          this.router.navigate(game ? ['/game', game.id] : ['/home'], { replaceUrl: true });
+        })
+      );
     }
     this.sub.add(
       this.store.select(selectUser).subscribe(user => {
@@ -68,12 +88,18 @@ export class GamePage implements OnInit, OnDestroy {
     );
   }
 
+  @HostListener('window:resize')
+  onResize(): void { this.boardAspect = window.innerWidth <= 768 ? 1 : 1.5; }
+
+  flipBoard():       void { this.boardFlipped  = !this.boardFlipped; }
   toggleLeft():       void { this.leftOpen      = !this.leftOpen; }
   toggleRight():      void { this.rightOpen     = !this.rightOpen; }
   toggleMobileChat(): void { this.mobileChatOpen = !this.mobileChatOpen; }
 
   ngOnDestroy(): void {
-    this.store.dispatch(GameActions.resetGame());
+    // The game stays in the store so the navbar can offer to resume it; it is
+    // replaced on the next create/load.
+    this.sub.unsubscribe();
   }
 
   save(): void     { this.store.dispatch(GameActions.saveGame()); }
@@ -95,7 +121,12 @@ export class GamePage implements OnInit, OnDestroy {
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
 
-  /** Evaluation bar width (0–100%) */
+  /** Under 30 s on the clock */
+  isLowTime(ms?: number): boolean {
+    return ms !== undefined && ms > 0 && ms < 30_000;
+  }
+
+  /** Evaluation bar share for White (0–100%) */
   evalPercent(score: number): number {
     // score in centipawns; clamp to [-500, 500]
     return Math.round(((Math.min(Math.max(score, -500), 500) + 500) / 1000) * 100);
@@ -121,7 +152,9 @@ export class GamePage implements OnInit, OnDestroy {
       white: { king: '♔', queen: '♕', rook: '♖', bishop: '♗', knight: '♘', pawn: '♙' },
       black: { king: '♚', queen: '♛', rook: '♜', bishop: '♝', knight: '♞', pawn: '♟' },
     };
-    return symbols[piece.color]?.[piece.type] || '';
+    // U+FE0E forces text (not emoji) rendering of the pawn glyphs
+    const sym = symbols[piece.color]?.[piece.type];
+    return sym ? sym + '︎' : '';
   }
 
   getResultLabel(result: any): string {

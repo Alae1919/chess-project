@@ -2,12 +2,13 @@ import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { FloatyPiecesComponent } from '../../../../shared/components/floaty-pieces/floaty-pieces.component';
 import { AuthService } from '../../../../core/services/auth.service';
 
 @Component({
   selector: 'app-register-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, FloatyPiecesComponent],
   templateUrl: './register.page.html',
   styleUrls: ['../login/login.page.scss'], // Reusing the exact same SCSS from login!
 })
@@ -43,7 +44,7 @@ export class RegisterPage {
       },
       error: (err) => {
         this.isLoading = false;
-        this.errorMessage = err.error?.message || 'Erreur lors de la création du compte.';
+        this.errorMessage = err.error?.detail || 'Erreur lors de la création du compte.';
       },
     });
   }

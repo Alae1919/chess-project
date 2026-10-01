@@ -9,11 +9,13 @@ import { Store } from '@ngrx/store';
 import { GameActions } from '../../../store/game/game.actions';
 import { selectSavedGames } from '../../../store/game/game.selectors';
 import { AiDifficulty, GameMode, GameOptions, PieceColor, TimeControl } from '../../../core/models';
+import { ChessBoard3DComponent } from '../../../shared/components/chess-board-3d/chess-board-3d.component';
+import { FloatyPiecesComponent } from '../../../shared/components/floaty-pieces/floaty-pieces.component';
 
 @Component({
   selector: 'app-home-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, ChessBoard3DComponent, FloatyPiecesComponent],
   templateUrl: './home.page.html',
   styleUrls: ['./home.page.scss'],
 })
