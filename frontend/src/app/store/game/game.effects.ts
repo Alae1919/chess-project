@@ -2,7 +2,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { Store } from '@ngrx/store';
-import { interval, of } from 'rxjs';
+import { interval, of, Subscription } from 'rxjs';
 import { catchError, filter, map, switchMap, tap, withLatestFrom } from 'rxjs/operators';
 import { GameActions } from './game.actions';
 import { isPlayableStatus } from '../../core/utils/game-status.utils';
@@ -18,6 +18,7 @@ export class GameEffects {
   private store = inject(Store);
   private gameService = inject(GameService);
   private chatService = inject(ChatService);
+  private wsSub?: Subscription;
   private wsService = inject(WebSocketService);
   private router = inject(Router);
 
@@ -65,7 +66,8 @@ export class GameEffects {
         ofType(GameActions.loadGameSuccess),
         tap(({ game }) => {
           this.wsService.connect(game.id);
-          this.wsService.messages$.subscribe((event) => {
+          this.wsSub?.unsubscribe(); // loadGameSuccess fires more than once per game
+          this.wsSub = this.wsService.messages$.subscribe((event) => {
             if (event.type === 'MOVE_MADE')
               this.store.dispatch(GameActions.receiveMove({ game: this.gameService.mapGame(event.payload) }));
             if (event.type === 'CHAT_MESSAGE')

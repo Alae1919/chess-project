@@ -20,6 +20,7 @@ export class WebSocketService {
   messages$ = this.messageSubject.asObservable();
 
   connect(gameId: string): void {
+    this.socket?.close(); // never keep two sockets open
     const token = this.authService.accessToken;
     const url = `${environment.wsUrl}/game/${gameId}?token=${token}`;
     this.socket = new WebSocket(url);

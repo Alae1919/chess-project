@@ -7,8 +7,14 @@ import { GameState, initialGameState } from './game.state';
 export const gameReducer = createReducer(
   initialGameState,
 
-  on(GameActions.createGame, GameActions.loadGame, (state) => ({
-    ...state, isLoading: true, error: null,
+  on(GameActions.createGame, (state) => ({
+    ...initialGameState, savedGames: state.savedGames, isLoading: true,
+  })),
+
+  on(GameActions.loadGame, (state, { gameId }) => ({
+    // Switching to another game: drop the previous game's chat, selection and evaluation
+    ...(state.currentGame?.id === gameId ? state : { ...initialGameState, savedGames: state.savedGames }),
+    isLoading: true, error: null,
   })),
 
   on(GameActions.createGameSuccess, GameActions.loadGameSuccess, (state, { game }) => ({
@@ -72,7 +78,11 @@ export const gameReducer = createReducer(
   })),
 
   on(GameActions.receiveChatMessage, (state, { message }) => ({
-    ...state, chatMessages: [...state.chatMessages, message],
+    // The sender gets its own message twice (HTTP response + WebSocket broadcast): dedupe by id
+    ...state,
+    chatMessages: state.chatMessages.some((m) => m.id === message.id)
+      ? state.chatMessages
+      : [...state.chatMessages, message],
   })),
 
   on(GameActions.tickTimer, (state) => {
