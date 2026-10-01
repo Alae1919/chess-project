@@ -1,5 +1,5 @@
 // src/app/shared/components/chess-board-3d/chess-board-3d.component.ts
-import { AfterViewInit, Component, ElementRef, inject, Input, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, EventEmitter, inject, Input, Output, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { combineLatest, Subscription } from 'rxjs';
 import {
@@ -45,6 +45,10 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
   @Input() flipped = false;
   /** Bind to the game store and accept moves; otherwise render a decorative start position */
   @Input() interactive = false;
+  /** View the board straight from above instead of at an angle */
+  @Input() topView = false;
+  /** Emits when dragging the board ends up in (or out of) the top-down view */
+  @Output() topViewChange = new EventEmitter<boolean>();
   /** Canvas width / height. Wider than 1 gives a tilted board more room to fill. */
   @Input() aspect = 1;
 
@@ -59,6 +63,8 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
   private resizeObserver?: ResizeObserver;
   private visibilityObserver?: IntersectionObserver;
   private lastBoard: Squares | null = null;
+  /** Last value this board reported itself, so the page echoing it back doesn't snap the view */
+  private reportedTopView?: boolean;
   private vm: any = null;
 
   ngAfterViewInit(): void {
@@ -69,12 +75,17 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
         this.scene = new LuxeBoardScene(canvas, {
           interactive: this.interactive,
           onSquareClick: (sq) => this.zone.run(() => this.onSquareClick(sq)),
+          onTopViewChange: (top) => this.zone.run(() => {
+            this.reportedTopView = top;
+            this.topViewChange.emit(top);
+          }),
         });
       } catch (err) {
         console.error('[chess-board-3d] WebGL unavailable', err);
         return;
       }
       this.scene.setFlipped(this.flipped);
+      this.scene.setTopView(this.topView, true);
 
       this.resizeObserver = new ResizeObserver(() => this.scene?.resize(canvas.clientWidth, canvas.clientHeight));
       this.resizeObserver.observe(canvas);
@@ -106,6 +117,12 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['flipped']) this.scene?.setFlipped(this.flipped);
+    if (changes['topView']) {
+      // a drag that left the board part-way reports a side; the page echoing it back must not pull it to that end
+      const echo = this.topView === this.reportedTopView;
+      this.reportedTopView = undefined;
+      if (!echo) this.scene?.setTopView(this.topView);
+    }
   }
 
   ngOnDestroy(): void {

@@ -88,6 +88,10 @@
             <button class="action-btn" (click)="flipBoard()"><span class="action-btn__ico">⇅</span>Retourner</button>
             <button class="action-btn" (click)="save()"><span class="action-btn__ico">⎙</span>Sauvegarder</button>
             <button class="action-btn" (click)="offerDraw()"><span class="action-btn__ico">½</span>Nulle</button>
+            <button class="action-btn action-btn--full" *ngIf="webgl" (click)="toggleView()"
+                    [attr.aria-pressed]="topView">
+              <span class="action-btn__ico">{{ topView ? '◈' : '⬒' }}</span>{{ topView ? 'Vue 3D' : 'Vue du dessus' }}
+            </button>
             <button class="action-btn action-btn--danger action-btn--full" (click)="resign()">
               ⚑ Abandonner
             </button>
@@ -120,7 +124,7 @@
     <!-- ── BOARD CENTER ───────────────────────────────────────────── -->
     <div class="game-center">
       <div class="board-stage" [style.--board-aspect]="boardAspect">
-        <app-chess-board-3d *ngIf="webgl; else flatBoard" [interactive]="true" [aspect]="boardAspect" [flipped]="boardFlipped" />
+        <app-chess-board-3d *ngIf="webgl; else flatBoard" [interactive]="true" [aspect]="boardAspect" [flipped]="boardFlipped" [topView]="topView" (topViewChange)="setTopView($event)" />
         <ng-template #flatBoard>
           <app-chess-board [flipped]="boardFlipped" />
         </ng-template>
@@ -161,6 +165,7 @@
       <div class="mobile-action-bar">
         <button class="mobile-action-btn" (click)="undo()" title="Annuler">↩</button>
         <button class="mobile-action-btn" (click)="flipBoard()" title="Retourner">⇅</button>
+        <button class="mobile-action-btn" *ngIf="webgl" (click)="toggleView()" [title]="topView ? 'Vue 3D' : 'Vue du dessus'">{{ topView ? '◈' : '⬒' }}</button>
         <button class="mobile-action-btn" (click)="save()" title="Sauvegarder">⎙</button>
         <button class="mobile-action-btn" (click)="offerDraw()" title="Nulle">½</button>
         <button class="mobile-action-btn mobile-action-btn--danger" (click)="resign()" title="Abandonner">⚑</button>

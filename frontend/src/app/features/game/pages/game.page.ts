@@ -26,6 +26,8 @@ import {
   selectIsLoading,
 } from '../../../store/game/game.selectors';
 
+const VIEW_KEY = 'rex_board_view';
+
 @Component({
   selector: 'app-game-page',
   standalone: true,
@@ -60,6 +62,8 @@ export class GamePage implements OnInit, OnDestroy {
   /** Canvas shape of the 3D board: wide on desktop, square on phones */
   boardAspect   = window.innerWidth <= 768 ? 1 : 1.5;
   boardFlipped  = false;
+  /** Straight-down view of the 3D board; remembered between games */
+  topView       = this.readViewPreference();
   rightTab: 'notation' | 'chat' = 'notation';
   chatInput     = '';
   leftOpen      = true;
@@ -90,6 +94,17 @@ export class GamePage implements OnInit, OnDestroy {
 
   @HostListener('window:resize')
   onResize(): void { this.boardAspect = window.innerWidth <= 768 ? 1 : 1.5; }
+
+  toggleView(): void { this.setTopView(!this.topView); }
+
+  setTopView(top: boolean): void {
+    this.topView = top;
+    try { localStorage.setItem(VIEW_KEY, this.topView ? 'top' : '3d'); } catch { /* storage unavailable */ }
+  }
+
+  private readViewPreference(): boolean {
+    try { return localStorage.getItem(VIEW_KEY) === 'top'; } catch { return false; }
+  }
 
   flipBoard():       void { this.boardFlipped  = !this.boardFlipped; }
   toggleLeft():       void { this.leftOpen      = !this.leftOpen; }

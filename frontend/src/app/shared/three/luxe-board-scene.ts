@@ -14,6 +14,8 @@ const LETTER: Record<PieceType, PieceLetter> = {
 const REST_Y = 0.1;
 const LIFT_Y = 0.38;
 const BASE_PITCH = -0.24;
+/** What the camera looks at in the tilted 3D view. */
+const PERSP_TARGET = new THREE.Vector3(0, -0.3, 0.3);
 
 export type Squares = (Piece | null)[][];
 
@@ -28,11 +30,14 @@ export interface SceneOptions {
   /** Interactive boards react to clicks and can be orbited by dragging; the others follow the mouse. */
   interactive: boolean;
   onSquareClick?: (sq: Square) => void;
+  /** Fired when a drag ends: true when the board was left more than halfway towards the top-down view. */
+  onTopViewChange?: (top: boolean) => void;
 }
 
-/** How far the board may turn / tilt (rad) — the camera is framed so the whole frame stays visible within it. */
+/** How far the board may turn sideways (rad) — the camera is framed so the whole frame stays visible within it. */
 const YAW_LIMIT = { interactive: 0.3, still: 0.1 };
-const PITCH_DRAG = { min: -0.12, max: 0.1 };
+/** Vertical drag distance (px) that takes the view from the 3D angle all the way to straight down. */
+const TOP_DRAG_PX = 180;
 
 interface PieceEntry {
   group: THREE.Group;
@@ -112,6 +117,8 @@ export class LuxeBoardScene {
   private pieces = new Map<string, PieceEntry>();
   private mats: LuxeMaterials = makeLuxeMaterials();
   private ownedMaterials: THREE.Material[] = [];
+  /** Marble materials (squares + frame) whose reflections are dimmed in the top view */
+  private boardMaterials: THREE.MeshPhysicalMaterial[] = [];
   private ownedGeometries: THREE.BufferGeometry[] = [];
   private envTexture: THREE.Texture;
 
@@ -133,6 +140,11 @@ export class LuxeBoardScene {
 
   private intro = true;
   private introT = 0;
+  private perspPos = new THREE.Vector3(0, 9.6, 9.4);
+  private topDist = 12;
+  /** 0 = tilted 3D view, 1 = straight down; eased towards `topTarget` */
+  private topT = 0;
+  private topTarget = 0;
   private pitch = 0;
   private targetPitch = 0;
   private yaw = 0;
@@ -177,6 +189,16 @@ export class LuxeBoardScene {
 
   setVisible(visible: boolean): void {
     this.visible = visible;
+  }
+
+  /** Switch between the tilted 3D view and a straight top-down view of the board. */
+  setTopView(top: boolean, snap = false): void {
+    this.topTarget = top ? 1 : 0;
+    if (snap) {
+      this.topT = this.topTarget;
+      this.applyCamera();
+    }
+    if (top) this.dragYaw = 0; // look straight down the files, not at a sideways angle
   }
 
   setFlipped(flipped: boolean): void {
@@ -315,6 +337,7 @@ export class LuxeBoardScene {
 
     const frameMat = new THREE.MeshPhysicalMaterial({ map: marble.frame, roughness: 0.22, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.08 });
     this.ownedMaterials.push(frameMat);
+    this.boardMaterials.push(frameMat);
     const frame = buildFrame(frameMat, 0.1, 4.02, 4.92);
     frame.traverse((o) => { if ((o as THREE.Mesh).geometry) this.ownedGeometries.push((o as THREE.Mesh).geometry); });
     bg.add(frame);
@@ -345,6 +368,7 @@ export class LuxeBoardScene {
         this.sqTextures.push(tx);
         const mat = new THREE.MeshPhysicalMaterial({ map: tx, color: 0xffffff, roughness: 0.16, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.06 });
         this.ownedMaterials.push(mat);
+        this.boardMaterials.push(mat);
         const mesh = new THREE.Mesh(squareGeo, mat);
         mesh.position.set(-3.5 + c, 0.04, -3.5 + r);
         mesh.receiveShadow = true;
@@ -383,14 +407,14 @@ export class LuxeBoardScene {
     this.boardGroup.add(sprite);
   }
 
-  /** Back the camera off until the whole frame stays on screen through the board's turn / tilt range. */
+  /** Back the camera off until the whole frame stays on screen, for both the tilted and the top-down view. */
   private fitCamera(): void {
     const dir = new THREE.Vector3(0, 9.6, 9.4).normalize();
-    const target = new THREE.Vector3(0, -0.3, 0.3);
+    const target = PERSP_TARGET;
     const E = 4.97; // frame half-width, bevel included
     const yawMax = this.opts.interactive ? YAW_LIMIT.interactive : YAW_LIMIT.still;
     const pitches = this.opts.interactive
-      ? [BASE_PITCH + PITCH_DRAG.min, BASE_PITCH, BASE_PITCH + PITCH_DRAG.max]
+      ? [BASE_PITCH]
       : [BASE_PITCH - 0.03, BASE_PITCH + 0.03];
 
     const pts: THREE.Vector3[] = [];
@@ -402,9 +426,7 @@ export class LuxeBoardScene {
         }
       }
     }
-    const fits = (d: number): boolean => {
-      this.camera.position.copy(target).addScaledVector(dir, d);
-      this.camera.lookAt(target);
+    const allInside = (): boolean => {
       this.camera.updateMatrixWorld();
       this.camera.updateProjectionMatrix();
       return pts.every((p) => {
@@ -412,8 +434,47 @@ export class LuxeBoardScene {
         return Math.abs(v.x) <= 0.97 && Math.abs(v.y) <= 0.97;
       });
     };
+
+    this.camera.up.set(0, 1, 0);
     let d = 6;
-    while (!fits(d) && d < 40) d += 0.1;
+    for (; d < 40; d += 0.1) {
+      this.camera.position.copy(target).addScaledVector(dir, d);
+      this.camera.lookAt(target);
+      if (allInside()) break;
+    }
+    this.perspPos.copy(target).addScaledVector(dir, d);
+
+    // top-down: camera straight above, rank 8 at the top of the screen
+    pts.length = 0;
+    for (const yaw of [0, Math.PI]) {
+      const euler = new THREE.Euler(0, yaw, 0, 'XYZ');
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (const y of [-0.3, 1.2]) {
+        pts.push(new THREE.Vector3(sx * E, y, sz * E).applyEuler(euler));
+      }
+    }
+    this.camera.up.set(0, 0, -1);
+    let top = 6;
+    for (; top < 40; top += 0.1) {
+      this.camera.position.set(0, top, 0);
+      this.camera.lookAt(0, 0, 0);
+      if (allInside()) break;
+    }
+    this.topDist = top;
+
+    this.applyCamera();
+  }
+
+  /** Place the camera between the tilted pose (topT = 0) and the top-down pose (topT = 1). */
+  private applyCamera(): void {
+    const t = this.topT;
+    this.camera.position.lerpVectors(this.perspPos, new THREE.Vector3(0, this.topDist, 0), t);
+    this.camera.up.lerpVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1), t).normalize();
+    this.camera.lookAt(PERSP_TARGET.x * (1 - t), PERSP_TARGET.y * (1 - t), PERSP_TARGET.z * (1 - t));
+    this.camera.updateMatrixWorld();
+
+    // seen from straight above, the glossy marble mirrors the bright ceiling light — tone the reflections down
+    const reflect = 1 - 0.85 * t;
+    this.boardMaterials.forEach((m) => (m.envMapIntensity = reflect));
   }
 
   /* ── pieces ─────────────────────────────────────────────────────────────── */
@@ -564,13 +625,16 @@ export class LuxeBoardScene {
         this.drag.x = e.clientX;
         this.drag.y = e.clientY;
         this.dragYaw = Math.max(-YAW_LIMIT.interactive, Math.min(YAW_LIMIT.interactive, this.dragYaw + dx * 0.008));
-        this.targetPitch = Math.max(PITCH_DRAG.min, Math.min(PITCH_DRAG.max, this.targetPitch + dy * 0.004));
+        // dragging down raises the camera; all the way down looks straight at the board
+        this.topTarget = Math.max(0, Math.min(1, this.topTarget + dy / TOP_DRAG_PX));
         this.canvas.style.cursor = 'grabbing';
       } else if (e.target === this.canvas) {
         this.canvas.style.cursor = this.pick(e) ? 'pointer' : 'default';
       }
     });
     on(window, 'pointerup', () => {
+      // the board stays at whatever angle it was dragged to; just tell the page which side of halfway it is
+      if (this.drag.down && this.drag.moved) this.opts.onTopViewChange?.(this.topTarget > 0.5);
       this.drag.down = false;
       this.canvas.style.cursor = 'default';
     });
@@ -610,16 +674,22 @@ export class LuxeBoardScene {
     if (this.intro) {
       this.introT = Math.min(this.introT + 0.014, 1);
       const e = 1 - Math.pow(1 - this.introT, 3);
-      this.boardGroup.rotation.x = BASE_PITCH * e;
+      this.boardGroup.rotation.x = BASE_PITCH * e * (1 - this.topT);
       this.boardGroup.position.y = -2 * (1 - e);
       if (this.introT >= 1) this.intro = false;
     }
 
     const k = this.opts.interactive ? 0.15 : 0.07;
     this.pitch += (this.targetPitch - this.pitch) * k;
-    this.yaw += (this.flipYaw + this.dragYaw + this.parallaxYaw - this.yaw) * k;
+    this.yaw += (this.flipYaw + (this.dragYaw + this.parallaxYaw) * (1 - this.topT) - this.yaw) * k;
     if (!this.intro) {
-      this.boardGroup.rotation.x = BASE_PITCH + this.pitch;
+      this.boardGroup.rotation.x = (BASE_PITCH + this.pitch) * (1 - this.topT);
+    }
+
+    if (this.topT !== this.topTarget) {
+      this.topT += (this.topTarget - this.topT) * 0.12;
+      if (Math.abs(this.topTarget - this.topT) < 0.002) this.topT = this.topTarget;
+      this.applyCamera();
     }
     this.boardGroup.rotation.y = this.yaw;
 
