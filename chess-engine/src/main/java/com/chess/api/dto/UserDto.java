@@ -46,6 +46,9 @@ public final class UserDto {
     public record UserPreferences(
         String  boardTheme,
         String  pieceStyle,
+        String  boardMode,
+        String  boardStyle3d,
+        String  boardStyle2d,
         String  language,
         boolean soundEnabled,
         boolean animationsEnabled,
@@ -75,6 +78,9 @@ public final class UserDto {
     public record UpdatePreferencesRequest(
         String  boardTheme,
         String  pieceStyle,
+        @Pattern(regexp = "2d|3d") String boardMode,
+        @Pattern(regexp = "marble-gold|classic-wood|ebony-ivory") String boardStyle3d,
+        @Pattern(regexp = "classic-wood|luxe|slate-blue") String boardStyle2d,
         String  language,
         Boolean soundEnabled,
         Boolean animationsEnabled,

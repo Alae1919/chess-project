@@ -28,6 +28,16 @@ public class UserPreferencesEntity {
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private PieceStyle pieceStyle = PieceStyle.standard;
 
+    /** "2d" or "3d" — which board the game page draws. */
+    @Column(name = "board_mode", nullable = false, length = 2)
+    private String boardMode = "3d";
+
+    @Column(name = "board_style_3d", nullable = false, length = 20)
+    private String boardStyle3d = "marble-gold";
+
+    @Column(name = "board_style_2d", nullable = false, length = 20)
+    private String boardStyle2d = "classic-wood";
+
     @Column(nullable = false, length = 10)
     private String language = "fr";
 
@@ -67,6 +77,12 @@ public class UserPreferencesEntity {
     public void setBoardTheme(BoardTheme boardTheme) {this.boardTheme = boardTheme;}
     public PieceStyle getPieceStyle()            { return pieceStyle; }
     public void setPieceStyle(PieceStyle pieceStyle) { this.pieceStyle = pieceStyle; }
+    public String getBoardMode()                 { return boardMode; }
+    public void setBoardMode(String v)           { this.boardMode = v; }
+    public String getBoardStyle3d()              { return boardStyle3d; }
+    public void setBoardStyle3d(String v)        { this.boardStyle3d = v; }
+    public String getBoardStyle2d()              { return boardStyle2d; }
+    public void setBoardStyle2d(String v)        { this.boardStyle2d = v; }
     public String getLanguage()                  { return language; }
     public void setLanguage(String v)            { this.language = v; }
     public boolean isSoundEnabled()              { return soundEnabled; }
