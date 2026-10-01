@@ -1,5 +1,5 @@
 // src/app/shared/components/chess-board/chess-board.component.ts
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, Input, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Store } from '@ngrx/store';
 import { combineLatest, map } from 'rxjs';
@@ -15,9 +15,9 @@ import { GameActions } from '../../../store/game/game.actions';
 import { Piece, PieceColor, PieceType, Square } from '../../../core/models';
 import { isPlayableStatus } from '../../../core/utils/game-status.utils';
 
-const UNICODE_PIECES: Record<PieceColor, Record<PieceType, string>> = {
-  white: { king: '♔', queen: '♕', rook: '♖', bishop: '♗', knight: '♘', pawn: '♙' },
-  black: { king: '♚', queen: '♛', rook: '♜', bishop: '♝', knight: '♞', pawn: '♟' },
+// Solid glyphs for both colors (distinguished by CSS) — ︎ forces text, not emoji, rendering
+const SOLID_PIECES: Record<PieceType, string> = {
+  king: '♚︎', queen: '♛︎', rook: '♜︎', bishop: '♝︎', knight: '♞︎', pawn: '♟︎',
 };
 
 @Component({
@@ -28,14 +28,14 @@ const UNICODE_PIECES: Record<PieceColor, Record<PieceType, string>> = {
     <div class="board-wrap" *ngIf="vm$ | async as vm">
       <!-- Rank coordinates -->
       <div class="coord-ranks">
-        <span *ngFor="let r of ranks">{{ r }}</span>
+        <span *ngFor="let r of displayRanks">{{ r }}</span>
       </div>
 
       <div class="board-outer">
         <div class="board-frame">
           <div class="board-grid">
             <div
-              *ngFor="let sq of allSquares"
+              *ngFor="let sq of displaySquares"
               class="sq"
               [class.light]="isLightSquare(sq)"
               [class.dark]="!isLightSquare(sq)"
@@ -45,7 +45,7 @@ const UNICODE_PIECES: Record<PieceColor, Record<PieceType, string>> = {
               [class.in-check]="isKingInCheck(sq, vm)"
               (click)="onSquareClick(sq, vm)"
             >
-              <span *ngIf="getPiece(sq, vm.board) as piece" class="piece">
+              <span *ngIf="getPiece(sq, vm.board) as piece" class="piece" [class.piece--white]="piece.color === 'white'" [class.piece--black]="piece.color === 'black'">
                 {{ getPieceUnicode(piece) }}
               </span>
             </div>
@@ -55,7 +55,7 @@ const UNICODE_PIECES: Record<PieceColor, Record<PieceType, string>> = {
 
       <!-- File coordinates -->
       <div class="coord-files">
-        <span *ngFor="let f of files">{{ f }}</span>
+        <span *ngFor="let f of displayFiles">{{ f }}</span>
       </div>
     </div>
   `,
@@ -63,6 +63,9 @@ const UNICODE_PIECES: Record<PieceColor, Record<PieceType, string>> = {
 })
 export class ChessBoardComponent implements OnInit {
   private store = inject(Store);
+
+  /** When true, the board is shown from Black's point of view */
+  @Input() flipped = false;
 
   readonly files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
   readonly ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
@@ -72,6 +75,10 @@ export class ChessBoardComponent implements OnInit {
     row: Math.floor(i / 8),
     col: i % 8,
   }));
+
+  get displaySquares(): Square[] { return this.flipped ? [...this.allSquares].reverse() : this.allSquares; }
+  get displayRanks(): string[] { return this.flipped ? [...this.ranks].reverse() : this.ranks; }
+  get displayFiles(): string[] { return this.flipped ? [...this.files].reverse() : this.files; }
 
   vm$ = combineLatest({
     board: this.store.select(selectBoard),
@@ -140,7 +147,7 @@ export class ChessBoardComponent implements OnInit {
   }
 
   getPieceUnicode(piece: Piece): string {
-    return UNICODE_PIECES[piece.color][piece.type];
+    return SOLID_PIECES[piece.type];
   }
 
   isKingInCheck(sq: Square, vm: any): boolean {
