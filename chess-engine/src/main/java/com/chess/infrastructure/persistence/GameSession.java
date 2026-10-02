@@ -36,6 +36,7 @@ public final class GameSession {
     private final int      aiDepth;
     private final AiPlayer aiPlayer;  // null for human-vs-human; holds TT across moves
     private GameStateChecker.State state;
+    private boolean closed;              // ended before it was loaded (see restoreOutcome)
     private GameMetadata metadata;       // set by GamePersistenceService after DB persist
     private long   whiteTimeRemainingMs; // mutable — decremented on each move
     private long   blackTimeRemainingMs;
@@ -116,6 +117,16 @@ public final class GameSession {
             : GameStateChecker.State.BLACK_RESIGNED;
     }
 
+    /**
+     * Marks a game loaded from the database as already over. {@code outcome} is
+     * how it ended, or null when the engine has no state for that ending (an
+     * aborted game); either way no further moves are accepted.
+     */
+    public void restoreOutcome(GameStateChecker.State outcome) {
+        if (outcome != null) state = outcome;
+        closed = true;
+    }
+
     /** Ends the game as a draw by agreement. */
     public void agreeDraw() {
         if (isOver()) return;
@@ -133,7 +144,7 @@ public final class GameSession {
     public List<String>              moveHistory() { return Collections.unmodifiableList(moveHistory); }
     public List<String>              sanHistory()  { return Collections.unmodifiableList(sanHistory); }
     public Instant                   createdAt()   { return createdAt; }
-    public boolean                   isOver()      { return GameStateChecker.isTerminal(state); }
+    public boolean                   isOver()      { return closed || GameStateChecker.isTerminal(state); }
     public GameMetadata              metadata()              { return metadata; }
     public void                      setMetadata(GameMetadata m) { this.metadata = m; }
     public long                      whiteTimeRemainingMs()  { return whiteTimeRemainingMs; }

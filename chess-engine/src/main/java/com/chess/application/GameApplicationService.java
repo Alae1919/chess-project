@@ -10,6 +10,9 @@ import com.chess.infrastructure.api.FenSerializer;
 import com.chess.infrastructure.api.dto.*;
 import com.chess.infrastructure.api.exception.*;
 import com.chess.infrastructure.persistence.*;
+import com.chess.domain.rules.GameStateChecker;
+import com.chess.persistence.entity.DatabaseEnums.GameStatus;
+import com.chess.persistence.entity.DatabaseEnums.PlayerSide;
 import com.chess.persistence.entity.GameEntity;
 import com.chess.persistence.repository.GameRepository;
 
@@ -138,6 +141,8 @@ public final class GameApplicationService {
 
     public GameStateResponse undoLastMove(String gameId) {
         GameSession session = requireSession(gameId);
+        // Undoing past the end would reopen a finished (and already scored) game
+        if (session.isOver()) throw new GameOverException(gameId);
         session.undoLastMove();
         GameStateResponse r = toResponse(session);
         persistenceService.undoLastMove(UUID.fromString(gameId),
@@ -228,8 +233,25 @@ public final class GameApplicationService {
 
         GameSession session = new GameSession(gameId, board, aiColor, aiDifficulty);
         session.initClock(dbGame.getWhiteTimeRemainingMs(), dbGame.getBlackTimeRemainingMs());
+        if (dbGame.getStatus() == GameStatus.finished || dbGame.getStatus() == GameStatus.aborted)
+            session.restoreOutcome(storedOutcome(dbGame));
         store.save(session);
         return session;
+    }
+
+    /** The engine state for how a stored game ended, or null if the engine has none for it. */
+    private static GameStateChecker.State storedOutcome(GameEntity game) {
+        if (game.getResultReason() == null) return null;
+        boolean whiteWon = game.getResultWinner() == PlayerSide.white;
+        return switch (game.getResultReason()) {
+            case checkmate       -> GameStateChecker.State.CHECKMATE;
+            case stalemate       -> GameStateChecker.State.STALEMATE;
+            case fifty_move_rule -> GameStateChecker.State.DRAW_50_MOVE;
+            case draw_agreement  -> GameStateChecker.State.DRAW_AGREED;
+            case resignation     -> whiteWon ? GameStateChecker.State.BLACK_RESIGNED
+                                             : GameStateChecker.State.WHITE_RESIGNED;
+            default              -> null;
+        };
     }
 
     /**

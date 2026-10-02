@@ -261,6 +261,8 @@ public class GamePersistenceService {
     @Transactional
     public void finaliseGame(UUID dbGameId, String winner, String reason) {
         var game = gameRepo.findById(dbGameId).orElseThrow();
+        // A game finishes once: never count its result in the players' stats twice
+        if (game.getStatus() == GameStatus.finished) return;
         game.setStatus(GameStatus.finished);
         game.setResultWinner(winner != null ? PlayerSide.valueOf(winner.toLowerCase()) : null);
         game.setResultReason(reason != null ? GameEndReason.valueOf(reason.toLowerCase()) : null);

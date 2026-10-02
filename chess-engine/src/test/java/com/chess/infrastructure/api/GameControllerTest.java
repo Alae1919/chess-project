@@ -5,6 +5,7 @@ import com.chess.application.GameApplicationService;
 import com.chess.application.GamePersistenceService;
 import com.chess.application.UserService;
 import com.chess.infrastructure.api.dto.CreateGameRequest;
+import com.chess.infrastructure.persistence.GameStore;
 import com.chess.persistence.entity.DatabaseEnums.TimeControlKind;
 import com.chess.persistence.entity.UserEntity;
 import com.chess.persistence.entity.UserPreferencesEntity;
@@ -29,6 +30,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -53,6 +55,7 @@ class GameControllerTest {
     @Autowired UserRepository userRepository;
     @Autowired GameApplicationService engineService;
     @Autowired GamePersistenceService persistService;
+    @Autowired GameStore gameStore;
 
     private UUID playerId;
     private UUID opponentId;
@@ -524,6 +527,58 @@ class GameControllerTest {
             mvc.perform(post("/api/games/" + id + "/resign"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("WHITE_RESIGNED"));
+        }
+    }
+
+    // ================================================================
+    // Finished games
+    // ================================================================
+
+    @Nested
+    @DisplayName("A finished game stays finished")
+    class FinishedGames {
+
+        private int gamesPlayed() {
+            return userRepository.findById(playerId).orElseThrow().getGamesPlayed();
+        }
+
+        @Test
+        @DisplayName("reloaded from the database, it keeps its result and refuses moves")
+        void reloadedFinishedGameRefusesMoves() throws Exception {
+            String id = createGame("BLACK");
+            mvc.perform(post("/api/games/" + id + "/resign")).andExpect(status().isOk());
+            int played = gamesPlayed();
+
+            gameStore.delete(id); // what a backend restart does
+
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("WHITE_RESIGNED"))
+                .andExpect(jsonPath("$.result.winner").value("black"))
+                .andExpect(jsonPath("$.legalMoves", hasSize(0)));
+            mvc.perform(post("/api/games/" + id + "/moves")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", "e2e4"))))
+                .andExpect(status().isConflict());
+            mvc.perform(post("/api/games/" + id + "/resign"))
+                .andExpect(status().isConflict());
+
+            assertEquals(played, gamesPlayed(), "the result must be counted once");
+        }
+
+        @Test
+        @DisplayName("undo can't reopen a finished game")
+        void undoAfterGameOverIsRefused() throws Exception {
+            String id = createGame("NONE");
+            mvc.perform(post("/api/games/" + id + "/moves")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", "e2e4"))))
+                .andExpect(status().isOk());
+            mvc.perform(post("/api/games/" + id + "/resign")).andExpect(status().isOk());
+
+            mvc.perform(delete("/api/games/" + id + "/moves/last"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Game Already Over"));
         }
     }
 
