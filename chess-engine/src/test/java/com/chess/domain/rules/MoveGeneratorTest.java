@@ -123,6 +123,16 @@ class MoveGeneratorTest {
             assertEquals(3, moves.size(),
                 "King in corner should have exactly 3 moves");
         }
+
+        @Test
+        @DisplayName("king next to g8 but off e8 lists the step to g8 once")
+        void kingOffHomeSquareHasNoDuplicateMoves() {
+            // Black king f8: e8, g8, e7, f7, g7 — the castling-target check
+            // used to add f8-g8 a second time
+            Board board = FenParser.parse("5k2/8/8/8/8/8/8/4K3 b - - 0 1");
+            List<Move> moves = MoveGenerator.generateLegalMoves(board, Color.BLACK);
+            assertEquals(5, moves.size(), "moves: " + moves);
+        }
     }
 
     @Nested

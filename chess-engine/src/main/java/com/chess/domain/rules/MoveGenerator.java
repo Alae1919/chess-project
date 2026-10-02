@@ -93,10 +93,14 @@ public final class MoveGenerator {
                     tryAdd(board, from, new Square(f, r), piece, moves);
             }
         }
-        // Castling
+        // Castling — only from e1/e8. From anywhere else g1/c1 (g8/c8) can be a
+        // plain one-step king move already generated above, and adding it again
+        // would list that move twice.
         int backRank = piece.color() == Color.WHITE ? 0 : 7;
-        tryAdd(board, from, new Square(6, backRank), piece, moves); // king-side
-        tryAdd(board, from, new Square(2, backRank), piece, moves); // queen-side
+        if (from.file() == 4 && from.rank() == backRank) {
+            tryAdd(board, from, new Square(6, backRank), piece, moves); // king-side
+            tryAdd(board, from, new Square(2, backRank), piece, moves); // queen-side
+        }
     }
 
     private static void generatePawnMoves(Board board, Square from,
