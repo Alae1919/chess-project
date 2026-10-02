@@ -58,7 +58,7 @@ jobs:
           path: chess-engine/target/surefire-reports
 
   frontend:
-    name: Frontend (Angular build)
+    name: Frontend (Angular tests + build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -76,6 +76,10 @@ jobs:
       - name: Install
         run: npm ci
 
-      # No spec files yet, so the production build (type-check + template check) is the gate.
+      # Unit specs in headless Chrome (preinstalled on ubuntu-latest)
+      - name: Test
+        run: npm run test:ci
+
+      # The production build type-checks the templates, which the specs don't cover.
       - name: Build
         run: npm run build -- --configuration production
