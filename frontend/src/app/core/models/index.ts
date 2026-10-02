@@ -112,6 +112,8 @@ export interface Game {
   result?: GameResult;
   opening?: string;
   fen?: string;
+  /** Who has an unanswered draw offer on the table */
+  drawOfferedBy?: PieceColor | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -42,7 +42,7 @@ export const gameReducer = createReducer(
   on(GameActions.submitMove, (state, { move }) =>
     needsPromotionChoice(move)
       ? { ...state, pendingPromotion: move }
-      : { ...state, pendingPromotion: null, isLoading: true }
+      : { ...state, pendingPromotion: null, notice: null, isLoading: true }
   ),
 
   on(GameActions.cancelPromotion, (state) => ({
@@ -74,8 +74,12 @@ export const gameReducer = createReducer(
   })),
 
   on(GameActions.requestFailed, (state, { error }) => ({
-    ...state, isLoading: false, error,
+    ...state, isLoading: false, error, notice: error,
   })),
+
+  on(GameActions.dismissNotice, (state) => ({ ...state, notice: null })),
+
+  on(GameActions.gameUpdated, (state, { game }) => ({ ...state, currentGame: game })),
 
   on(GameActions.undoMoveSuccess, (state, { game }) => ({
     ...state, currentGame: game,

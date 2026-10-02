@@ -20,7 +20,7 @@ describe('GameEffects', () => {
 
   beforeEach(() => {
     actions$ = new Subject<Action>();
-    gameService = jasmine.createSpyObj<GameService>('GameService', ['resign', 'getAiMove']);
+    gameService = jasmine.createSpyObj<GameService>('GameService', ['resign', 'getAiMove', 'offerDraw', 'acceptDraw', 'declineDraw']);
     chatService = jasmine.createSpyObj<ChatService>('ChatService', ['sendMessage']);
     TestBed.configureTestingModule({
       providers: [
@@ -74,6 +74,51 @@ describe('GameEffects', () => {
       GameActions.requestFailed({ error: 'offline' }),
       GameActions.gameOver({ game: finished }),
     ]);
+  });
+
+  describe('draw offers', () => {
+    it('an offer the opponent can still answer updates the game', () => {
+      const offered = makeGame({ drawOfferedBy: 'white' });
+      gameService.offerDraw.and.returnValue(of(offered));
+      const out = collect(effects.offerDraw$);
+
+      actions$.next(GameActions.offerDraw());
+
+      expect(out).toEqual([GameActions.gameUpdated({ game: offered })]);
+    });
+
+    it('an offer that ends the game (accepted) ends it in the store', () => {
+      const drawn = makeGame({ status: 'draw_agreed', result: { reason: 'draw_agreement' } as any });
+      gameService.offerDraw.and.returnValue(of(drawn));
+      const out = collect(effects.offerDraw$);
+
+      actions$.next(GameActions.offerDraw());
+
+      expect(out).toEqual([GameActions.gameOver({ game: drawn })]);
+    });
+
+    it('shows the server explanation when the AI declines', () => {
+      const declined = { error: { detail: 'The AI declined the draw offer.' }, message: 'Http failure response' };
+      gameService.offerDraw.and.returnValue(throwError(() => declined));
+      const out = collect(effects.offerDraw$);
+
+      actions$.next(GameActions.offerDraw());
+
+      expect(out).toEqual([GameActions.requestFailed({ error: 'The AI declined the draw offer.' })]);
+    });
+
+    it('accepting and declining call their own endpoints', () => {
+      const drawn = makeGame({ status: 'draw_agreed', result: { reason: 'draw_agreement' } as any });
+      const open = makeGame();
+      gameService.acceptDraw.and.returnValue(of(drawn));
+      gameService.declineDraw.and.returnValue(of(open));
+      const out = collect(effects.drawResponse$);
+
+      actions$.next(GameActions.drawResponse({ accepted: true }));
+      actions$.next(GameActions.drawResponse({ accepted: false }));
+
+      expect(out).toEqual([GameActions.gameOver({ game: drawn }), GameActions.gameUpdated({ game: open })]);
+    });
   });
 
   it('adds a sent chat message, and survives a failed send', () => {

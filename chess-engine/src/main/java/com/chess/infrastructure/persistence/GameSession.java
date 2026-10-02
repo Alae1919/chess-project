@@ -42,6 +42,7 @@ public final class GameSession {
     private final int      aiDepth;
     private final AiPlayer aiPlayer;  // null for human-vs-human; holds TT across moves
     private GameStateChecker.State state;
+    private Color drawOfferedBy;         // pending draw offer, cleared by any move
     private boolean closed;              // ended before it was loaded (see restoreOutcome)
     private GameMetadata metadata;       // set by GamePersistenceService after DB persist
     private final Clock clock;           // injectable so tests can move time
@@ -100,6 +101,7 @@ public final class GameSession {
             if (white) whiteTimeRemainingMs = left; else blackTimeRemainingMs = left;
         }
 
+        drawOfferedBy = null; // a move answers any draw offer
         boardHistory.push(board);
         moveHistory.add(move.toUci());
         Board before = board;
@@ -208,10 +210,21 @@ public final class GameSession {
         turnStartAt = null;
     }
 
+    /** Records that {@code side} offers a draw. */
+    public synchronized void offerDraw(Color side) {
+        if (!isOver()) drawOfferedBy = side;
+    }
+
+    public synchronized void clearDrawOffer() { drawOfferedBy = null; }
+
+    /** Who has an unanswered draw offer on the table, or null. */
+    public synchronized Color drawOfferedBy() { return isOver() ? null : drawOfferedBy; }
+
     /** Ends the game as a draw by agreement. */
     public synchronized void agreeDraw() {
         if (isOver()) return;
         stopClock();
+        drawOfferedBy = null;
         state = GameStateChecker.State.DRAW_AGREED;
     }
 

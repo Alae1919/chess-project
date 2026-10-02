@@ -180,9 +180,47 @@ public final class GameApplicationService {
         return r;
     }
 
-    public GameStateResponse offerDraw(String gameId, String username) {
+    /**
+     * {@code side} offers a draw ({@code null}: a local game, where the one person
+     * at the board is both players, so it is simply agreed). If the opponent has an
+     * offer on the table, this accepts it. The AI always declines.
+     */
+    public GameStateResponse offerDraw(String gameId, Color side) {
         GameSession session = requireSession(gameId);
         if (session.isOver()) throw new GameOverException(gameId);
+        if (session.aiColor() != null) {
+            throw new DrawDeclinedException("The AI declined the draw offer.");
+        }
+        if (side == null || session.drawOfferedBy() == side.opposite()) {
+            return agreeDraw(gameId, session);
+        }
+        session.offerDraw(side);
+        return toResponse(session);
+    }
+
+    /** {@code side} accepts the draw the opponent offered. */
+    public GameStateResponse acceptDraw(String gameId, Color side) {
+        GameSession session = requireSession(gameId);
+        if (session.isOver()) throw new GameOverException(gameId);
+        requireOfferFromOpponent(session, side);
+        return agreeDraw(gameId, session);
+    }
+
+    /** {@code side} turns down the draw the opponent offered. */
+    public GameStateResponse declineDraw(String gameId, Color side) {
+        GameSession session = requireSession(gameId);
+        if (session.isOver()) throw new GameOverException(gameId);
+        requireOfferFromOpponent(session, side);
+        session.clearDrawOffer();
+        return toResponse(session);
+    }
+
+    private static void requireOfferFromOpponent(GameSession session, Color side) {
+        if (side == null || session.drawOfferedBy() != side.opposite())
+            throw new IllegalStateException("There is no draw offer to answer.");
+    }
+
+    private GameStateResponse agreeDraw(String gameId, GameSession session) {
         session.agreeDraw();
         GameStateResponse r = toResponse(session);
         finaliseIfTerminal(gameId, r.status(), r.activeColor());

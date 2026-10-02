@@ -7,7 +7,7 @@ import { AuthService } from './auth.service';
 import { environment } from '../../../environments/environment';
 
 export interface WsEvent<T = unknown> {
-  type: 'MOVE_MADE' | 'GAME_UPDATED' | 'CHAT_MESSAGE' | 'PLAYER_JOINED' | 'GAME_OVER' | 'TIMER_TICK' | 'OPPONENT_DISCONNECTED';
+  type: 'MOVE_MADE' | 'GAME_UPDATED' | 'CHAT_MESSAGE' | 'PLAYER_JOINED' | 'GAME_OVER' | 'TIMER_TICK' | 'OPPONENT_DISCONNECTED' | 'DRAW_OFFERED' | 'DRAW_DECLINED';
   payload: T;
 }
 

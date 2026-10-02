@@ -75,8 +75,15 @@ public final class GameDto {
         String        fen,
         List<String>  legalMoves,
         List<String>  moveHistory,
-        String        lastMove
-    ) {}
+        String        lastMove,
+        String        drawOfferedBy      // "white" / "black" while an offer is pending, else null
+    ) {
+        public Game withDrawOfferedBy(String color) {
+            return new Game(id, mode, status, playerWhite, playerBlack, board, moves, currentTurn,
+                timeControl, enPassantTarget, castlingRights, halfMoveClock, fullMoveNumber,
+                result, opening, createdAt, updatedAt, fen, legalMoves, moveHistory, lastMove, color);
+        }
+    }
 
     // POST /api/games request body
     public record CreateGameRequest(

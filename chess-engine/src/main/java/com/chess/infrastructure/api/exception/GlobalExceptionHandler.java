@@ -55,6 +55,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem(HttpStatus.CONFLICT, "not-your-turn", "Not Your Turn", ex);
     }
 
+    @ExceptionHandler(DrawDeclinedException.class)
+    ProblemDetail handleDrawDeclined(DrawDeclinedException ex) {
+        return problem(HttpStatus.CONFLICT, "draw-declined", "Draw Declined", ex);
+    }
+
     @ExceptionHandler(NotAPlayerException.class)
     ProblemDetail handleNotAPlayer(NotAPlayerException ex) {
         return problem(HttpStatus.FORBIDDEN, "not-a-player", "Not A Player", ex);

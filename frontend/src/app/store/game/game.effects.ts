@@ -1,7 +1,7 @@
 // src/app/store/game/game.effects.ts
 import { Injectable, inject } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { Store } from '@ngrx/store';
+import { Action, Store } from '@ngrx/store';
 import { interval, of, Subscription } from 'rxjs';
 import { catchError, concatMap, filter, map, switchMap, tap, withLatestFrom } from 'rxjs/operators';
 import { GameActions } from './game.actions';
@@ -9,9 +9,15 @@ import { isPlayableStatus } from '../../core/utils/game-status.utils';
 import { needsPromotionChoice } from '../../core/utils/promotion.utils';
 import { selectCurrentGame, selectSelectedSquare } from './game.selectors';
 import { GameService } from '../../core/services/game.service';
+import { Game } from '../../core/models';
 import { ChatService } from '../../core/services/chat.service';
 import { WebSocketService } from '../../core/services/websocket.service';
 import { Router } from '@angular/router';
+
+/** The server's explanation for a failed request, else the generic error text. */
+function errorMessage(error: any): string {
+  return error?.error?.detail ?? error?.message ?? 'Request failed';
+}
 
 @Injectable()
 export class GameEffects {
@@ -73,6 +79,8 @@ export class GameEffects {
               this.store.dispatch(GameActions.receiveMove({ game: this.gameService.mapGame(event.payload) }));
             if (event.type === 'CHAT_MESSAGE')
               this.store.dispatch(GameActions.receiveChatMessage({ message: event.payload as any }));
+            if (event.type === 'DRAW_OFFERED' || event.type === 'DRAW_DECLINED')
+              this.store.dispatch(GameActions.gameUpdated({ game: this.gameService.mapGame(event.payload) }));
             if (event.type === 'GAME_OVER')
               this.store.dispatch(GameActions.gameOver({ game: this.gameService.mapGame(event.payload) }));
           });
@@ -174,7 +182,40 @@ export class GameEffects {
       switchMap(([, game]) =>
         this.gameService.resign(game!.id).pipe(
           map((finished) => GameActions.gameOver({ game: finished })),
-          catchError((error) => of(GameActions.requestFailed({ error: error.message })))
+          catchError((error) => of(GameActions.requestFailed({ error: errorMessage(error) })))
+        )
+      )
+    )
+  );
+
+  // The opponent's answer comes back as a game that is over (agreed) or still open (declined)
+  private afterDraw(game: Game): Action {
+    return game.result ? GameActions.gameOver({ game }) : GameActions.gameUpdated({ game });
+  }
+
+  offerDraw$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(GameActions.offerDraw),
+      withLatestFrom(this.store.select(selectCurrentGame)),
+      filter(([, game]) => !!game),
+      switchMap(([, game]) =>
+        this.gameService.offerDraw(game!.id).pipe(
+          map((updated) => this.afterDraw(updated)),
+          catchError((error) => of(GameActions.requestFailed({ error: errorMessage(error) })))
+        )
+      )
+    )
+  );
+
+  drawResponse$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(GameActions.drawResponse),
+      withLatestFrom(this.store.select(selectCurrentGame)),
+      filter(([, game]) => !!game),
+      switchMap(([{ accepted }, game]) =>
+        (accepted ? this.gameService.acceptDraw(game!.id) : this.gameService.declineDraw(game!.id)).pipe(
+          map((updated) => this.afterDraw(updated)),
+          catchError((error) => of(GameActions.requestFailed({ error: errorMessage(error) })))
         )
       )
     )

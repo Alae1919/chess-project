@@ -155,6 +155,16 @@
         </div>
       </ng-container>
 
+      <app-draw-offer-banner
+        *ngIf="drawOfferKind(vm.game) as kind"
+        [kind]="kind"
+        (accept)="answerDraw(true)"
+        (decline)="answerDraw(false)" />
+
+      <div class="status-bar" role="alert" *ngIf="notice$ | async as notice" (click)="dismissNotice()" title="Fermer">
+        {{ notice }}
+      </div>
+
       <div class="status-bar status-bar--finished status-bar--desktop" *ngIf="isTerminal(vm.game.status)">
         Partie terminée — {{ getResultLabel(vm.game.result) }}
       </div>

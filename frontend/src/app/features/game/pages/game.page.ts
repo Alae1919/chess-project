@@ -12,9 +12,10 @@ import { combineLatest, Subscription, take } from 'rxjs'; // <-- Subscription ad
 import { ChessBoardComponent } from '../../../shared/components/chess-board/chess-board.component';
 import { ChessBoard3DComponent } from '../../../shared/components/chess-board-3d/chess-board-3d.component';
 import { BoardStylePickerComponent } from '../../../shared/components/board-style-picker/board-style-picker.component';
+import { DrawOfferBannerComponent } from '../../../shared/components/draw-offer-banner/draw-offer-banner.component';
 import { PromotionPickerComponent } from '../../../shared/components/promotion-picker/promotion-picker.component';
 import { PromotionPiece } from '../../../core/utils/promotion.utils';
-import { Move } from '../../../core/models';
+import { Game, Move } from '../../../core/models';
 import { BoardPrefsService } from '../../../core/services/board-prefs.service';
 import { GameActions } from '../../../store/game/game.actions';
 import { selectUser } from '../../../store/account/account.reducer'; // <-- ADDED THIS
@@ -29,6 +30,7 @@ import {
   selectIsAiThinking,
   selectIsLoading,
   selectPendingPromotion,
+  selectNotice,
 } from '../../../store/game/game.selectors';
 
 const VIEW_KEY = 'rex_board_view';
@@ -36,7 +38,7 @@ const VIEW_KEY = 'rex_board_view';
 @Component({
   selector: 'app-game-page',
   standalone: true,
-  imports: [CommonModule, AsyncPipe, RouterLink, ChessBoardComponent, ChessBoard3DComponent, BoardStylePickerComponent, PromotionPickerComponent, FormsModule],
+  imports: [CommonModule, AsyncPipe, RouterLink, ChessBoardComponent, ChessBoard3DComponent, BoardStylePickerComponent, PromotionPickerComponent, DrawOfferBannerComponent, FormsModule],
   templateUrl: './game.page.html',
   styleUrls: ['./game.page.scss'],
 })
@@ -60,6 +62,8 @@ export class GamePage implements OnInit, OnDestroy {
     aiThinking:   this.store.select(selectIsAiThinking),
     loading:      this.store.select(selectIsLoading),
   });
+
+  readonly notice$ = this.store.select(selectNotice);
 
   /** Pawn move waiting for its promotion piece (shown over either board) */
   readonly pendingPromotion$ = this.store.select(selectPendingPromotion);
@@ -136,6 +140,20 @@ export class GamePage implements OnInit, OnDestroy {
   undo(): void     { this.store.dispatch(GameActions.undoMove()); }
   resign(): void   { if (confirm('Abandonner la partie ?')) this.store.dispatch(GameActions.resign()); }
   offerDraw(): void { this.store.dispatch(GameActions.offerDraw()); }
+  answerDraw(accepted: boolean): void { this.store.dispatch(GameActions.drawResponse({ accepted })); }
+  dismissNotice(): void { this.store.dispatch(GameActions.dismissNotice()); }
+
+  /**
+   * The open draw offer from this player's point of view: 'incoming' from the
+   * opponent (answer it), 'outgoing' from them (wait). None in local games, where
+   * a draw is agreed at once.
+   */
+  drawOfferKind(game: Game): 'incoming' | 'outgoing' | null {
+    const by = game.drawOfferedBy;
+    if (!by || game.mode === 'local') return null;
+    const mine = [game.playerWhite, game.playerBlack].find((p) => p.userId && p.userId === this.currentUserId);
+    return mine?.color === by ? 'outgoing' : 'incoming';
+  }
 
   promote(move: Omit<Move, 'algebraicNotation' | 'timestamp'>, piece: PromotionPiece): void {
     this.store.dispatch(GameActions.submitMove({ move: { ...move, promotion: piece } }));

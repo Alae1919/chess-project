@@ -74,6 +74,30 @@ describe('gameReducer', () => {
     expect(next.chatMessages.length).toBe(1);
   });
 
+  describe('draw offers and notices', () => {
+    it('takes a game update (a pending offer) into the current game', () => {
+      const offered = makeGame({ drawOfferedBy: 'white' });
+
+      const next = gameReducer(withGame(), GameActions.gameUpdated({ game: offered }));
+
+      expect(next.currentGame).toBe(offered);
+    });
+
+    it('shows a failed request as a notice until it is dismissed', () => {
+      const failed = gameReducer(withGame(), GameActions.requestFailed({ error: 'The AI declined the draw offer.' }));
+      expect(failed.notice).toBe('The AI declined the draw offer.');
+
+      expect(gameReducer(failed, GameActions.dismissNotice()).notice).toBeNull();
+    });
+
+    it('clears the notice when the next move is played', () => {
+      const state = withGame({ notice: 'old' });
+      const move = { from: { row: 6, col: 4 }, to: { row: 4, col: 4 }, piece: { type: 'pawn' as const, color: 'white' as const } };
+
+      expect(gameReducer(state, GameActions.submitMove({ move })).notice).toBeNull();
+    });
+  });
+
   describe('promotion', () => {
     const pawnToLastRank = {
       from: { row: 1, col: 4 }, to: { row: 0, col: 4 },

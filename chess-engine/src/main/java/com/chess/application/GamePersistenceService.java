@@ -411,8 +411,10 @@ public class GamePersistenceService {
                 s.initClock(e.getWhiteTimeRemainingMs(), e.getBlackTimeRemainingMs(),
                             e.getTimeControlIncrementMs());
             }
+            var offeredBy = s.drawOfferedBy();
             return buildFromMetadata(s.metadata(), engineState,
-                    s.whiteTimeRemainingMs(), s.blackTimeRemainingMs());
+                    s.whiteTimeRemainingMs(), s.blackTimeRemainingMs())
+                .withDrawOfferedBy(offeredBy == null ? null : offeredBy.name().toLowerCase());
         }
 
         // Extreme fallback: session evicted (shouldn't occur in normal flow)
@@ -483,7 +485,8 @@ public class GamePersistenceService {
             engineState.fen(),
             engineState.legalMoves(),
             engineState.moveHistory(),
-            engineState.lastMove());
+            engineState.lastMove(),
+            null);
     }
 
     private GameDto.Game buildFromEntity(GameEntity e, GameStateResponse engineState) {
@@ -520,7 +523,7 @@ public class GamePersistenceService {
                            engineState.gameId()),
             e.getOpening(), e.getCreatedAt(), e.getUpdatedAt(),
             engineState.fen(), engineState.legalMoves(),
-            engineState.moveHistory(), engineState.lastMove());
+            engineState.moveHistory(), engineState.lastMove(), null);
     }
 
     private GameMetadata buildMetadata(GameEntity e) {

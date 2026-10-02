@@ -12,6 +12,8 @@ export interface GameState {
   chatMessages: ChatMessage[];
   /** A pawn move onto the last rank, held until the player picks a piece */
   pendingPromotion: Omit<Move, 'algebraicNotation' | 'timestamp'> | null;
+  /** A short message for the player, e.g. "the AI declined the draw" */
+  notice: string | null;
   isLoading: boolean;
   isAiThinking: boolean;
   error: string | null;
@@ -25,6 +27,7 @@ export const initialGameState: GameState = {
   evaluation: null,
   chatMessages: [],
   pendingPromotion: null,
+  notice: null,
   isLoading: false,
   isAiThinking: false,
   error: null,

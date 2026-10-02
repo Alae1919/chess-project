@@ -41,6 +41,8 @@ export const GameActions = createActionGroup({
     'Draw Response': props<{ accepted: boolean }>(),
     'Resign': emptyProps(),
     'Game Over': props<{ game: Game }>(),
+    'Game Updated': props<{ game: Game }>(),   // same game, new state (e.g. a draw offer)
+    'Dismiss Notice': emptyProps(),
 
     // Evaluation
     'Update Evaluation': props<{ evaluation: PositionEvaluation }>(),

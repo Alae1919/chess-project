@@ -138,6 +138,14 @@ export class GameService {
   }
 
   /** Offer or accept a draw; backend returns the updated game (finished if accepted) */
+  acceptDraw(gameId: string): Observable<Game> {
+    return this.http.post<Game>(`${this.base}/${gameId}/draw-offer/accept`, {}).pipe(map((raw: any) => this.mapGame(raw)));
+  }
+
+  declineDraw(gameId: string): Observable<Game> {
+    return this.http.post<Game>(`${this.base}/${gameId}/draw-offer/decline`, {}).pipe(map((raw: any) => this.mapGame(raw)));
+  }
+
   offerDraw(gameId: string): Observable<Game> {
     return this.http.post<Game>(`${this.base}/${gameId}/draw-offer`, {}).pipe(map((raw: any) => this.mapGame(raw)));
   }

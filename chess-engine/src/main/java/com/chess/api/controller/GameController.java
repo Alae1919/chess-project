@@ -5,6 +5,7 @@ import com.chess.application.*;
 import com.chess.domain.board.FenParser;
 import com.chess.engine.eval.Evaluator;
 import com.chess.engine.search.AlphaBetaSearch;
+import com.chess.infrastructure.api.dto.GameStateResponse;
 import com.chess.infrastructure.websocket.WebSocketSessionManager;
 import com.chess.persistence.entity.DatabaseEnums.GameMode;
 import com.chess.persistence.entity.DatabaseEnums.GameStatus;
@@ -130,15 +131,36 @@ public class GameController {
     }
 
     @PostMapping("/{gameId}/draw-offer")
-    @Operation(summary = "Offer or accept a draw")
+    @Operation(summary = "Offer a draw (accepts one the opponent has already offered)")
     public GameDto.Game offerDraw(
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        requirePlayer(gameId, userDetails);
-        var r = engineService.offerDraw(gameId, userDetails.getUsername());
-        var game = persistService.toFullGameDto(gameId, r);
-        wsManager.broadcast(gameId, "GAME_OVER", game);
-        return game;
+        UUID callerId = callerId(userDetails);
+        GameEntity dbGame = gameAccess.requirePlayer(gameId, callerId);
+        var r = engineService.offerDraw(gameId, GameAccess.seatOf(dbGame, callerId));
+        return broadcastDrawOutcome(gameId, r, "DRAW_OFFERED");
+    }
+
+    @PostMapping("/{gameId}/draw-offer/accept")
+    @Operation(summary = "Accept the draw the opponent offered")
+    public GameDto.Game acceptDraw(
+            @PathVariable String gameId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID callerId = callerId(userDetails);
+        GameEntity dbGame = gameAccess.requirePlayer(gameId, callerId);
+        var r = engineService.acceptDraw(gameId, GameAccess.seatOf(dbGame, callerId));
+        return broadcastDrawOutcome(gameId, r, "GAME_OVER");
+    }
+
+    @PostMapping("/{gameId}/draw-offer/decline")
+    @Operation(summary = "Decline the draw the opponent offered")
+    public GameDto.Game declineDraw(
+            @PathVariable String gameId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        UUID callerId = callerId(userDetails);
+        GameEntity dbGame = gameAccess.requirePlayer(gameId, callerId);
+        var r = engineService.declineDraw(gameId, GameAccess.seatOf(dbGame, callerId));
+        return broadcastDrawOutcome(gameId, r, "DRAW_DECLINED");
     }
 
     @DeleteMapping("/{gameId}/moves/last")
@@ -206,6 +228,13 @@ public class GameController {
     }
 
 
+
+    /** Tells the players: GAME_OVER if the draw was agreed, else {@code eventIfOpen}. */
+    private GameDto.Game broadcastDrawOutcome(String gameId, GameStateResponse r, String eventIfOpen) {
+        var game = persistService.toFullGameDto(gameId, r);
+        wsManager.broadcast(gameId, game.result() != null ? "GAME_OVER" : eventIfOpen, game);
+        return game;
+    }
 
     // ── Access helpers ────────────────────────────────────────────────────────
 

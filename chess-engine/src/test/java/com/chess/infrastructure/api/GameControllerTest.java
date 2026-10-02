@@ -25,6 +25,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.LinkedHashMap;
@@ -72,6 +73,7 @@ class GameControllerTest {
         UUID intruderId = ensureUser("gc_test_intruder");
         Mockito.when(userService.getUserIdByUsername("user")).thenReturn(playerId);
         Mockito.when(userService.getUserIdByUsername("intruder")).thenReturn(intruderId);
+        Mockito.when(userService.getUserIdByUsername("opponent")).thenReturn(opponentId);
     }
 
     /** Games reference real user rows, so the test players must exist (kept across runs). */
@@ -606,6 +608,112 @@ class GameControllerTest {
             mvc.perform(delete("/api/games/" + id + "/moves/last"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.title").value("Game Already Over"));
+        }
+    }
+
+    // ================================================================
+    // Draw offers
+    // ================================================================
+
+    @Nested
+    @DisplayName("Draw offers")
+    class DrawOffers {
+
+        private void post(String id, String path, String player) throws Exception {
+            mvc.perform(MockMvcRequestBuilders.post("/api/games/" + id + path).with(user(player)))
+                .andExpect(status().isOk());
+        }
+
+        @Test
+        @DisplayName("an offer waits for the opponent; accepting it ends the game")
+        void offerThenAccept() throws Exception {
+            String id = createOnlineGame();   // "user" is white, "opponent" is black
+
+            mvc.perform(MockMvcRequestBuilders.post("/api/games/" + id + "/draw-offer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ONGOING"))
+                .andExpect(jsonPath("$.drawOfferedBy").value("white"));
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(jsonPath("$.drawOfferedBy").value("white"));
+
+            mvc.perform(MockMvcRequestBuilders.post("/api/games/" + id + "/draw-offer/accept")
+                    .with(user("opponent")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAW_AGREED"))
+                .andExpect(jsonPath("$.result.reason").value("draw_agreement"))
+                .andExpect(jsonPath("$.drawOfferedBy").value(is(nullValue())));
+        }
+
+        @Test
+        @DisplayName("declining clears the offer and the game goes on")
+        void offerThenDecline() throws Exception {
+            String id = createOnlineGame();
+            post(id, "/draw-offer", "user");
+
+            mvc.perform(MockMvcRequestBuilders.post("/api/games/" + id + "/draw-offer/decline")
+                    .with(user("opponent")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ONGOING"))
+                .andExpect(jsonPath("$.drawOfferedBy").value(is(nullValue())));
+        }
+
+        @Test
+        @DisplayName("two offers meet in the middle: the second one is an acceptance")
+        void bothOffer() throws Exception {
+            String id = createOnlineGame();
+            post(id, "/draw-offer", "user");
+
+            mvc.perform(MockMvcRequestBuilders.post("/api/games/" + id + "/draw-offer")
+                    .with(user("opponent")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAW_AGREED"));
+        }
+
+        @Test
+        @DisplayName("any move withdraws the offer")
+        void aMoveClearsTheOffer() throws Exception {
+            String id = createOnlineGame();
+            post(id, "/draw-offer", "user");
+
+            mvc.perform(MockMvcRequestBuilders.post("/api/games/" + id + "/moves")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", "e2e4"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.drawOfferedBy").value(is(nullValue())));
+        }
+
+        @Test
+        @DisplayName("you can't answer your own offer, or an offer that was never made")
+        void nothingToAnswer() throws Exception {
+            String id = createOnlineGame();
+            mvc.perform(MockMvcRequestBuilders.post("/api/games/" + id + "/draw-offer/accept"))
+                .andExpect(status().isConflict());
+
+            post(id, "/draw-offer", "user");
+            mvc.perform(MockMvcRequestBuilders.post("/api/games/" + id + "/draw-offer/accept"))
+                .andExpect(status().isConflict());
+            mvc.perform(MockMvcRequestBuilders.post("/api/games/" + id + "/draw-offer/decline"))
+                .andExpect(status().isConflict());
+        }
+
+        @Test
+        @DisplayName("the AI always declines")
+        void aiDeclines() throws Exception {
+            String id = createGame("BLACK");
+            mvc.perform(MockMvcRequestBuilders.post("/api/games/" + id + "/draw-offer"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Draw Declined"));
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(jsonPath("$.status").value("ONGOING"));
+        }
+
+        @Test
+        @DisplayName("local game: the one person at the board agrees with themself")
+        void localGameDrawsAtOnce() throws Exception {
+            String id = createGame("NONE");
+            mvc.perform(MockMvcRequestBuilders.post("/api/games/" + id + "/draw-offer"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DRAW_AGREED"));
         }
     }
 

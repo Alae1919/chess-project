@@ -12,6 +12,7 @@ export const selectSelectedSquare    = createSelector(selectGameFeature, (s) => 
 export const selectLegalMoves        = createSelector(selectGameFeature, (s) => s.legalMoves);
 export const selectEvaluation        = createSelector(selectGameFeature, (s) => s.evaluation);
 export const selectChatMessages      = createSelector(selectGameFeature, (s) => s.chatMessages);
+export const selectNotice            = createSelector(selectGameFeature, (s) => s.notice);
 export const selectPendingPromotion  = createSelector(selectGameFeature, (s) => s.pendingPromotion);
 export const selectIsLoading         = createSelector(selectGameFeature, (s) => s.isLoading);
 export const selectIsAiThinking      = createSelector(selectGameFeature, (s) => s.isAiThinking);
