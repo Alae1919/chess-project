@@ -352,6 +352,43 @@ class GameControllerTest {
                 .andExpect(jsonPath("$.moveHistory[1]").value("e7e5"));
         }
 
+        @ParameterizedTest(name = "e7e8{0} promotes to {1}")
+        @CsvSource({ "q, Q", "n, N" })
+        void promotion(String letter, String fenPiece) throws Exception {
+            Map<String, Object> body = new LinkedHashMap<>(gameBody("NONE"));
+            body.put("fen", "k7/4P3/8/8/8/8/8/4K3 w - - 0 1");
+            String id = json.readTree(mvc.perform(post("/api/games")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                // legal moves are listed in the same notation the endpoint accepts
+                .andExpect(jsonPath("$.legalMoves", hasItems("e7e8q", "e7e8r", "e7e8b", "e7e8n")))
+                .andReturn().getResponse().getContentAsString()).get("id").asText();
+
+            mvc.perform(post("/api/games/" + id + "/moves")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", "e7e8" + letter))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fen", startsWith("k3" + fenPiece + "3/")))
+                .andExpect(jsonPath("$.lastMove").value("e7e8" + letter));
+        }
+
+        @Test
+        @DisplayName("a pawn reaching the last rank needs a promotion piece")
+        void promotionWithoutPieceIsIllegal() throws Exception {
+            Map<String, Object> body = new LinkedHashMap<>(gameBody("NONE"));
+            body.put("fen", "k7/4P3/8/8/8/8/8/4K3 w - - 0 1");
+            String id = json.readTree(mvc.perform(post("/api/games")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(body)))
+                .andReturn().getResponse().getContentAsString()).get("id").asText();
+
+            mvc.perform(post("/api/games/" + id + "/moves")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", "e7e8"))))
+                .andExpect(status().isUnprocessableEntity());
+        }
+
         @Test
         @DisplayName("returns 404 for unknown game ID")
         void unknownGame() throws Exception {

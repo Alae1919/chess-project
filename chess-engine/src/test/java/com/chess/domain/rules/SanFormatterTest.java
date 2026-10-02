@@ -16,7 +16,7 @@ class SanFormatterTest {
     private static String san(String fen, String uci) {
         Board board = FenParser.parse(fen);
         Move move = MoveGenerator.generateLegalMoves(board).stream()
-            .filter(m -> m.toString().startsWith(uci))
+            .filter(m -> m.toUci().equals(uci))
             .findFirst().orElseThrow();
         Board after = board.apply(move);
         return SanFormatter.format(board, move, GameStateChecker.evaluate(after, after.activeColor()));
@@ -42,7 +42,7 @@ class SanFormatterTest {
     }
 
     @Test void promotionWithCheck() {
-        assertEquals("a8=Q+", san("7k/P7/8/8/8/8/8/K7 w - - 0 1", "a7a8=Q"));
+        assertEquals("a8=Q+", san("7k/P7/8/8/8/8/8/K7 w - - 0 1", "a7a8q"));
     }
 
     @Test void disambiguatesByFile() {

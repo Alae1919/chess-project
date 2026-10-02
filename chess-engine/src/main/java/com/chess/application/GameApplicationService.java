@@ -255,7 +255,7 @@ public final class GameApplicationService {
         String normalized = uciMove.toLowerCase().trim();
         return MoveGenerator.generateLegalMoves(session.board())
                 .stream()
-                .filter(m -> m.toString().equals(normalized))
+                .filter(m -> m.toUci().equals(normalized))
                 .findFirst()
                 .orElseThrow(() -> new IllegalMoveException(uciMove));
     }
@@ -264,7 +264,7 @@ public final class GameApplicationService {
         if (session.isOver()) return List.of();
         return MoveGenerator.generateLegalMoves(session.board())
                 .stream()
-                .map(Move::toString)
+                .map(Move::toUci)
                 .sorted()
                 .collect(Collectors.toList());
     }

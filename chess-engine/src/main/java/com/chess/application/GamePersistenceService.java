@@ -146,7 +146,7 @@ public class GamePersistenceService {
      * Appends a move to the DB and updates all FEN-derived columns.
      * Called by GameApplicationService after every successful submitMove / playAiMove.
      *
-     * @param uciMove     UCI string as returned by Move.toString(), e.g. "e2e4" or "e7e8=q"
+     * @param uciMove     UCI string as returned by Move.toUci(), e.g. "e2e4" or "e7e8q"
      * @param newFen      Full FEN string after the move was applied
      * @param moveNumber  1-based half-move count (moveHistory.size() after the move)
      * @param colorPlayed "white" or "black" — the side that just moved
@@ -156,8 +156,7 @@ public class GamePersistenceService {
                             int moveNumber, String colorPlayed) {
         var game = gameRepo.findById(dbGameId).orElseThrow();
 
-        // Normalise UCI: "e7e8=q" (Move.toString format) → "e7e8q"
-        String norm = uciMove.replace("=", "").toLowerCase();
+        String norm = uciMove.toLowerCase();
         int fromFile = norm.charAt(0) - 'a', fromRank = norm.charAt(1) - '1';
         int toFile   = norm.charAt(2) - 'a', toRank   = norm.charAt(3) - '1';
 

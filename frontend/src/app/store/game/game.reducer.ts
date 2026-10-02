@@ -1,6 +1,7 @@
 // src/app/store/game/game.reducer.ts
 import { createReducer, on } from '@ngrx/store';
 import { isPlayableStatus } from '../../core/utils/game-status.utils';
+import { needsPromotionChoice } from '../../core/utils/promotion.utils';
 import { GameActions } from './game.actions';
 import { GameState, initialGameState } from './game.state';
 
@@ -37,8 +38,15 @@ export const gameReducer = createReducer(
     ...state, legalMoves: squares ?? [],
   })),
 
-  on(GameActions.submitMove, (state) => ({
-    ...state, isLoading: true,
+  // A pawn reaching the last rank waits for the player to pick its piece
+  on(GameActions.submitMove, (state, { move }) =>
+    needsPromotionChoice(move)
+      ? { ...state, pendingPromotion: move }
+      : { ...state, pendingPromotion: null, isLoading: true }
+  ),
+
+  on(GameActions.cancelPromotion, (state) => ({
+    ...state, pendingPromotion: null, selectedSquare: null, legalMoves: [],
   })),
 
   //on(GameActions.submitMoveSuccess, GameActions.receiveMoveSuccess ?? GameActions.receiveMove,

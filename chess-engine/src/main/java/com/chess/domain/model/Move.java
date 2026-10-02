@@ -81,10 +81,16 @@ public final class Move {
     @Override
     public int hashCode() { return Objects.hash(from, to); }
 
-    @Override
-    public String toString() {
+    /**
+     * UCI notation: from + to, plus the promotion piece in lowercase ("e2e4",
+     * "e7e8q"). The API accepts and returns moves in this form.
+     */
+    public String toUci() {
         String s = from + "" + to;
-        if (promotion != null) s += "=" + promotion.fenChar();
+        if (promotion != null) s += Character.toLowerCase(promotion.fenChar());
         return s;
     }
+
+    @Override
+    public String toString() { return toUci(); }
 }

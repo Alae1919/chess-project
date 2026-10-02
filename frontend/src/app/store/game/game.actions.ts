@@ -22,6 +22,7 @@ export const GameActions = createActionGroup({
     'Submit Move': props<{ move: Omit<Move, 'algebraicNotation' | 'timestamp'> }>(),
     'Submit Move Success': props<{ game: Game }>(),
     'Submit Move Failure': props<{ error: string }>(),
+    'Cancel Promotion': emptyProps(),
 
     'Undo Move': emptyProps(),
     'Undo Move Success': props<{ game: Game }>(),

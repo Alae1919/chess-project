@@ -61,6 +61,38 @@ describe('gameReducer', () => {
     expect(next.chatMessages.length).toBe(1);
   });
 
+  describe('promotion', () => {
+    const pawnToLastRank = {
+      from: { row: 1, col: 4 }, to: { row: 0, col: 4 },
+      piece: { type: 'pawn' as const, color: 'white' as const },
+    };
+
+    it('holds a pawn move onto the last rank until a piece is chosen', () => {
+      const next = gameReducer(withGame(), GameActions.submitMove({ move: pawnToLastRank }));
+
+      expect(next.pendingPromotion).toEqual(pawnToLastRank);
+      expect(next.isLoading).toBeFalse();
+    });
+
+    it('sends the move once it names its piece', () => {
+      const state = withGame({ pendingPromotion: pawnToLastRank });
+
+      const next = gameReducer(state, GameActions.submitMove({ move: { ...pawnToLastRank, promotion: 'knight' } }));
+
+      expect(next.pendingPromotion).toBeNull();
+      expect(next.isLoading).toBeTrue();
+    });
+
+    it('drops the move and the selection when cancelled', () => {
+      const state = withGame({ pendingPromotion: pawnToLastRank, selectedSquare: { row: 1, col: 4 } });
+
+      const next = gameReducer(state, GameActions.cancelPromotion());
+
+      expect(next.pendingPromotion).toBeNull();
+      expect(next.selectedSquare).toBeNull();
+    });
+  });
+
   describe('tickTimer', () => {
     it('only runs the clock of the side to move', () => {
       const state = withGame({ currentGame: makeGame({ currentTurn: 'black' }) });

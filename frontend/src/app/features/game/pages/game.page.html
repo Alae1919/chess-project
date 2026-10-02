@@ -147,6 +147,11 @@
           <ng-template #flatBoard>
             <app-chess-board [flipped]="boardFlipped" [boardStyle]="bv.prefs.style2d" />
           </ng-template>
+          <app-promotion-picker
+            *ngIf="pendingPromotion$ | async as pending"
+            [color]="pending.piece.color"
+            (choose)="promote(pending, $event)"
+            (cancel)="cancelPromotion()" />
         </div>
       </ng-container>
 

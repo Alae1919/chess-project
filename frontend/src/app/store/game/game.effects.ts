@@ -6,6 +6,7 @@ import { interval, of, Subscription } from 'rxjs';
 import { catchError, filter, map, switchMap, tap, withLatestFrom } from 'rxjs/operators';
 import { GameActions } from './game.actions';
 import { isPlayableStatus } from '../../core/utils/game-status.utils';
+import { needsPromotionChoice } from '../../core/utils/promotion.utils';
 import { selectCurrentGame, selectSelectedSquare } from './game.selectors';
 import { GameService } from '../../core/services/game.service';
 import { ChatService } from '../../core/services/chat.service';
@@ -98,7 +99,7 @@ export class GameEffects {
     this.actions$.pipe(
       ofType(GameActions.submitMove),
       withLatestFrom(this.store.select(selectCurrentGame)),
-      filter(([, game]) => !!game),
+      filter(([{ move }, game]) => !!game && !needsPromotionChoice(move)),
       switchMap(([{ move }, game]) =>
         this.gameService.submitMove(game!.id, move).pipe(
           map((updatedGame) => GameActions.submitMoveSuccess({ game: updatedGame })),

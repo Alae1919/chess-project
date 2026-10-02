@@ -4,6 +4,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
+import { UCI_PROMOTION_LETTER } from '../utils/promotion.utils';
 import {
   BoardState,
   Game,
@@ -103,7 +104,7 @@ export class GameService {
    */
   submitMove(gameId: string, move: Omit<Move, 'algebraicNotation' | 'timestamp'>): Observable<Game> {
     const uci = this.squareToAlg(move.from) + this.squareToAlg(move.to)
-      + (move.promotion ? move.promotion[0] : '');
+      + (move.promotion ? UCI_PROMOTION_LETTER[move.promotion] ?? '' : '');
     return this.http.post<Game>(`${this.base}/${gameId}/moves`, { move: uci })
       .pipe(map((raw: any) => this.mapGame(raw)));
   }

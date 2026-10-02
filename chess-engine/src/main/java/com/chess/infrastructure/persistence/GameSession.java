@@ -85,7 +85,7 @@ public final class GameSession {
         }
 
         boardHistory.push(board);
-        moveHistory.add(move.toString());
+        moveHistory.add(move.toUci());
         Board before = board;
         board = board.apply(move);
         state = GameStateChecker.evaluate(board, board.activeColor());

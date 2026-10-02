@@ -12,6 +12,9 @@ import { combineLatest, Subscription, take } from 'rxjs'; // <-- Subscription ad
 import { ChessBoardComponent } from '../../../shared/components/chess-board/chess-board.component';
 import { ChessBoard3DComponent } from '../../../shared/components/chess-board-3d/chess-board-3d.component';
 import { BoardStylePickerComponent } from '../../../shared/components/board-style-picker/board-style-picker.component';
+import { PromotionPickerComponent } from '../../../shared/components/promotion-picker/promotion-picker.component';
+import { PromotionPiece } from '../../../core/utils/promotion.utils';
+import { Move } from '../../../core/models';
 import { BoardPrefsService } from '../../../core/services/board-prefs.service';
 import { GameActions } from '../../../store/game/game.actions';
 import { selectUser } from '../../../store/account/account.reducer'; // <-- ADDED THIS
@@ -25,6 +28,7 @@ import {
   selectChatMessages,
   selectIsAiThinking,
   selectIsLoading,
+  selectPendingPromotion,
 } from '../../../store/game/game.selectors';
 
 const VIEW_KEY = 'rex_board_view';
@@ -32,7 +36,7 @@ const VIEW_KEY = 'rex_board_view';
 @Component({
   selector: 'app-game-page',
   standalone: true,
-  imports: [CommonModule, AsyncPipe, RouterLink, ChessBoardComponent, ChessBoard3DComponent, BoardStylePickerComponent, FormsModule],
+  imports: [CommonModule, AsyncPipe, RouterLink, ChessBoardComponent, ChessBoard3DComponent, BoardStylePickerComponent, PromotionPickerComponent, FormsModule],
   templateUrl: './game.page.html',
   styleUrls: ['./game.page.scss'],
 })
@@ -56,6 +60,9 @@ export class GamePage implements OnInit, OnDestroy {
     aiThinking:   this.store.select(selectIsAiThinking),
     loading:      this.store.select(selectIsLoading),
   });
+
+  /** Pawn move waiting for its promotion piece (shown over either board) */
+  readonly pendingPromotion$ = this.store.select(selectPendingPromotion);
 
   private boardPrefs = inject(BoardPrefsService);
   /** Which board to draw (3D or 2D, falling back to 2D without WebGL) and its style */
@@ -129,6 +136,11 @@ export class GamePage implements OnInit, OnDestroy {
   undo(): void     { this.store.dispatch(GameActions.undoMove()); }
   resign(): void   { if (confirm('Abandonner la partie ?')) this.store.dispatch(GameActions.resign()); }
   offerDraw(): void { this.store.dispatch(GameActions.offerDraw()); }
+
+  promote(move: Omit<Move, 'algebraicNotation' | 'timestamp'>, piece: PromotionPiece): void {
+    this.store.dispatch(GameActions.submitMove({ move: { ...move, promotion: piece } }));
+  }
+  cancelPromotion(): void { this.store.dispatch(GameActions.cancelPromotion()); }
 
   sendChat(): void {
     if (!this.chatInput.trim()) return;

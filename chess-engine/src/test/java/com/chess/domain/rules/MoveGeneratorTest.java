@@ -279,6 +279,17 @@ class MoveGeneratorTest {
     }
 
     @Test
+    @DisplayName("T16 — promotions are written in UCI with a lowercase piece")
+    void promotionUciNotation() {
+        Board board = FenParser.parse("k7/4P3/8/8/8/8/8/4K3 w - - 0 1");
+        Set<String> uci = MoveGenerator.generateLegalMoves(board).stream()
+            .filter(Move::isPromotion)
+            .map(Move::toUci)
+            .collect(Collectors.toSet());
+        assertEquals(Set.of("e7e8q", "e7e8r", "e7e8b", "e7e8n"), uci);
+    }
+
+    @Test
     @DisplayName("T16 — black pawn on e2 generates 4 promotions to e1")
     void blackPawnPromotionCount() {
         Board board = FenParser.parse("4k3/8/8/8/8/8/4p3/7K b - - 0 1");
