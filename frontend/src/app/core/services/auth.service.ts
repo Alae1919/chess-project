@@ -1,7 +1,7 @@
 // src/app/core/services/auth.service.ts
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, finalize, shareReplay, tap } from 'rxjs';
+import { BehaviorSubject, Observable, distinctUntilChanged, finalize, shareReplay, tap } from 'rxjs';
 import { Router } from '@angular/router';
 import { environment } from '../../../environments/environment';
 import { AuthTokens, LoginRequest, RegisterRequest, User } from '../models';
@@ -17,6 +17,10 @@ export class AuthService {
 
   private currentUserSubject = new BehaviorSubject<User | null>(null);
   currentUser$ = this.currentUserSubject.asObservable();
+
+  /** Whether a session exists; emits on login, register and logout (not on refresh) */
+  private loggedInSubject = new BehaviorSubject<boolean>(!!localStorage.getItem(this.TOKEN_KEY));
+  readonly loggedIn$ = this.loggedInSubject.pipe(distinctUntilChanged());
 
   // Sentinel for the in-flight refresh. Null means no refresh is running.
   private refresh$: Observable<AuthTokens> | null = null;
@@ -69,6 +73,7 @@ export class AuthService {
     localStorage.removeItem(this.REFRESH_KEY);
     localStorage.removeItem(this.EXPIRES_KEY);
     this.currentUserSubject.next(null);
+    this.loggedInSubject.next(false);
     this.router.navigate(['/home']);
   }
 
@@ -82,5 +87,6 @@ export class AuthService {
     localStorage.setItem(this.TOKEN_KEY, tokens.accessToken);
     localStorage.setItem(this.REFRESH_KEY, tokens.refreshToken);
     localStorage.setItem(this.EXPIRES_KEY, String(Date.now() + tokens.expiresIn));
+    this.loggedInSubject.next(true);
   }
 }

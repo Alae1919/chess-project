@@ -22,6 +22,11 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
     return next(req);
   }
 
+  // ── Guests have no session: no token to attach and nothing to refresh ────
+  if (!auth.isLoggedIn) {
+    return next(req);
+  }
+
   // ── Proactive refresh: token is expired or missing ────────────────────────
   if (auth.isAccessTokenExpired()) {
     return auth.refreshToken().pipe(

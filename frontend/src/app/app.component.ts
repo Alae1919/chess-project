@@ -6,6 +6,7 @@ import { NavbarComponent } from './shared/components/navbar/navbar.component';
 import { AuthService } from './core/services/auth.service';
 import { AccountActions } from './store/account/account.actions';
 import { LobbyWebSocketService } from './core/services/lobby-websocket.service';
+import { WebSocketService } from './core/services/websocket.service';
 import { InvitationToastComponent } from './features/online/components/invitation-toast.component';
 import { makeMarble } from './shared/three/marble';
 
@@ -29,6 +30,7 @@ export class AppComponent implements OnInit {
   private store = inject(Store);
   private authService = inject(AuthService);
   private lobbyWsService = inject(LobbyWebSocketService);
+  private gameWsService = inject(WebSocketService);
   private router = inject(Router);
 
   /** The game arena has its own top bar */
@@ -42,10 +44,17 @@ export class AppComponent implements OnInit {
 
   ngOnInit(): void {
     this.paintMarbleBackground();
-    if (this.authService.isLoggedIn) {
-      this.store.dispatch(AccountActions.loadProfile());
-      this.lobbyWsService.connect();
-    }
+    // The profile and the sockets live exactly as long as the session: invites
+    // arrive right after logging in, and nothing stays open after logging out
+    this.authService.loggedIn$.subscribe((loggedIn) => {
+      if (loggedIn) {
+        this.store.dispatch(AccountActions.loadProfile());
+        this.lobbyWsService.connect();
+      } else {
+        this.lobbyWsService.disconnect();
+        this.gameWsService.disconnect();
+      }
+    });
   }
 
   /** Black marble with gold veining behind every page; drawn once, off the critical path. */

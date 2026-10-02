@@ -26,19 +26,19 @@ export const routes: Routes = [
     path: 'game',
     loadComponent: () =>
       import('./features/game/pages/game.page').then((m) => m.GamePage),
-    //canActivate: [authGuard],
+    canActivate: [authGuard],
   },
   {
     path: 'game/:id',
     loadComponent: () =>
       import('./features/game/pages/game.page').then((m) => m.GamePage),
-    //canActivate: [authGuard],
+    canActivate: [authGuard],
   },
   {
     path: 'account',
     loadComponent: () =>
       import('./features/account/pages/account.page').then((m) => m.AccountPage),
-    //canActivate: [authGuard],
+    canActivate: [authGuard],
   },
   {
     path: 'online',
