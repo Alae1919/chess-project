@@ -77,7 +77,8 @@ public class GamePersistenceService {
 
         gameStore.findById(gameId).ifPresent(s -> {
             s.setMetadata(buildMetadata(entity));
-            s.initClock(entity.getWhiteTimeRemainingMs(), entity.getBlackTimeRemainingMs());
+            s.initClock(entity.getWhiteTimeRemainingMs(), entity.getBlackTimeRemainingMs(),
+                        entity.getTimeControlIncrementMs());
         });
     }
 
@@ -136,7 +137,8 @@ public class GamePersistenceService {
         // Cache metadata and initialise clock on the in-memory session
         gameStore.findById(gameId).ifPresent(s -> {
             s.setMetadata(buildMetadata(entity));
-            s.initClock(entity.getWhiteTimeRemainingMs(), entity.getBlackTimeRemainingMs());
+            s.initClock(entity.getWhiteTimeRemainingMs(), entity.getBlackTimeRemainingMs(),
+                        entity.getTimeControlIncrementMs());
         });
     }
 
@@ -406,9 +408,8 @@ public class GamePersistenceService {
             if (s.metadata() == null) {
                 var e = gameRepo.findById(UUID.fromString(gameId)).orElseThrow();
                 s.setMetadata(buildMetadata(e));
-                if (s.whiteTimeRemainingMs() == 0 && s.blackTimeRemainingMs() == 0) {
-                    s.initClock(e.getWhiteTimeRemainingMs(), e.getBlackTimeRemainingMs());
-                }
+                s.initClock(e.getWhiteTimeRemainingMs(), e.getBlackTimeRemainingMs(),
+                            e.getTimeControlIncrementMs());
             }
             return buildFromMetadata(s.metadata(), engineState,
                     s.whiteTimeRemainingMs(), s.blackTimeRemainingMs());
@@ -555,6 +556,8 @@ public class GamePersistenceService {
             case "WHITE_RESIGNED" -> new GameDto.GameResult("black", "resignation");
             case "BLACK_RESIGNED" -> new GameDto.GameResult("white", "resignation");
             case "DRAW_AGREED"    -> new GameDto.GameResult(null, "draw_agreement");
+            case "WHITE_FLAGGED"  -> new GameDto.GameResult("black", "timeout");
+            case "BLACK_FLAGGED"  -> new GameDto.GameResult("white", "timeout");
             default               -> null;
         };
     }

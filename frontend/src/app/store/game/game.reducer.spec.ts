@@ -1,7 +1,11 @@
+import { Move } from '../../core/models';
 import { makeChatMessage, makeGame } from '../../testing/game-fixtures';
 import { GameActions } from './game.actions';
 import { gameReducer } from './game.reducer';
 import { GameState, initialGameState } from './game.state';
+
+// Only the number of moves matters to the clock
+const FIRST_MOVE = {} as Move;
 
 describe('gameReducer', () => {
   const withGame = (overrides: Partial<GameState> = {}): GameState => ({
@@ -104,7 +108,7 @@ describe('gameReducer', () => {
 
   describe('tickTimer', () => {
     it('only runs the clock of the side to move', () => {
-      const state = withGame({ currentGame: makeGame({ currentTurn: 'black' }) });
+      const state = withGame({ currentGame: makeGame({ currentTurn: 'black', moves: [FIRST_MOVE] }) });
 
       const next = gameReducer(state, GameActions.tickTimer());
 
@@ -113,12 +117,25 @@ describe('gameReducer', () => {
     });
 
     it('never goes below zero', () => {
-      const game = makeGame();
+      const game = makeGame({ moves: [FIRST_MOVE] });
       const state = withGame({ currentGame: { ...game, playerWhite: { ...game.playerWhite, timeRemainingMs: 400 } } });
 
       const next = gameReducer(state, GameActions.tickTimer());
 
       expect(next.currentGame!.playerWhite.timeRemainingMs).toBe(0);
+    });
+
+    it('does nothing before the first move: the clocks have not started', () => {
+      const state = withGame({ currentGame: makeGame() });
+
+      expect(gameReducer(state, GameActions.tickTimer())).toBe(state);
+    });
+
+    it('does nothing in an unlimited game', () => {
+      const game = makeGame({ moves: [FIRST_MOVE], timeControl: { type: 'unlimited', initialMs: 0, incrementMs: 0 } });
+      const state = withGame({ currentGame: game });
+
+      expect(gameReducer(state, GameActions.tickTimer())).toBe(state);
     });
 
     it('does nothing once the game is over', () => {

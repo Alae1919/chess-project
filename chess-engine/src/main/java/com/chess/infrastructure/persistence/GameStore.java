@@ -32,6 +32,11 @@ public class GameStore {
         return Optional.ofNullable(games.get(id));
     }
 
+    /** A snapshot of every session currently in memory. */
+    public java.util.List<GameSession> all() {
+        return java.util.List.copyOf(games.values());
+    }
+
     public void delete(String id) {
         games.remove(id);
     }

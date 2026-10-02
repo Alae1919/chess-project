@@ -4,7 +4,7 @@ import { isPlayableStatus, isTerminalStatus } from './game-status.utils';
 describe('game status helpers', () => {
   const ended: GameStatus[] = [
     'checkmate', 'stalemate', 'draw_50_move', 'draw_insufficient_material', 'draw_repetition',
-    'white_resigned', 'black_resigned', 'draw_agreed', 'finished', 'aborted',
+    'white_resigned', 'black_resigned', 'draw_agreed', 'white_flagged', 'black_flagged', 'finished', 'aborted',
   ];
 
   it('treats every way a game can end as terminal and not playable', () => {

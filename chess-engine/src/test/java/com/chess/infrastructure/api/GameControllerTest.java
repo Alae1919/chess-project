@@ -1,6 +1,8 @@
 package com.chess.infrastructure.api;
 
 import com.chess.ChessApplication;
+import com.chess.application.ClockWatcher;
+import com.chess.application.EloCalculator;
 import com.chess.application.GameApplicationService;
 import com.chess.application.GamePersistenceService;
 import com.chess.application.UserService;
@@ -56,6 +58,7 @@ class GameControllerTest {
     @Autowired GameApplicationService engineService;
     @Autowired GamePersistenceService persistService;
     @Autowired GameStore gameStore;
+    @Autowired ClockWatcher clockWatcher;
 
     private UUID playerId;
     private UUID opponentId;
@@ -603,6 +606,91 @@ class GameControllerTest {
             mvc.perform(delete("/api/games/" + id + "/moves/last"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.title").value("Game Already Over"));
+        }
+    }
+
+    // ================================================================
+    // Clocks
+    // ================================================================
+
+    @Nested
+    @DisplayName("The server owns the clocks")
+    class Clocks {
+
+        /** A local game with one second per side. */
+        private String createOneSecondGame() throws Exception {
+            Map<String, Object> body = new LinkedHashMap<>(gameBody("NONE"));
+            body.put("timeControl", Map.of("type", "blitz", "initialMs", 1_000L, "incrementMs", 0L));
+            return json.readTree(mvc.perform(post("/api/games")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString()).get("id").asText();
+        }
+
+        private void move(String id, String uci) throws Exception {
+            mvc.perform(post("/api/games/" + id + "/moves")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", uci))))
+                .andExpect(status().isOk());
+        }
+
+        @Test
+        @DisplayName("the clocks in the payload count down on the server")
+        void payloadCarriesLiveTimes() throws Exception {
+            String id = createOneSecondGame();
+            move(id, "e2e4");   // starts Black's clock
+            Thread.sleep(300);
+
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(jsonPath("$.playerWhite.timeRemainingMs").value(1_000))
+                .andExpect(jsonPath("$.playerBlack.timeRemainingMs", lessThan(800)));
+
+            // End it: the clock watcher would otherwise finish it later, in the middle of another test
+            mvc.perform(post("/api/games/" + id + "/resign")).andExpect(status().isOk());
+        }
+
+        @Test
+        @DisplayName("a side that runs out of time loses, and a late move is refused")
+        void flagFall() throws Exception {
+            String id = createOneSecondGame();
+            move(id, "e2e4");
+            Thread.sleep(1_200);
+
+            // Too late: refused, whether or not the watcher has run yet
+            mvc.perform(post("/api/games/" + id + "/moves")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", "e7e5"))))
+                .andExpect(status().isConflict());
+
+            clockWatcher.endGamesOutOfTime();
+
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(jsonPath("$.status").value("BLACK_FLAGGED"))
+                .andExpect(jsonPath("$.result.winner").value("white"))
+                .andExpect(jsonPath("$.result.reason").value("timeout"))
+                .andExpect(jsonPath("$.playerBlack.timeRemainingMs").value(0));
+        }
+
+        @Test
+        @DisplayName("an online game lost on time is rated")
+        void timeoutIsRatedLikeAnyResult() throws Exception {
+            String id = engineService.createGame(new CreateGameRequest(null, "NONE", 1)).gameId();
+            persistService.persistNewOnlineGame(id,
+                playerId, "white_player", 1200, opponentId, "black_player", 1200,
+                TimeControlKind.blitz, 1_000, 0);
+            int whiteBefore = userRepository.findById(playerId).orElseThrow().getElo();
+            int blackBefore = userRepository.findById(opponentId).orElseThrow().getElo();
+            move(id, "e2e4");
+            Thread.sleep(1_200);
+
+            clockWatcher.endGamesOutOfTime();
+
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(jsonPath("$.result.reason").value("timeout"))
+                .andExpect(jsonPath("$.result.whiteEloChange", greaterThan(0)));
+            assertEquals(EloCalculator.apply(whiteBefore, EloCalculator.delta(whiteBefore, blackBefore, 1.0)),
+                userRepository.findById(playerId).orElseThrow().getElo());
         }
     }
 

@@ -3,10 +3,12 @@ package com.chess.infrastructure.persistence;
 import com.chess.domain.board.Board;
 import com.chess.domain.model.Color;
 import com.chess.domain.rules.GameStateChecker;
+import com.chess.domain.rules.InsufficientMaterial;
 import com.chess.domain.rules.SanFormatter;
 import com.chess.engine.player.AiPlayer;
 import com.chess.infrastructure.api.FenSerializer;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
@@ -42,12 +44,21 @@ public final class GameSession {
     private GameStateChecker.State state;
     private boolean closed;              // ended before it was loaded (see restoreOutcome)
     private GameMetadata metadata;       // set by GamePersistenceService after DB persist
-    private long   whiteTimeRemainingMs; // mutable — decremented on each move
+    private final Clock clock;           // injectable so tests can move time
+    private boolean timed;               // false for unlimited games: no clock at all
+    private long   whiteTimeRemainingMs; // as of turnStartAt; read through the *TimeRemainingMs() accessors
     private long   blackTimeRemainingMs;
-    private Instant turnStartAt;         // when the current player's clock started
+    private long   incrementMs;          // added to the mover's clock after each move
+    private Instant turnStartAt;         // when the side to move's clock started; null = not running
 
     public GameSession(String id, Board initialBoard,
                        Color aiColor, int aiDepth) {
+        this(id, initialBoard, aiColor, aiDepth, Clock.systemUTC());
+    }
+
+    public GameSession(String id, Board initialBoard,
+                       Color aiColor, int aiDepth, Clock clock) {
+        this.clock        = clock;
         this.id           = id;
         this.board        = initialBoard;
         this.aiColor      = aiColor;
@@ -56,7 +67,7 @@ public final class GameSession {
         this.moveHistory  = new ArrayList<>();
         this.sanHistory   = new ArrayList<>();
         this.boardHistory = new ArrayDeque<>();
-        this.createdAt    = Instant.now();
+        this.createdAt    = clock.instant();
         this.state        = GameStateChecker.evaluate(board, board.activeColor());
         countPosition(board);
     }
@@ -64,30 +75,29 @@ public final class GameSession {
     // ---- Mutation (called only from GameApplicationService) -----------
 
     /**
-     * Initialises the chess clock.  Must be called once after the session is
-     * created (by GamePersistenceService after persisting the row).
-     * For unlimited time controls pass 0 for both values — the clock is not started.
+     * Sets up the chess clock; called once after the session is created or restored.
+     * Pass 0 for both times for an unlimited game: it has no clock. The clock runs
+     * once White has made the first move, so a game with no moves yet isn't ticking.
      */
-    public void initClock(long whiteMs, long blackMs) {
+    public synchronized void initClock(long whiteMs, long blackMs, long incrementMs) {
         this.whiteTimeRemainingMs = whiteMs;
         this.blackTimeRemainingMs = blackMs;
-        if (whiteMs > 0 || blackMs > 0) {
-            this.turnStartAt = Instant.now();
-        }
+        this.incrementMs          = incrementMs;
+        this.timed                = whiteMs > 0 || blackMs > 0;
+        this.turnStartAt          = timed && !moveHistory.isEmpty() && !isOver() ? clock.instant() : null;
     }
 
-    public void applyMove(com.chess.domain.model.Move move) {
+    public synchronized void applyMove(com.chess.domain.model.Move move) {
         if (isOver())
             throw new IllegalStateException("Cannot apply move: game is over");
 
-        // Decrement the active player's clock (skip for unlimited / uninitialised)
-        if (turnStartAt != null) {
-            long elapsed = Duration.between(turnStartAt, Instant.now()).toMillis();
-            if (board.activeColor() == Color.WHITE) {
-                whiteTimeRemainingMs = Math.max(0, whiteTimeRemainingMs - elapsed);
-            } else {
-                blackTimeRemainingMs = Math.max(0, blackTimeRemainingMs - elapsed);
-            }
+        // The mover's clock: charge the time used (not for White's first move, when
+        // nothing is running yet), then add the increment
+        if (timed) {
+            boolean white = board.activeColor() == Color.WHITE;
+            long left = remaining(board.activeColor());
+            left = Math.max(0, left) + (left > 0 ? incrementMs : 0);
+            if (white) whiteTimeRemainingMs = left; else blackTimeRemainingMs = left;
         }
 
         boardHistory.push(board);
@@ -101,13 +111,12 @@ public final class GameSession {
             state = GameStateChecker.State.DRAW_REPETITION;
         sanHistory.add(SanFormatter.format(before, move, state));
 
-        if (turnStartAt != null) {
-            turnStartAt = Instant.now(); // start the next player's clock
-        }
+        // The opponent's clock starts now, unless the move ended the game
+        turnStartAt = timed && !isOver() ? clock.instant() : null;
     }
 
     /** Reverts the last move. Throws if no move has been played yet. */
-    public void undoLastMove() {
+    public synchronized void undoLastMove() {
         if (boardHistory.isEmpty())
             throw new IllegalStateException("No moves to undo");
         uncountPosition(board);
@@ -117,14 +126,57 @@ public final class GameSession {
         if (!sanHistory.isEmpty())
             sanHistory.remove(sanHistory.size() - 1);
         state = GameStateChecker.evaluate(board, board.activeColor());
+        turnStartAt = timed && !moveHistory.isEmpty() ? clock.instant() : null;
     }
 
     /** {@code loser} resigns; the opponent wins. */
-    public void resign(Color loser) {
+    public synchronized void resign(Color loser) {
         if (isOver()) return;
+        stopClock(); // before the state changes: a finished game's clock reads as frozen
         state = loser == Color.WHITE
             ? GameStateChecker.State.WHITE_RESIGNED
             : GameStateChecker.State.BLACK_RESIGNED;
+    }
+
+    /**
+     * The side whose time has run out, or null. Only the side to move can: its
+     * clock is the one running.
+     */
+    public synchronized Color flaggedSide() {
+        if (!timed || isOver() || turnStartAt == null) return null;
+        return remaining(board.activeColor()) <= 0 ? board.activeColor() : null;
+    }
+
+    /**
+     * {@code loser} ran out of time. The opponent wins, unless it could never have
+     * mated anyway (a bare king or one minor piece), which is a draw.
+     */
+    public synchronized void flag(Color loser) {
+        if (isOver()) return;
+        if (loser == Color.WHITE) whiteTimeRemainingMs = 0; else blackTimeRemainingMs = 0;
+        turnStartAt = null;
+        if (InsufficientMaterial.cannotMate(board, loser.opposite())) {
+            state = GameStateChecker.State.DRAW_INSUFFICIENT_MATERIAL;
+        } else {
+            state = loser == Color.WHITE
+                ? GameStateChecker.State.WHITE_FLAGGED
+                : GameStateChecker.State.BLACK_FLAGGED;
+        }
+    }
+
+    /** Freezes the clocks, charging the side to move for the time it has used so far. */
+    private void stopClock() {
+        if (turnStartAt == null) return;
+        long left = remaining(board.activeColor());
+        if (board.activeColor() == Color.WHITE) whiteTimeRemainingMs = left; else blackTimeRemainingMs = left;
+        turnStartAt = null;
+    }
+
+    /** Time left for {@code side} right now: the stored value minus the running turn, never negative. */
+    private long remaining(Color side) {
+        long stored = side == Color.WHITE ? whiteTimeRemainingMs : blackTimeRemainingMs;
+        if (turnStartAt == null || side != board.activeColor() || isOver()) return stored;
+        return Math.max(0, stored - Duration.between(turnStartAt, clock.instant()).toMillis());
     }
 
     /**
@@ -150,14 +202,16 @@ public final class GameSession {
      * how it ended, or null when the engine has no state for that ending (an
      * aborted game); either way no further moves are accepted.
      */
-    public void restoreOutcome(GameStateChecker.State outcome) {
+    public synchronized void restoreOutcome(GameStateChecker.State outcome) {
         if (outcome != null) state = outcome;
         closed = true;
+        turnStartAt = null;
     }
 
     /** Ends the game as a draw by agreement. */
-    public void agreeDraw() {
+    public synchronized void agreeDraw() {
         if (isOver()) return;
+        stopClock();
         state = GameStateChecker.State.DRAW_AGREED;
     }
 
@@ -175,8 +229,9 @@ public final class GameSession {
     public boolean                   isOver()      { return closed || GameStateChecker.isTerminal(state); }
     public GameMetadata              metadata()              { return metadata; }
     public void                      setMetadata(GameMetadata m) { this.metadata = m; }
-    public long                      whiteTimeRemainingMs()  { return whiteTimeRemainingMs; }
-    public long                      blackTimeRemainingMs()  { return blackTimeRemainingMs; }
+    public synchronized long         whiteTimeRemainingMs()  { return remaining(Color.WHITE); }
+    public synchronized long         blackTimeRemainingMs()  { return remaining(Color.BLACK); }
+    public synchronized boolean      isTimed()               { return timed; }
 
     public String lastMove() {
         return moveHistory.isEmpty() ? null : moveHistory.get(moveHistory.size() - 1);

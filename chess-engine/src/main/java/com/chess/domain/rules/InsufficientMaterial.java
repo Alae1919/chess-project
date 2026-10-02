@@ -1,6 +1,7 @@
 package com.chess.domain.rules;
 
 import com.chess.domain.board.Board;
+import com.chess.domain.model.Color;
 import com.chess.domain.model.Piece;
 import com.chess.domain.model.PieceType;
 import com.chess.domain.model.Square;
@@ -14,6 +15,24 @@ import com.chess.domain.model.Square;
 public final class InsufficientMaterial {
 
     private InsufficientMaterial() {}
+
+    /**
+     * Whether {@code side}'s own pieces can never deliver mate: a bare king or a king
+     * with a single minor piece. Used when the other side runs out of time, which is
+     * a draw rather than a loss if this side could not have won anyway.
+     */
+    public static boolean cannotMate(Board board, Color side) {
+        int minors = 0;
+        for (int file = 0; file < Board.SIZE; file++) {
+            for (int rank = 0; rank < Board.SIZE; rank++) {
+                Piece piece = board.pieceAt(new Square(file, rank)).orElse(null);
+                if (piece == null || piece.color() != side || piece.type() == PieceType.KING) continue;
+                if (piece.type() != PieceType.KNIGHT && piece.type() != PieceType.BISHOP) return false;
+                minors++;
+            }
+        }
+        return minors <= 1;
+    }
 
     public static boolean isDead(Board board) {
         int minors = 0;

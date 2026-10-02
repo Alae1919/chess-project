@@ -101,9 +101,12 @@ export const gameReducer = createReducer(
       : [...state.chatMessages, message],
   })),
 
+  // The server owns the clocks; between its updates the display counts down from the
+  // last snapshot. Nothing runs in unlimited games or before the first move.
   on(GameActions.tickTimer, (state) => {
     if (!state.currentGame || !isPlayableStatus(state.currentGame.status)) return state;
     const game = state.currentGame;
+    if (game.timeControl.type === 'unlimited' || game.moves.length === 0) return state;
     const isWhiteTurn = game.currentTurn === 'white';
     return {
       ...state,

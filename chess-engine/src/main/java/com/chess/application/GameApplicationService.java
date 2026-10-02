@@ -91,6 +91,8 @@ public final class GameApplicationService {
         GameSession session = requireSession(gameId);
 
         if (session.isOver()) throw new GameOverException(gameId);
+        // Too late: the clock fell before this move arrived. The clock watcher ends the game.
+        if (session.flaggedSide() != null) throw new GameOverException(gameId);
 
         Color active = session.board().activeColor();
         if (session.aiColor() != null && session.aiColor() == active)
@@ -116,6 +118,7 @@ public final class GameApplicationService {
         GameSession session = requireSession(gameId);
 
         if (session.isOver()) throw new GameOverException(gameId);
+        if (session.flaggedSide() != null) throw new GameOverException(gameId);
 
         Color active = session.board().activeColor();
         if (session.aiColor() == null || session.aiColor() != active)
@@ -187,6 +190,27 @@ public final class GameApplicationService {
     }
 
     // ----------------------------------------------------------------
+    // USE CASE — Time runs out
+    // ----------------------------------------------------------------
+
+    /**
+     * Ends every game whose side to move has run out of time, and returns the
+     * finished games so the caller can tell the players.
+     */
+    public List<GameStateResponse> expireFlaggedGames() {
+        List<GameStateResponse> ended = new java.util.ArrayList<>();
+        for (GameSession session : store.all()) {
+            Color flagged = session.flaggedSide();
+            if (flagged == null) continue;
+            session.flag(flagged);
+            GameStateResponse r = toResponse(session);
+            finaliseIfTerminal(session.id(), r.status(), r.activeColor());
+            ended.add(r);
+        }
+        return ended;
+    }
+
+    // ----------------------------------------------------------------
     // USE CASE — Session metadata
     // ----------------------------------------------------------------
 
@@ -235,7 +259,8 @@ public final class GameApplicationService {
         // history; a game from a custom FEN can't be replayed and loads as a bare position
         GameSession session = replayStoredMoves(gameId, dbGame, aiColor, aiDifficulty);
         if (session == null) session = new GameSession(gameId, board, aiColor, aiDifficulty);
-        session.initClock(dbGame.getWhiteTimeRemainingMs(), dbGame.getBlackTimeRemainingMs());
+        session.initClock(dbGame.getWhiteTimeRemainingMs(), dbGame.getBlackTimeRemainingMs(),
+                dbGame.getTimeControlIncrementMs());
         if (dbGame.getStatus() == GameStatus.finished || dbGame.getStatus() == GameStatus.aborted)
             session.restoreOutcome(storedOutcome(dbGame));
         store.save(session);
@@ -280,6 +305,8 @@ public final class GameApplicationService {
             case insufficient_material -> GameStateChecker.State.DRAW_INSUFFICIENT_MATERIAL;
             case threefold_repetition  -> GameStateChecker.State.DRAW_REPETITION;
             case draw_agreement  -> GameStateChecker.State.DRAW_AGREED;
+            case timeout         -> whiteWon ? GameStateChecker.State.BLACK_FLAGGED
+                                             : GameStateChecker.State.WHITE_FLAGGED;
             case resignation     -> whiteWon ? GameStateChecker.State.BLACK_RESIGNED
                                              : GameStateChecker.State.WHITE_RESIGNED;
             default              -> null;
@@ -301,6 +328,8 @@ public final class GameApplicationService {
             case "DRAW_REPETITION"            -> reason = "threefold_repetition";
             case "WHITE_RESIGNED" -> { winner = "black"; reason = "resignation"; }
             case "BLACK_RESIGNED" -> { winner = "white"; reason = "resignation"; }
+            case "WHITE_FLAGGED"  -> { winner = "black"; reason = "timeout"; }
+            case "BLACK_FLAGGED"  -> { winner = "white"; reason = "timeout"; }
             case "DRAW_AGREED"    -> reason = "draw_agreement";
             default               -> { return; }
         }
