@@ -108,11 +108,10 @@ public final class GameSession {
         state = GameStateChecker.evaluate(board, board.activeColor());
     }
 
-    /** The player to move resigns; opponent wins. */
-    public void resignAsActivePlayer() {
+    /** {@code loser} resigns; the opponent wins. */
+    public void resign(Color loser) {
         if (isOver()) return;
-        Color active = board.activeColor();
-        state = active == Color.WHITE
+        state = loser == Color.WHITE
             ? GameStateChecker.State.WHITE_RESIGNED
             : GameStateChecker.State.BLACK_RESIGNED;
     }

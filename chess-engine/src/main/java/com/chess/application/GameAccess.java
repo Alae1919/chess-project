@@ -1,5 +1,6 @@
 package com.chess.application;
 
+import com.chess.domain.model.Color;
 import com.chess.infrastructure.api.exception.GameNotFoundException;
 import com.chess.infrastructure.api.exception.NotAPlayerException;
 import com.chess.persistence.entity.GameEntity;
@@ -42,6 +43,17 @@ public class GameAccess {
     public static boolean isPlayer(GameEntity game, UUID userId) {
         return userId != null
             && (userId.equals(game.getWhiteUserId()) || userId.equals(game.getBlackUserId()));
+    }
+
+    /**
+     * The colour a player plays, or null when they hold both seats (a local game).
+     * Only meaningful for one of the game's players.
+     */
+    public static Color seatOf(GameEntity game, UUID userId) {
+        boolean white = userId.equals(game.getWhiteUserId());
+        boolean black = userId.equals(game.getBlackUserId());
+        if (white && black) return null;
+        return white ? Color.WHITE : Color.BLACK;
     }
 
     private static Optional<UUID> parseUuid(String id) {

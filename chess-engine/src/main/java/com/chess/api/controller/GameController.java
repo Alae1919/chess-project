@@ -120,8 +120,10 @@ public class GameController {
     public GameDto.Game resign(
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        requirePlayer(gameId, userDetails);
-        var r = engineService.resign(gameId, userDetails.getUsername());
+        // The caller resigns, whoever is to move (local games: the side to move)
+        UUID callerId = callerId(userDetails);
+        GameEntity dbGame = gameAccess.requirePlayer(gameId, callerId);
+        var r = engineService.resign(gameId, GameAccess.seatOf(dbGame, callerId));
         var game = persistService.toFullGameDto(gameId, r);
         wsManager.broadcast(gameId, "GAME_OVER", game);
         return game;

@@ -159,10 +159,14 @@ public final class GameApplicationService {
     // USE CASE 7 — Resign / draw
     // ----------------------------------------------------------------
 
-    public GameStateResponse resign(String gameId, String username) {
+    /**
+     * {@code side} resigns. Null means the side to move: in a local game one
+     * person plays both colours.
+     */
+    public GameStateResponse resign(String gameId, Color side) {
         GameSession session = requireSession(gameId);
         if (session.isOver()) throw new GameOverException(gameId);
-        session.resignAsActivePlayer();
+        session.resign(side != null ? side : session.board().activeColor());
         GameStateResponse r = toResponse(session);
         finaliseIfTerminal(gameId, r.status(), r.activeColor());
         return r;

@@ -103,10 +103,16 @@ class GameControllerTest {
 
     /** An online game between "user" (white) and another player, as matchmaking creates it. */
     private String createOnlineGame() {
+        return createOnlineGame(true);
+    }
+
+    private String createOnlineGame(boolean userIsWhite) {
         String id = engineService.createGame(new CreateGameRequest(null, "NONE", 1)).gameId();
+        UUID white = userIsWhite ? playerId : opponentId;
+        UUID black = userIsWhite ? opponentId : playerId;
         persistService.persistNewOnlineGame(id,
-            playerId, "gc_test_player", 1200,
-            opponentId, "gc_test_opponent", 1200,
+            white, "white_player", 1200,
+            black, "black_player", 1200,
             TimeControlKind.unlimited, 0, 0);
         return id;
     }
@@ -438,6 +444,49 @@ class GameControllerTest {
         void deleteUnknown() throws Exception {
             mvc.perform(delete("/api/games/does-not-exist"))
                 .andExpect(status().isNotFound());
+        }
+    }
+
+    // ================================================================
+    // POST /api/games/{id}/resign
+    // ================================================================
+
+    @Nested
+    @DisplayName("POST /api/games/{id}/resign — the caller resigns")
+    class Resign {
+
+        @Test
+        @DisplayName("AI game: the human resigns even while the AI is to move")
+        void humanResignsOnTheAisTurn() throws Exception {
+            String id = createGame("BLACK"); // human = white
+            mvc.perform(post("/api/games/" + id + "/moves")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", "e2e4"))))
+                .andExpect(status().isOk());
+
+            mvc.perform(post("/api/games/" + id + "/resign"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("WHITE_RESIGNED"))
+                .andExpect(jsonPath("$.result.winner").value("black"));
+        }
+
+        @Test
+        @DisplayName("online game: black can resign while white is to move")
+        void blackResignsOnWhitesTurn() throws Exception {
+            String id = createOnlineGame(false); // user = black, white to move
+            mvc.perform(post("/api/games/" + id + "/resign"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("BLACK_RESIGNED"))
+                .andExpect(jsonPath("$.result.winner").value("white"));
+        }
+
+        @Test
+        @DisplayName("local game: the side to move resigns")
+        void localGameResignsTheSideToMove() throws Exception {
+            String id = createGame("NONE");
+            mvc.perform(post("/api/games/" + id + "/resign"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("WHITE_RESIGNED"));
         }
     }
 
