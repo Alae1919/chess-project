@@ -133,8 +133,14 @@ export const gameReducer = createReducer(
   }),
 
   on(GameActions.gameOver, (state, { game }) => ({
-    ...state, currentGame: game,
+    ...state, currentGame: game, opponentAway: null,
   })),
+
+  on(GameActions.opponentDisconnected, (state, { color, until }) => ({
+    ...state, opponentAway: { color, until },
+  })),
+
+  on(GameActions.opponentReconnected, (state) => ({ ...state, opponentAway: null })),
 
   on(GameActions.resetGame, () => initialGameState),
 );

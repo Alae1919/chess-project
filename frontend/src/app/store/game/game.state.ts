@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // src/app/store/game/game.state.ts
 // ─────────────────────────────────────────────────────────────────────────────
-import { Game, SavedGame, Square, PositionEvaluation, ChatMessage, Move } from '../../core/models';
+import { Game, SavedGame, Square, PositionEvaluation, ChatMessage, Move, PieceColor } from '../../core/models';
 
 export interface GameState {
   currentGame: Game | null;
@@ -12,6 +12,8 @@ export interface GameState {
   chatMessages: ChatMessage[];
   /** A pawn move onto the last rank, held until the player picks a piece */
   pendingPromotion: Omit<Move, 'algebraicNotation' | 'timestamp'> | null;
+  /** The opponent has dropped out of an online game and forfeits at `until` unless they return */
+  opponentAway: { color: PieceColor; until: number } | null;
   /** A short message for the player, e.g. "the AI declined the draw" */
   notice: string | null;
   isLoading: boolean;
@@ -27,6 +29,7 @@ export const initialGameState: GameState = {
   evaluation: null,
   chatMessages: [],
   pendingPromotion: null,
+  opponentAway: null,
   notice: null,
   isLoading: false,
   isAiThinking: false,

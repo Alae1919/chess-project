@@ -12,6 +12,8 @@ import { combineLatest, Subscription, take } from 'rxjs'; // <-- Subscription ad
 import { ChessBoardComponent } from '../../../shared/components/chess-board/chess-board.component';
 import { ChessBoard3DComponent } from '../../../shared/components/chess-board-3d/chess-board-3d.component';
 import { BoardStylePickerComponent } from '../../../shared/components/board-style-picker/board-style-picker.component';
+import { GameNoticeBannerComponent } from '../../../shared/components/game-notice-banner/game-notice-banner.component';
+import { WebSocketService } from '../../../core/services/websocket.service';
 import { DrawOfferBannerComponent } from '../../../shared/components/draw-offer-banner/draw-offer-banner.component';
 import { PromotionPickerComponent } from '../../../shared/components/promotion-picker/promotion-picker.component';
 import { PromotionPiece } from '../../../core/utils/promotion.utils';
@@ -31,6 +33,7 @@ import {
   selectIsLoading,
   selectPendingPromotion,
   selectNotice,
+  selectOpponentAway,
 } from '../../../store/game/game.selectors';
 
 const VIEW_KEY = 'rex_board_view';
@@ -38,7 +41,7 @@ const VIEW_KEY = 'rex_board_view';
 @Component({
   selector: 'app-game-page',
   standalone: true,
-  imports: [CommonModule, AsyncPipe, RouterLink, ChessBoardComponent, ChessBoard3DComponent, BoardStylePickerComponent, PromotionPickerComponent, DrawOfferBannerComponent, FormsModule],
+  imports: [CommonModule, AsyncPipe, RouterLink, ChessBoardComponent, ChessBoard3DComponent, BoardStylePickerComponent, PromotionPickerComponent, DrawOfferBannerComponent, GameNoticeBannerComponent, FormsModule],
   templateUrl: './game.page.html',
   styleUrls: ['./game.page.scss'],
 })
@@ -64,6 +67,10 @@ export class GamePage implements OnInit, OnDestroy {
   });
 
   readonly notice$ = this.store.select(selectNotice);
+  readonly opponentAway$ = this.store.select(selectOpponentAway);
+  private gameSocket = inject(WebSocketService);
+  /** 'reconnecting' while our own connection is down */
+  readonly connection$ = this.gameSocket.connectionState$;
 
   /** Pawn move waiting for its promotion piece (shown over either board) */
   readonly pendingPromotion$ = this.store.select(selectPendingPromotion);
@@ -132,7 +139,9 @@ export class GamePage implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     // The game stays in the store so the navbar can offer to resume it; it is
-    // replaced on the next create/load.
+    // replaced on the next create/load. The socket does not: leaving the page
+    // must not keep the player "connected" to a game they have walked away from.
+    this.gameSocket.disconnect();
     this.sub.unsubscribe();
   }
 

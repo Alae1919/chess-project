@@ -74,6 +74,28 @@ describe('gameReducer', () => {
     expect(next.chatMessages.length).toBe(1);
   });
 
+  describe('opponent connection', () => {
+    it('remembers when the opponent will forfeit, and forgets it when they return', () => {
+      const away = gameReducer(withGame(), GameActions.opponentDisconnected({ color: 'black', until: 5_000 }));
+      expect(away.opponentAway).toEqual({ color: 'black', until: 5_000 });
+
+      expect(gameReducer(away, GameActions.opponentReconnected()).opponentAway).toBeNull();
+    });
+
+    it('forgets it when the game ends', () => {
+      const away = withGame({ opponentAway: { color: 'black', until: 5_000 } });
+
+      expect(gameReducer(away, GameActions.gameOver({ game: makeGame({ status: 'black_abandoned' }) })).opponentAway)
+        .toBeNull();
+    });
+
+    it('does not carry it over to another game', () => {
+      const away = withGame({ opponentAway: { color: 'black', until: 5_000 } });
+
+      expect(gameReducer(away, GameActions.loadGame({ gameId: 'other' })).opponentAway).toBeNull();
+    });
+  });
+
   describe('draw offers and notices', () => {
     it('takes a game update (a pending offer) into the current game', () => {
       const offered = makeGame({ drawOfferedBy: 'white' });

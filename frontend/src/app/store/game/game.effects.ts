@@ -9,7 +9,7 @@ import { isPlayableStatus } from '../../core/utils/game-status.utils';
 import { needsPromotionChoice } from '../../core/utils/promotion.utils';
 import { selectCurrentGame, selectSelectedSquare } from './game.selectors';
 import { GameService } from '../../core/services/game.service';
-import { Game } from '../../core/models';
+import { Game, PieceColor } from '../../core/models';
 import { ChatService } from '../../core/services/chat.service';
 import { WebSocketService } from '../../core/services/websocket.service';
 import { Router } from '@angular/router';
@@ -81,12 +81,27 @@ export class GameEffects {
               this.store.dispatch(GameActions.receiveChatMessage({ message: event.payload as any }));
             if (event.type === 'DRAW_OFFERED' || event.type === 'DRAW_DECLINED')
               this.store.dispatch(GameActions.gameUpdated({ game: this.gameService.mapGame(event.payload) }));
+            if (event.type === 'OPPONENT_DISCONNECTED') {
+              const { color, timeoutMs } = event.payload as { color: PieceColor; timeoutMs: number };
+              this.store.dispatch(GameActions.opponentDisconnected({ color, until: Date.now() + timeoutMs }));
+            }
+            if (event.type === 'OPPONENT_RECONNECTED')
+              this.store.dispatch(GameActions.opponentReconnected());
             if (event.type === 'GAME_OVER')
               this.store.dispatch(GameActions.gameOver({ game: this.gameService.mapGame(event.payload) }));
           });
         })
       ),
     { dispatch: false }
+  );
+
+  // After a dropped connection: fetch what was missed (moves, a result, a draw offer)
+  reloadAfterReconnect$ = createEffect(() =>
+    this.wsService.reconnected$.pipe(
+      withLatestFrom(this.store.select(selectCurrentGame)),
+      filter(([, game]) => !!game),
+      map(([, game]) => GameActions.loadGame({ gameId: game!.id }))
+    )
   );
 
   selectSquare$ = createEffect(() =>

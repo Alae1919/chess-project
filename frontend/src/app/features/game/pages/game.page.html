@@ -161,6 +161,15 @@
         (accept)="answerDraw(true)"
         (decline)="answerDraw(false)" />
 
+      <app-game-notice-banner
+        *ngIf="(connection$ | async) === 'reconnecting'"
+        message="Connexion perdue — reconnexion…" />
+
+      <app-game-notice-banner
+        *ngIf="opponentAway$ | async as away"
+        message="Votre adversaire s'est déconnecté — la partie vous revient dans"
+        [until]="away.until" />
+
       <div class="status-bar" role="alert" *ngIf="notice$ | async as notice" (click)="dismissNotice()" title="Fermer">
         {{ notice }}
       </div>

@@ -17,9 +17,13 @@ describe('GameEffects', () => {
   let effects: GameEffects;
   let gameService: jasmine.SpyObj<GameService>;
   let chatService: jasmine.SpyObj<ChatService>;
+  let reconnected$: Subject<void>;
+  let socketService: unknown;
 
   beforeEach(() => {
     actions$ = new Subject<Action>();
+    reconnected$ = new Subject<void>();
+    socketService = Object.assign(jasmine.createSpyObj('WebSocketService', ['connect', 'disconnect']), { reconnected$ });
     gameService = jasmine.createSpyObj<GameService>('GameService', ['resign', 'getAiMove', 'offerDraw', 'acceptDraw', 'declineDraw']);
     chatService = jasmine.createSpyObj<ChatService>('ChatService', ['sendMessage']);
     TestBed.configureTestingModule({
@@ -30,7 +34,7 @@ describe('GameEffects', () => {
         provideRouter([]),
         { provide: GameService, useValue: gameService },
         { provide: ChatService, useValue: chatService },
-        { provide: WebSocketService, useValue: jasmine.createSpyObj('WebSocketService', ['connect', 'disconnect']) },
+        { provide: WebSocketService, useValue: socketService },
       ],
     });
     effects = TestBed.inject(GameEffects);
@@ -119,6 +123,14 @@ describe('GameEffects', () => {
 
       expect(out).toEqual([GameActions.gameOver({ game: drawn }), GameActions.gameUpdated({ game: open })]);
     });
+  });
+
+  it('reloads the current game once the socket is back', () => {
+    const out = collect(effects.reloadAfterReconnect$);
+
+    reconnected$.next();
+
+    expect(out).toEqual([GameActions.loadGame({ gameId: 'game-1' })]);
   });
 
   it('adds a sent chat message, and survives a failed send', () => {

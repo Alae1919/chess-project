@@ -1,6 +1,6 @@
 // src/app/store/game/game.actions.ts
 import { createActionGroup, emptyProps, props } from '@ngrx/store';
-import { Game, GameOptions, Move, PositionEvaluation, SavedGame, Square, ChatMessage } from '../../core/models';
+import { PieceColor, Game, GameOptions, Move, PositionEvaluation, SavedGame, Square, ChatMessage } from '../../core/models';
 
 export const GameActions = createActionGroup({
   source: 'Game',
@@ -43,6 +43,10 @@ export const GameActions = createActionGroup({
     'Game Over': props<{ game: Game }>(),
     'Game Updated': props<{ game: Game }>(),   // same game, new state (e.g. a draw offer)
     'Dismiss Notice': emptyProps(),
+
+    // The opponent's connection (online games). `until` is when they forfeit, epoch ms.
+    'Opponent Disconnected': props<{ color: PieceColor; until: number }>(),
+    'Opponent Reconnected': emptyProps(),
 
     // Evaluation
     'Update Evaluation': props<{ evaluation: PositionEvaluation }>(),
