@@ -194,10 +194,11 @@ export type GameEndReason =
   | 'stalemate'
   | 'resignation'
   | 'timeout'
-  | 'draw-agreement'
-  | 'threefold-repetition'
-  | 'fifty-move-rule'
-  | 'insufficient-material';
+  | 'draw_agreement'
+  | 'threefold_repetition'
+  | 'fifty_move_rule'
+  | 'insufficient_material'
+  | 'abandonment';
 
 // ─── Game Options (Page 1) ────────────────────────────────────────────────────
 

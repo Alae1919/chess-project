@@ -46,10 +46,15 @@ export const lobbyReducer = createReducer<LobbyState>(
     ],
   })),
 
-  on(LobbyActions.inviteCancelled, LobbyActions.inviteDeclined, (state, { invitationId }) => ({
-    ...state,
-    pendingInvitations: state.pendingInvitations.filter((i) => i.invitationId !== invitationId),
-  })),
+  // An invitation that is over (cancelled, declined, expired) leaves both lists: the
+  // invitee's inbox, and the sender's "waiting for a response" if it was theirs
+  on(LobbyActions.inviteCancelled, LobbyActions.inviteDeclined, LobbyActions.inviteExpired,
+    (state, { invitationId }) => ({
+      ...state,
+      pendingInvitations: state.pendingInvitations.filter((i) => i.invitationId !== invitationId),
+      sentInvitation: state.sentInvitation?.invitationId === invitationId ? null : state.sentInvitation,
+    })
+  ),
 
   on(LobbyActions.sendInvitationSuccess, (state, { invitation }) => ({
     ...state,

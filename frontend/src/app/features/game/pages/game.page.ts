@@ -8,10 +8,15 @@ import { CommonModule, AsyncPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms'; // <-- ADDED THIS
 import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngrx/store';
-import { combineLatest, Subscription, take } from 'rxjs'; // <-- Subscription added
+import { combineLatest, distinctUntilChanged, map, Subscription, take } from 'rxjs'; // <-- Subscription added
 import { ChessBoardComponent } from '../../../shared/components/chess-board/chess-board.component';
 import { ChessBoard3DComponent } from '../../../shared/components/chess-board-3d/chess-board-3d.component';
 import { BoardStylePickerComponent } from '../../../shared/components/board-style-picker/board-style-picker.component';
+import { GameOverDialogComponent, RematchState } from '../../../shared/components/game-over-dialog/game-over-dialog.component';
+import { playerColorOf, summarizeResult } from '../../../core/utils/game-result.utils';
+import { rematchInvitation, rematchOptions } from '../../../core/utils/rematch.utils';
+import { LobbyActions } from '../../../store/lobby/lobby.actions';
+import { selectSentInvitation } from '../../../store/lobby/lobby.selectors';
 import { GameNoticeBannerComponent } from '../../../shared/components/game-notice-banner/game-notice-banner.component';
 import { WebSocketService } from '../../../core/services/websocket.service';
 import { DrawOfferBannerComponent } from '../../../shared/components/draw-offer-banner/draw-offer-banner.component';
@@ -41,7 +46,7 @@ const VIEW_KEY = 'rex_board_view';
 @Component({
   selector: 'app-game-page',
   standalone: true,
-  imports: [CommonModule, AsyncPipe, RouterLink, ChessBoardComponent, ChessBoard3DComponent, BoardStylePickerComponent, PromotionPickerComponent, DrawOfferBannerComponent, GameNoticeBannerComponent, FormsModule],
+  imports: [CommonModule, AsyncPipe, RouterLink, ChessBoardComponent, ChessBoard3DComponent, BoardStylePickerComponent, PromotionPickerComponent, DrawOfferBannerComponent, GameNoticeBannerComponent, GameOverDialogComponent, FormsModule],
   templateUrl: './game.page.html',
   styleUrls: ['./game.page.scss'],
 })
@@ -67,6 +72,10 @@ export class GamePage implements OnInit, OnDestroy {
   });
 
   readonly notice$ = this.store.select(selectNotice);
+  readonly sentInvitation$ = this.store.select(selectSentInvitation);
+  /** The game whose result dialog was closed, so it stays closed until the next game */
+  private dismissedFor: string | null = null;
+  private rematchRequested = false;
   readonly opponentAway$ = this.store.select(selectOpponentAway);
   private gameSocket = inject(WebSocketService);
   /** 'reconnecting' while our own connection is down */
@@ -106,6 +115,13 @@ export class GamePage implements OnInit, OnDestroy {
         })
       );
     }
+    // A new game starts with a fresh result dialog and no rematch pending
+    this.sub.add(
+      this.store.select(selectCurrentGame).pipe(map((g) => g?.id), distinctUntilChanged()).subscribe(() => {
+        this.dismissedFor = null;
+        this.rematchRequested = false;
+      })
+    );
     this.sub.add(
       this.store.select(selectUser).subscribe(user => {
         this.currentUserId = user?.id;
@@ -151,6 +167,32 @@ export class GamePage implements OnInit, OnDestroy {
   offerDraw(): void { this.store.dispatch(GameActions.offerDraw()); }
   answerDraw(accepted: boolean): void { this.store.dispatch(GameActions.drawResponse({ accepted })); }
   dismissNotice(): void { this.store.dispatch(GameActions.dismissNotice()); }
+
+  // ── End of game ───────────────────────────────────────────────────────────
+  myColor(game: Game) { return playerColorOf(game, this.currentUserId); }
+  resultSummary(game: Game) { return summarizeResult(game, this.myColor(game)); }
+  showResultDialog(game: Game): boolean { return !!this.resultSummary(game) && this.dismissedFor !== game.id; }
+  closeResultDialog(game: Game): void { this.dismissedFor = game.id; }
+  reopenResultDialog(): void { this.dismissedFor = null; }
+
+  rematchState(sent: unknown): RematchState {
+    return sent ? 'pending' : this.rematchRequested ? 'declined' : 'idle';
+  }
+
+  /** Same opponent and clock, colours swapped: an invitation online, a new game otherwise. */
+  rematch(game: Game): void {
+    const mine = this.myColor(game);
+    if (game.mode === 'online') {
+      if (!mine) return;
+      this.rematchRequested = true;
+      this.store.dispatch(LobbyActions.sendInvitation({ req: rematchInvitation(game, mine) }));
+      return;
+    }
+    this.store.dispatch(GameActions.createGame({ options: rematchOptions(game, mine) }));
+  }
+
+  newGame(): void { this.router.navigate(['/home']); }
+  toLobby(): void { this.router.navigate(['/online']); }
 
   /**
    * The open draw offer from this player's point of view: 'incoming' from the
@@ -217,12 +259,5 @@ export class GamePage implements OnInit, OnDestroy {
     // U+FE0E forces text (not emoji) rendering of the pawn glyphs
     const sym = symbols[piece.color]?.[piece.type];
     return sym ? sym + '︎' : '';
-  }
-
-  getResultLabel(result: any): string {
-    if (!result) return '';
-    if (!result.winner) return 'Nul (' + result.reason + ')';
-    const winnerFr = result.winner === 'white' ? 'Blancs' : 'Noirs';
-    return `Victoire ${winnerFr} (${result.reason})`;
   }
 }

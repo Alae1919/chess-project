@@ -112,6 +112,8 @@ export class LobbyEffects {
             return LobbyActions.inviteCancelled({ invitationId: (event.payload as any).invitationId });
           case 'INVITE_DECLINED':
             return LobbyActions.inviteDeclined({ invitationId: (event.payload as any).invitationId });
+          case 'INVITE_EXPIRED':
+            return LobbyActions.inviteExpired({ invitationId: (event.payload as any).invitationId });
           default:
             return null;
         }

@@ -9,6 +9,8 @@ export interface SendInvitationRequest {
   timeControlType: string;
   timeControlInitialMs: number;
   timeControlIncrementMs: number;
+  /** The colour the inviter wants; omit to draw at random (a rematch swaps colours) */
+  inviterColor?: 'white' | 'black';
 }
 
 @Injectable({ providedIn: 'root' })

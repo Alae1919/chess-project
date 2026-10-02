@@ -174,9 +174,20 @@
         {{ notice }}
       </div>
 
-      <div class="status-bar status-bar--finished status-bar--desktop" *ngIf="isTerminal(vm.game.status)">
-        Partie terminée — {{ getResultLabel(vm.game.result) }}
+      <div class="status-bar status-bar--finished status-bar--desktop" *ngIf="isTerminal(vm.game.status)"
+           (click)="reopenResultDialog()" title="Afficher le résultat" style="cursor: pointer">
+        Partie terminée — {{ resultSummary(vm.game)?.headline }} ({{ resultSummary(vm.game)?.reason }})
       </div>
+
+      <app-game-over-dialog
+        *ngIf="showResultDialog(vm.game)"
+        [summary]="resultSummary(vm.game)!"
+        [online]="vm.game.mode === 'online'"
+        [rematch]="rematchState(sentInvitation$ | async)"
+        (rematchClick)="rematch(vm.game)"
+        (newGame)="newGame()"
+        (lobby)="toLobby()"
+        (close)="closeResultDialog(vm.game)" />
 
       <!-- ── MOBILE PLAYER STRIP (hidden on desktop) ───────────────── -->
       <div class="mobile-player-strip">

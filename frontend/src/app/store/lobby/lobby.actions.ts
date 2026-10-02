@@ -20,6 +20,7 @@ export const LobbyActions = createActionGroup({
     'Invite Received': props<{ invitation: GameInvitation }>(),
     'Invite Declined': props<{ invitationId: string }>(),
     'Invite Cancelled': props<{ invitationId: string }>(),
+    'Invite Expired': props<{ invitationId: string }>(),
 
     // ── Friend invitations ───────────────────────────────────────────────────
     'Send Invitation': props<{ req: SendInvitationRequest }>(),
