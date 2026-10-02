@@ -2,6 +2,7 @@ package com.chess.api.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 
 import java.time.Instant;
 
@@ -13,7 +14,9 @@ public final class InvitationDto {
         @NotBlank String inviteeUsername,
         @NotBlank String timeControlType,
         @NotNull Long timeControlInitialMs,
-        long timeControlIncrementMs
+        long timeControlIncrementMs,
+        /** Optional: the colour the inviter wants (a rematch swaps colours); random if omitted. */
+        @Pattern(regexp = "white|black", message = "must be white or black") String inviterColor
     ) {}
 
     public record InvitationResponse(

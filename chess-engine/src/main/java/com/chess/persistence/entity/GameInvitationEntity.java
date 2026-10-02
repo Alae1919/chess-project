@@ -46,6 +46,9 @@ public class GameInvitationEntity {
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     private InvitationStatus status = InvitationStatus.pending;
 
+    @Column(name = "inviter_color", length = 5)
+    private String inviterColor;
+
     @Column(name = "game_id")
     private UUID gameId;
 
@@ -74,6 +77,9 @@ public class GameInvitationEntity {
     public void setTimeControlIncrementMs(long v)    { this.timeControlIncrementMs = v; }
     public InvitationStatus getStatus()              { return status; }
     public void setStatus(InvitationStatus status)   { this.status = status; }
+    /** "white", "black", or null when the colours are drawn at random. */
+    public String getInviterColor()                  { return inviterColor; }
+    public void setInviterColor(String v)            { this.inviterColor = v; }
     public UUID getGameId()                          { return gameId; }
     public void setGameId(UUID gameId)               { this.gameId = gameId; }
     public Instant getCreatedAt()                    { return createdAt; }

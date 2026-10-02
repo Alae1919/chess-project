@@ -72,6 +72,7 @@ public class InvitationService {
         invitation.setTimeControlType(tcType);
         invitation.setTimeControlInitialMs(req.timeControlInitialMs());
         invitation.setTimeControlIncrementMs(req.timeControlIncrementMs());
+        invitation.setInviterColor(req.inviterColor());
         invitation = invitationRepo.save(invitation);
 
         // Notify invitee in real time if they're connected to the lobby
@@ -121,8 +122,10 @@ public class InvitationService {
         if ("accept".equalsIgnoreCase(response)) {
             invitation.setStatus(InvitationStatus.accepted);
 
-            // Random color assignment
-            boolean inviterIsWhite = new Random().nextBoolean();
+            // The inviter's choice (a rematch swaps colours), else a coin toss
+            boolean inviterIsWhite = invitation.getInviterColor() != null
+                ? "white".equals(invitation.getInviterColor())
+                : new Random().nextBoolean();
             UUID whiteId       = inviterIsWhite ? invitation.getInviterId()   : inviteeId;
             String whiteUser   = inviterIsWhite ? invitation.getInviterUsername() : invitation.getInviteeUsername();
             UUID blackId       = inviterIsWhite ? inviteeId                    : invitation.getInviterId();
@@ -202,11 +205,19 @@ public class InvitationService {
 
     // ── Scheduled expiry ──────────────────────────────────────────────────────
 
+    /** Expires invitations nobody answered, and tells both players so their screens clear. */
     @Scheduled(fixedDelay = 30_000)
     @Transactional
     public void expireOldInvitations() {
-        int count = invitationRepo.expireOldInvitations(Instant.now());
-        if (count > 0) log.debug("Expired {} stale invitation(s)", count);
+        var stale = invitationRepo.findByStatusAndExpiresAtBefore(InvitationStatus.pending, Instant.now());
+        for (var invitation : stale) {
+            invitation.setStatus(InvitationStatus.expired);
+            invitationRepo.save(invitation);
+            var response = toResponse(invitation);
+            lobbySessionManager.sendToUser(invitation.getInviterId().toString(), "INVITE_EXPIRED", response);
+            lobbySessionManager.sendToUser(invitation.getInviteeId().toString(), "INVITE_EXPIRED", response);
+        }
+        if (!stale.isEmpty()) log.debug("Expired {} stale invitation(s)", stale.size());
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

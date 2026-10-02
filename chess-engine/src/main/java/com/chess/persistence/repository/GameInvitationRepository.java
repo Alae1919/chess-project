@@ -3,9 +3,6 @@ package com.chess.persistence.repository;
 import com.chess.persistence.entity.DatabaseEnums.InvitationStatus;
 import com.chess.persistence.entity.GameInvitationEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
@@ -22,8 +19,5 @@ public interface GameInvitationRepository extends JpaRepository<GameInvitationEn
 
     Optional<GameInvitationEntity> findByIdAndInviterId(UUID id, UUID inviterId);
 
-    @Modifying
-    @Query(value = "UPDATE game_invitations SET status = 'expired' WHERE status = 'pending' AND expires_at < :now",
-           nativeQuery = true)
-    int expireOldInvitations(@Param("now") Instant now);
+    List<GameInvitationEntity> findByStatusAndExpiresAtBefore(InvitationStatus status, Instant cutoff);
 }
