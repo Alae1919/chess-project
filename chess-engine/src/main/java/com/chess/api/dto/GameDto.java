@@ -19,7 +19,11 @@ public final class GameDto {
 
     public record TimeControl(String type, long initialMs, long incrementMs) {}
 
-    public record GameResult(String winner, String reason) {}
+    /** The rating changes are set only for finished online games. */
+    public record GameResult(String winner, String reason,
+                             Integer whiteEloChange, Integer blackEloChange) {
+        public GameResult(String winner, String reason) { this(winner, reason, null, null); }
+    }
 
     public record GamePlayer(
         String        userId,

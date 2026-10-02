@@ -182,6 +182,9 @@ export interface TimeControl {
 export interface GameResult {
   winner?: PieceColor;
   reason: GameEndReason;
+  /** Rating points gained or lost; only set for finished online games */
+  whiteEloChange?: number | null;
+  blackEloChange?: number | null;
 }
 
 export type GameEndReason =

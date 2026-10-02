@@ -607,6 +607,69 @@ class GameControllerTest {
     }
 
     // ================================================================
+    // Ratings and stats
+    // ================================================================
+
+    @Nested
+    @DisplayName("Ratings and stats")
+    class Ratings {
+
+        private UserEntity user(UUID id) { return userRepository.findById(id).orElseThrow(); }
+
+        @Test
+        @DisplayName("an online result moves points from the loser to the winner")
+        void onlineGameIsRated() throws Exception {
+            String id = createOnlineGame();          // "user" = white, the opponent = black
+            int whiteBefore = user(playerId).getElo();
+            int blackBefore = user(opponentId).getElo();
+
+            mvc.perform(post("/api/games/" + id + "/resign"))   // white resigns: black wins
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.whiteEloChange", lessThan(0)))
+                .andExpect(jsonPath("$.result.blackEloChange", greaterThan(0)));
+
+            int whiteChange = user(playerId).getElo() - whiteBefore;
+            int blackChange = user(opponentId).getElo() - blackBefore;
+            assertEquals(-whiteChange, blackChange, "points are only moved, never created");
+
+            // the same numbers are in the stored game, the reloaded result and the history
+            gameStore.delete(id);
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(jsonPath("$.result.whiteEloChange").value(whiteChange));
+            mvc.perform(get("/api/users/me/match-history"))
+                .andExpect(status().isOk());
+        }
+
+        @Test
+        @DisplayName("games against the AI don't change the rating")
+        void aiGameIsUnrated() throws Exception {
+            String id = createGame("BLACK");
+            int before = user(playerId).getElo();
+
+            mvc.perform(post("/api/games/" + id + "/resign"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.whiteEloChange").value(is(nullValue())));
+
+            assertEquals(before, user(playerId).getElo());
+        }
+
+        @Test
+        @DisplayName("a local game counts once and is neither a win nor a loss")
+        void localGameCountsOnce() throws Exception {
+            String id = createGame("NONE");
+            var before = user(playerId);
+            int played = before.getGamesPlayed(), wins = before.getWins(), losses = before.getLosses();
+
+            mvc.perform(post("/api/games/" + id + "/resign")).andExpect(status().isOk());
+
+            var after = user(playerId);
+            assertEquals(played + 1, after.getGamesPlayed());
+            assertEquals(wins, after.getWins());
+            assertEquals(losses, after.getLosses());
+        }
+    }
+
+    // ================================================================
     // Access — only a game's players may act on it
     // ================================================================
 

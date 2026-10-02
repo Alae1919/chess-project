@@ -301,11 +301,40 @@ public class GamePersistenceService {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private void updateUserStats(GameEntity game, String winner) {
-        updateForPlayer(game.getWhiteUserId(), "white", winner, game);
-        updateForPlayer(game.getBlackUserId(), "black", winner, game);
+        UUID white = game.getWhiteUserId(), black = game.getBlackUserId();
+
+        // One person in both seats (a local game): it counts as one game played, but
+        // can't be won or lost
+        if (white != null && white.equals(black)) {
+            userRepo.findById(white).ifPresent(u -> {
+                u.setGamesPlayed(u.getGamesPlayed() + 1);
+                userRepo.save(u);
+            });
+            return;
+        }
+
+        // Only online games between two people are rated. Both ratings are read
+        // first so the two changes are computed from the same pre-game values.
+        Integer whiteNew = null, blackNew = null;
+        if (game.getMode() == GameMode.online && white != null && black != null) {
+            var whiteUser = userRepo.findById(white).orElse(null);
+            var blackUser = userRepo.findById(black).orElse(null);
+            if (whiteUser != null && blackUser != null) {
+                double whiteScore = winner == null ? 0.5 : "white".equals(winner) ? 1 : 0;
+                int whiteDelta = EloCalculator.delta(whiteUser.getElo(), blackUser.getElo(), whiteScore);
+                whiteNew = EloCalculator.apply(whiteUser.getElo(), whiteDelta);
+                blackNew = EloCalculator.apply(blackUser.getElo(), -whiteDelta);
+                game.setWhiteEloChange(whiteNew - whiteUser.getElo());
+                game.setBlackEloChange(blackNew - blackUser.getElo());
+                gameRepo.save(game);
+            }
+        }
+        updateForPlayer(white, "white", winner, whiteNew);
+        updateForPlayer(black, "black", winner, blackNew);
     }
 
-    private void updateForPlayer(UUID userId, String color, String winner, GameEntity game) {
+    /** Records the result for one player; {@code newElo} is null for unrated games. */
+    private void updateForPlayer(UUID userId, String color, String winner, Integer newElo) {
         if (userId == null) return;
         var user = userRepo.findById(userId).orElse(null);
         if (user == null) return;
@@ -323,8 +352,9 @@ public class GamePersistenceService {
             user.setLosses(user.getLosses() + 1);
             user.setCurrentStreak(0);
         }
+        if (newElo != null) user.setElo(newElo);
         userRepo.save(user);
-        eloRepo.save(new EloHistoryEntity(user, user.getElo()));
+        if (newElo != null) eloRepo.save(new EloHistoryEntity(user, newElo));
     }
 
     private MatchHistoryDto.MatchHistory toMatchHistoryDto(GameEntity g, UUID userId) {
@@ -342,7 +372,8 @@ public class GamePersistenceService {
         return new MatchHistoryDto.MatchHistory(
             g.getId().toString(), opponentUsername, g.getMode().name(),
             tcLabel, result, color,
-            g.getMoves().size(), null, g.getUpdatedAt()
+            g.getMoves().size(), isWhite ? g.getWhiteEloChange() : g.getBlackEloChange(),
+            g.getUpdatedAt()
         );
     }
 
@@ -443,7 +474,8 @@ public class GamePersistenceService {
             null, buildMoves(engineState),
             engineState.activeColor().toLowerCase(),
             tc, ep, castling, halfMove, fullMove,
-            buildResult(engineState.status(), engineState.activeColor()),
+            withEloChanges(buildResult(engineState.status(), engineState.activeColor()),
+                           engineState.gameId()),
             null,              // opening — not cached (changes in early game)
             m.createdAt(),
             null,              // updatedAt — not cached (changes every move)
@@ -483,7 +515,8 @@ public class GamePersistenceService {
             engineState.activeColor().toLowerCase(),
             tc, ep, castling,
             e.getHalfMoveClock(), e.getFullMoveNumber(),
-            buildResult(engineState.status(), engineState.activeColor()),
+            withEloChanges(buildResult(engineState.status(), engineState.activeColor()),
+                           engineState.gameId()),
             e.getOpening(), e.getCreatedAt(), e.getUpdatedAt(),
             engineState.fen(), engineState.legalMoves(),
             engineState.moveHistory(), engineState.lastMove());
@@ -499,6 +532,16 @@ public class GamePersistenceService {
             e.getTimeControlType().name(),
             e.getTimeControlInitialMs(), e.getTimeControlIncrementMs(),
             e.getCreatedAt());
+    }
+
+    /** Adds the stored rating changes to a result, once the game has been scored. */
+    private GameDto.GameResult withEloChanges(GameDto.GameResult result, String gameId) {
+        if (result == null) return null;
+        return gameRepo.findById(UUID.fromString(gameId))
+            .filter(g -> g.getWhiteEloChange() != null)
+            .map(g -> new GameDto.GameResult(result.winner(), result.reason(),
+                                             g.getWhiteEloChange(), g.getBlackEloChange()))
+            .orElse(result);
     }
 
     private GameDto.GameResult buildResult(String status, String activeColor) {

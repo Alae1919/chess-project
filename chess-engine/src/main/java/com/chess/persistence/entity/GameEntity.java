@@ -46,6 +46,8 @@ public class GameEntity {
     private String whiteUsername;
     @Column(name = "white_elo")
     private Integer whiteElo;
+    @Column(name = "white_elo_change")
+    private Integer whiteEloChange;
     @Column(name = "white_time_remaining_ms", nullable = false)
     private long whiteTimeRemainingMs;
     @Column(name = "white_is_ai", nullable = false)
@@ -60,6 +62,8 @@ public class GameEntity {
     private String blackUsername;
     @Column(name = "black_elo")
     private Integer blackElo;
+    @Column(name = "black_elo_change")
+    private Integer blackEloChange;
     @Column(name = "black_time_remaining_ms", nullable = false)
     private long blackTimeRemainingMs;
     @Column(name = "black_is_ai", nullable = false)
@@ -148,6 +152,10 @@ public class GameEntity {
     public void setBlackUserId(UUID v)           { this.blackUserId = v; }
     public String getBlackUsername()             { return blackUsername; }
     public void setBlackUsername(String v)       { this.blackUsername = v; }
+    public Integer getWhiteEloChange()           { return whiteEloChange; }
+    public void setWhiteEloChange(Integer v)     { this.whiteEloChange = v; }
+    public Integer getBlackEloChange()           { return blackEloChange; }
+    public void setBlackEloChange(Integer v)     { this.blackEloChange = v; }
     public Integer getBlackElo()                 { return blackElo; }
     public void setBlackElo(Integer v)           { this.blackElo = v; }
     public long getBlackTimeRemainingMs()        { return blackTimeRemainingMs; }
