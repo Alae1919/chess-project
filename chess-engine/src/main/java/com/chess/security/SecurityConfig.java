@@ -1,5 +1,6 @@
 package com.chess.security;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.*;
 import org.springframework.security.authentication.*;
 import org.springframework.security.config.annotation.authentication.configuration.*;
@@ -24,10 +25,13 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final UserRepository userRepository;
+    private final List<String> allowedOrigins;
 
-    public SecurityConfig(@Lazy JwtAuthFilter jwtAuthFilter, UserRepository userRepository) {
+    public SecurityConfig(@Lazy JwtAuthFilter jwtAuthFilter, UserRepository userRepository,
+                          @Value("${app.allowed-origins}") List<String> allowedOrigins) {
         this.jwtAuthFilter  = jwtAuthFilter;
         this.userRepository = userRepository;
+        this.allowedOrigins = allowedOrigins;
     }
 
     @Bean
@@ -80,7 +84,8 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         var config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("*"));
+        // Never "*": with credentials allowed, that would let any site call the API as the user
+        config.setAllowedOriginPatterns(allowedOrigins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*")); 
         config.setAllowCredentials(true);

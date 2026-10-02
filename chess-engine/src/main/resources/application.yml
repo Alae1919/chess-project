@@ -34,6 +34,12 @@ jwt:
   access-token-expiry-ms: 900000        # 15 minutes
   refresh-token-expiry-ms: 604800000    # 7 days
 
+app:
+  # Browser origins allowed to call the API and open WebSockets (comma-separated,
+  # Spring origin patterns). In production set ALLOWED_ORIGINS to the site's own
+  # origin, e.g. https://chess.example.com: behind the proxy it counts as cross-origin.
+  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:[*],http://127.0.0.1:[*]}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
