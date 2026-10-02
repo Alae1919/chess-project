@@ -32,6 +32,8 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/chess_db
       - SPRING_DATASOURCE_USERNAME=chess_user
       - SPRING_DATASOURCE_PASSWORD=chess_pass
+      # development only: never reuse this value anywhere real
+      - JWT_SECRET=dev-only-jwt-secret-do-not-use-in-production-0123456789
       - SPRING_DEVTOOLS_RESTART_ENABLED=true
     depends_on:
       db:

@@ -1,4 +1,7 @@
-version: '3.8'
+# Production stack. Secrets come from a .env file next to this one (git-ignored):
+#   cp .env.example .env   and fill in real values.
+# Only the frontend is published; nginx reaches the backend and the database
+# over the internal Docker network.
 
 services:
   db:
@@ -7,9 +10,7 @@ services:
     environment:
       POSTGRES_DB: chess_db
       POSTGRES_USER: chess_user
-      POSTGRES_PASSWORD: chess_pass
-    ports:
-      - "5432:5432"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -19,16 +20,15 @@ services:
       retries: 5
 
   backend:
-    build: 
+    build:
       context: ./chess-engine
       dockerfile: Dockerfile
     container_name: chess_backend
-    ports:
-      - "8080:8080"
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/chess_db
       - SPRING_DATASOURCE_USERNAME=chess_user
-      - SPRING_DATASOURCE_PASSWORD=chess_pass
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env (openssl rand -base64 48)}
     depends_on:
       db:
         condition: service_healthy

@@ -150,6 +150,12 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.1.2</version>
+        <configuration>
+          <environmentVariables>
+            <!-- throwaway secret for the test JVM only; production must provide its own -->
+            <JWT_SECRET>test-only-jwt-secret-not-used-anywhere-else-0123456789</JWT_SECRET>
+          </environmentVariables>
+        </configuration>
       </plugin>
 
       <!-- Test coverage -->

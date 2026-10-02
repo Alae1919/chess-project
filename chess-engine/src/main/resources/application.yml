@@ -28,7 +28,9 @@ server:
   port: 8080
 
 jwt:
-  secret: "CHANGE_THIS_TO_A_256_BIT_RANDOM_SECRET_IN_PRODUCTION"
+  # Required: no default on purpose. Set JWT_SECRET to at least 32 random bytes,
+  # e.g. `openssl rand -base64 48`. JwtService refuses to start without it.
+  secret: ${JWT_SECRET:}
   access-token-expiry-ms: 900000        # 15 minutes
   refresh-token-expiry-ms: 604800000    # 7 days
 
