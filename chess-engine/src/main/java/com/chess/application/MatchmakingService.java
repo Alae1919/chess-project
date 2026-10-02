@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -34,12 +35,18 @@ public class MatchmakingService {
     private final GameApplicationService     engineService;
     private final GamePersistenceService     persistenceService;
     private final LobbySessionManager        lobbySessionManager;
+    private final TransactionTemplate        tx;
+
+    /** A pairing that has been committed, ready to announce. */
+    private record Match(String gameId, MatchmakingQueueEntity white, MatchmakingQueueEntity black) {}
 
     public MatchmakingService(MatchmakingQueueRepository queueRepo,
                                UserRepository userRepo,
                                GameApplicationService engineService,
                                GamePersistenceService persistenceService,
-                               LobbySessionManager lobbySessionManager) {
+                               LobbySessionManager lobbySessionManager,
+                               TransactionTemplate tx) {
+        this.tx                 = tx;
         this.queueRepo          = queueRepo;
         this.userRepo           = userRepo;
         this.engineService      = engineService;
@@ -113,7 +120,11 @@ public class MatchmakingService {
             for (int j = i + 1; j < candidates.size(); j++) {
                 var b = candidates.get(j);
                 if (processed.contains(b.getUserId())) continue;
-                if (Math.abs(a.getElo() - b.getElo()) <= eloWindow) {
+                // Same clock too: the game is played with one time control, so two
+                // players who asked for different ones must not be paired
+                boolean sameClock = a.getTimeControlInitialMs() == b.getTimeControlInitialMs()
+                                 && a.getTimeControlIncrementMs() == b.getTimeControlIncrementMs();
+                if (sameClock && Math.abs(a.getElo() - b.getElo()) <= eloWindow) {
                     processed.add(a.getUserId());
                     processed.add(b.getUserId());
                     pairs.add(new long[]{i, j});
@@ -126,7 +137,10 @@ public class MatchmakingService {
             var a = candidates.get((int) pair[0]);
             var b = candidates.get((int) pair[1]);
             try {
-                createOnlineGame(a, b);
+                // The game is committed before anyone hears about it: a player who
+                // opens it at once must find it in the database
+                Match match = tx.execute(status -> createOnlineGame(a, b));
+                notifyMatch(match);
             } catch (Exception e) {
                 log.error("Failed to create online game for {} vs {}: {}",
                           a.getUsername(), b.getUsername(), e.getMessage());
@@ -134,8 +148,8 @@ public class MatchmakingService {
         }
     }
 
-    @Transactional
-    public void createOnlineGame(MatchmakingQueueEntity p1, MatchmakingQueueEntity p2) {
+    /** Pairs two queued players and stores their game. Runs inside the pairing transaction. */
+    private Match createOnlineGame(MatchmakingQueueEntity p1, MatchmakingQueueEntity p2) {
         // Mark as matched to prevent double-pairing
         p1.setMatched(true);
         p2.setMatched(true);
@@ -159,7 +173,18 @@ public class MatchmakingService {
             p1.getTimeControlType(), p1.getTimeControlInitialMs(), p1.getTimeControlIncrementMs()
         );
 
-        // Notify both players via lobby WebSocket
+        // Clean up queue entries
+        queueRepo.deleteById(p1.getId());
+        queueRepo.deleteById(p2.getId());
+
+        return new Match(gameId, white, black);
+    }
+
+    /** Tells both players over the lobby socket. */
+    private void notifyMatch(Match match) {
+        String gameId = match.gameId();
+        var white = match.white();
+        var black = match.black();
         var payloadWhite = new MatchmakingDto.MatchFoundPayload(
             gameId, black.getUsername(), black.getElo(), "white",
             white.getTimeControlType().name(), white.getTimeControlInitialMs(), white.getTimeControlIncrementMs()
@@ -170,10 +195,6 @@ public class MatchmakingService {
         );
         lobbySessionManager.sendToUser(white.getUserId().toString(), "MATCH_FOUND", payloadWhite);
         lobbySessionManager.sendToUser(black.getUserId().toString(), "MATCH_FOUND", payloadBlack);
-
-        // Clean up queue entries
-        queueRepo.deleteById(p1.getId());
-        queueRepo.deleteById(p2.getId());
 
         log.info("Online game {} created: {} (white) vs {} (black)", gameId, white.getUsername(), black.getUsername());
     }

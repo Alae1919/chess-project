@@ -26,8 +26,13 @@ public class LobbySessionManager {
         sessions.put(userId, session);
     }
 
-    public void unregister(String userId) {
-        sessions.remove(userId);
+    /**
+     * Forgets {@code session}, but only if it is still the user's current one: a
+     * second tab (or a reconnect) replaces the first, and the first closing
+     * afterwards must not knock the newer socket out.
+     */
+    public void unregister(String userId, WebSocketSession session) {
+        sessions.remove(userId, session);
     }
 
     public boolean isConnected(String userId) {
