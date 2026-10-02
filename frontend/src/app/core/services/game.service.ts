@@ -52,6 +52,8 @@ export class GameService {
       ONGOING: 'active',          CHECK: 'check',
       CHECKMATE: 'checkmate',     STALEMATE: 'stalemate',
       DRAW_50_MOVE: 'draw_50_move',
+      DRAW_INSUFFICIENT_MATERIAL: 'draw_insufficient_material',
+      DRAW_REPETITION: 'draw_repetition',
       WHITE_RESIGNED: 'white_resigned',
       BLACK_RESIGNED: 'black_resigned',
       DRAW_AGREED: 'draw_agreed',

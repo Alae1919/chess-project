@@ -33,6 +33,7 @@ public record GameStateResponse(
     @Schema(example = "ONGOING",
             allowableValues = {
                 "ONGOING", "CHECK", "CHECKMATE", "STALEMATE", "DRAW_50_MOVE",
+                "DRAW_INSUFFICIENT_MATERIAL", "DRAW_REPETITION",
                 "WHITE_RESIGNED", "BLACK_RESIGNED", "DRAW_AGREED"
             })
     String status,

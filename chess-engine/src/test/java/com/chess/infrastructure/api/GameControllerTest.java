@@ -567,6 +567,30 @@ class GameControllerTest {
         }
 
         @Test
+        @DisplayName("a reloaded game keeps its move list and can be played on")
+        void reloadedGameKeepsItsMoves() throws Exception {
+            String id = createGame("NONE");
+            for (String move : new String[] { "e2e4", "e7e5" }) {
+                mvc.perform(post("/api/games/" + id + "/moves")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(Map.of("move", move))))
+                    .andExpect(status().isOk());
+            }
+
+            gameStore.delete(id); // what a backend restart does
+
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.moveHistory", contains("e2e4", "e7e5")))
+                .andExpect(jsonPath("$.moves[1].algebraicNotation").value("e5"));
+            mvc.perform(post("/api/games/" + id + "/moves")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", "g1f3"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.moveHistory", hasSize(3)));
+        }
+
+        @Test
         @DisplayName("undo can't reopen a finished game")
         void undoAfterGameOverIsRefused() throws Exception {
             String id = createGame("NONE");

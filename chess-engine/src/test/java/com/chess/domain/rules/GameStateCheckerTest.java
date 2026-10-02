@@ -119,6 +119,37 @@ class GameStateCheckerTest {
         assertTrue(GameStateChecker.isTerminal(DRAW_50_MOVE));
     }
 
+    // ---- Draw rules vs mate ----------------------------------------------
+
+    @Test
+    @DisplayName("CHECKMATE outranks the 50-move rule")
+    void mateOnTheHundredthHalfMove() {
+        // Back-rank mate (Black king h8 boxed in by its own pawns) with the clock at 100
+        Board board = FenParser.parse("R5k1/5ppp/8/8/8/8/8/6K1 b - - 100 60");
+        assertEquals(CHECKMATE, GameStateChecker.evaluate(board, Color.BLACK));
+    }
+
+    @Test
+    @DisplayName("DRAW_50_MOVE — clock at 100 with mating material left")
+    void fiftyMoveRuleWithMaterial() {
+        Board board = FenParser.parse("4k3/8/8/8/8/8/8/R3K3 w - - 100 80");
+        assertEquals(DRAW_50_MOVE, GameStateChecker.evaluate(board, Color.WHITE));
+    }
+
+    @Test
+    @DisplayName("DRAW_INSUFFICIENT_MATERIAL — king and knight vs king")
+    void insufficientMaterial() {
+        Board board = FenParser.parse("4k3/8/8/8/8/8/8/3NK3 w - - 0 1");
+        assertEquals(DRAW_INSUFFICIENT_MATERIAL, GameStateChecker.evaluate(board, Color.WHITE));
+    }
+
+    @Test
+    @DisplayName("the new draws are terminal")
+    void newDrawsAreTerminal() {
+        assertTrue(GameStateChecker.isTerminal(DRAW_INSUFFICIENT_MATERIAL));
+        assertTrue(GameStateChecker.isTerminal(DRAW_REPETITION));
+    }
+
     // ---- isTerminal correctness ----------------------------------------
 
     @Test

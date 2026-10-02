@@ -231,11 +231,41 @@ public final class GameApplicationService {
                 aiDifficulty = dbGame.getBlackAiDifficulty();
         }
 
-        GameSession session = new GameSession(gameId, board, aiColor, aiDifficulty);
+        // Replaying the stored moves brings back the move list and the repetition
+        // history; a game from a custom FEN can't be replayed and loads as a bare position
+        GameSession session = replayStoredMoves(gameId, dbGame, aiColor, aiDifficulty);
+        if (session == null) session = new GameSession(gameId, board, aiColor, aiDifficulty);
         session.initClock(dbGame.getWhiteTimeRemainingMs(), dbGame.getBlackTimeRemainingMs());
         if (dbGame.getStatus() == GameStatus.finished || dbGame.getStatus() == GameStatus.aborted)
             session.restoreOutcome(storedOutcome(dbGame));
         store.save(session);
+        return session;
+    }
+
+    /**
+     * A session rebuilt by playing the stored moves from the standard start, or null
+     * when they don't lead to the stored position (a game that began from a custom FEN).
+     */
+    private static GameSession replayStoredMoves(String gameId, GameEntity dbGame,
+                                                  Color aiColor, int aiDifficulty) {
+        if (dbGame.getMoves().isEmpty()) return null;
+        var session = new GameSession(gameId, BoardFactory.startingPosition(), aiColor, aiDifficulty);
+        try {
+            for (var stored : dbGame.getMoves()) {
+                String uci = stored.getAlgebraicNotation(); // stored as plain UCI
+                Move move = MoveGenerator.generateLegalMoves(session.board()).stream()
+                        .filter(m -> m.toUci().equals(uci))
+                        .findFirst().orElse(null);
+                if (move == null) return null;
+                session.applyMove(move);
+            }
+        } catch (IllegalStateException e) { // a move after the game ended
+            return null;
+        }
+        // Same pieces, side to move and castling rights as the stored position?
+        String[] replayed = FenSerializer.toFen(session.board()).split(" ");
+        String[] stored   = dbGame.getCurrentFen().split(" ");
+        for (int i = 0; i < 3; i++) if (!replayed[i].equals(stored[i])) return null;
         return session;
     }
 
@@ -247,6 +277,8 @@ public final class GameApplicationService {
             case checkmate       -> GameStateChecker.State.CHECKMATE;
             case stalemate       -> GameStateChecker.State.STALEMATE;
             case fifty_move_rule -> GameStateChecker.State.DRAW_50_MOVE;
+            case insufficient_material -> GameStateChecker.State.DRAW_INSUFFICIENT_MATERIAL;
+            case threefold_repetition  -> GameStateChecker.State.DRAW_REPETITION;
             case draw_agreement  -> GameStateChecker.State.DRAW_AGREED;
             case resignation     -> whiteWon ? GameStateChecker.State.BLACK_RESIGNED
                                              : GameStateChecker.State.WHITE_RESIGNED;
@@ -265,6 +297,8 @@ public final class GameApplicationService {
                                        reason = "checkmate"; }
             case "STALEMATE"      -> reason = "stalemate";
             case "DRAW_50_MOVE"   -> reason = "fifty_move_rule";
+            case "DRAW_INSUFFICIENT_MATERIAL" -> reason = "insufficient_material";
+            case "DRAW_REPETITION"            -> reason = "threefold_repetition";
             case "WHITE_RESIGNED" -> { winner = "black"; reason = "resignation"; }
             case "BLACK_RESIGNED" -> { winner = "white"; reason = "resignation"; }
             case "DRAW_AGREED"    -> reason = "draw_agreement";

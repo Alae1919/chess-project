@@ -215,8 +215,7 @@ public final class AlphaBetaSearch {
         State state = GameStateChecker.evaluate(board, board.activeColor());
         return switch (state) {
             case CHECKMATE              -> NEG_INF - depth;
-            case STALEMATE, DRAW_50_MOVE -> 0;
-            default                     -> 0;
+            default                     -> 0; // stalemate and the draw rules
         };
     }
 }

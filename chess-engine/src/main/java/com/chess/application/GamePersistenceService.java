@@ -507,6 +507,8 @@ public class GamePersistenceService {
                 activeColor.equalsIgnoreCase("WHITE") ? "black" : "white", "checkmate");
             case "STALEMATE"      -> new GameDto.GameResult(null, "stalemate");
             case "DRAW_50_MOVE"   -> new GameDto.GameResult(null, "fifty_move_rule");
+            case "DRAW_INSUFFICIENT_MATERIAL" -> new GameDto.GameResult(null, "insufficient_material");
+            case "DRAW_REPETITION"            -> new GameDto.GameResult(null, "threefold_repetition");
             case "WHITE_RESIGNED" -> new GameDto.GameResult("black", "resignation");
             case "BLACK_RESIGNED" -> new GameDto.GameResult("white", "resignation");
             case "DRAW_AGREED"    -> new GameDto.GameResult(null, "draw_agreement");

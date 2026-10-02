@@ -5,6 +5,7 @@ import com.chess.domain.model.Color;
 import com.chess.domain.rules.GameStateChecker;
 import com.chess.domain.rules.SanFormatter;
 import com.chess.engine.player.AiPlayer;
+import com.chess.infrastructure.api.FenSerializer;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -12,7 +13,9 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Mutable session object held in the GameStore.
@@ -32,6 +35,7 @@ public final class GameSession {
     private final List<String>  moveHistory;
     private final List<String>  sanHistory;
     private final Deque<Board>  boardHistory;
+    private final Map<String, Integer> positionCounts = new HashMap<>(); // for threefold repetition
     private final Color    aiColor;   // null = no AI
     private final int      aiDepth;
     private final AiPlayer aiPlayer;  // null for human-vs-human; holds TT across moves
@@ -54,6 +58,7 @@ public final class GameSession {
         this.boardHistory = new ArrayDeque<>();
         this.createdAt    = Instant.now();
         this.state        = GameStateChecker.evaluate(board, board.activeColor());
+        countPosition(board);
     }
 
     // ---- Mutation (called only from GameApplicationService) -----------
@@ -90,6 +95,10 @@ public final class GameSession {
         Board before = board;
         board = board.apply(move);
         state = GameStateChecker.evaluate(board, board.activeColor());
+        // Mate and the other draws outrank a third repetition
+        if (countPosition(board) >= 3
+                && (state == GameStateChecker.State.ONGOING || state == GameStateChecker.State.CHECK))
+            state = GameStateChecker.State.DRAW_REPETITION;
         sanHistory.add(SanFormatter.format(before, move, state));
 
         if (turnStartAt != null) {
@@ -101,6 +110,7 @@ public final class GameSession {
     public void undoLastMove() {
         if (boardHistory.isEmpty())
             throw new IllegalStateException("No moves to undo");
+        uncountPosition(board);
         board = boardHistory.pop();
         if (!moveHistory.isEmpty())
             moveHistory.remove(moveHistory.size() - 1);
@@ -115,6 +125,24 @@ public final class GameSession {
         state = loser == Color.WHITE
             ? GameStateChecker.State.WHITE_RESIGNED
             : GameStateChecker.State.BLACK_RESIGNED;
+    }
+
+    /**
+     * Counts the position and returns how often it has now occurred. Two positions
+     * are the same when pieces, side to move, castling rights and en-passant target
+     * match (the first four FEN fields); the move counters don't matter.
+     */
+    private int countPosition(Board b) {
+        return positionCounts.merge(positionKey(b), 1, Integer::sum);
+    }
+
+    private void uncountPosition(Board b) {
+        positionCounts.computeIfPresent(positionKey(b), (k, n) -> n > 1 ? n - 1 : null);
+    }
+
+    private static String positionKey(Board b) {
+        String[] fields = FenSerializer.toFen(b).split(" ");
+        return String.join(" ", fields[0], fields[1], fields[2], fields[3]);
     }
 
     /**
