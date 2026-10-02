@@ -89,7 +89,11 @@ public class UserService {
     public UserDto.User updateProfile(UUID userId, UserDto.UpdateProfileRequest req) {
         var user = userRepo.findByIdWithPreferences(userId)
             .orElseThrow(() -> new EntityNotFoundException("User not found"));
-        if (req.username() != null) user.setUsername(req.username());
+        if (req.username() != null && !req.username().equals(user.getUsername())) {
+            if (userRepo.existsByUsername(req.username()))
+                throw new IllegalArgumentException("Username already taken");
+            user.setUsername(req.username());
+        }
         if (req.country()  != null) user.setCountry(req.country());
         if (req.avatarUrl() != null) user.setAvatarUrl(req.avatarUrl());
         userRepo.save(user);

@@ -93,7 +93,7 @@ public final class UserDto {
 
     // PATCH /me — all fields optional
     public record UpdateProfileRequest(
-        @Size(min = 3, max = 50) String username,
+        @Pattern(regexp = AuthDto.USERNAME_PATTERN, message = AuthDto.USERNAME_MESSAGE) String username,
         String country,
         String avatarUrl
     ) {}

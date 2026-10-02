@@ -18,7 +18,8 @@ export class RegisterPage {
   private router = inject(Router);
 
   registerForm = this.fb.group({
-    username: ['', [Validators.required, Validators.minLength(3)]],
+    // Same rule as the backend (AuthDto.USERNAME_PATTERN): no '@', so it can't pass for an email
+    username: ['', [Validators.required, Validators.pattern(/^[A-Za-z0-9_-]{3,30}$/)]],
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(6)]],
   });

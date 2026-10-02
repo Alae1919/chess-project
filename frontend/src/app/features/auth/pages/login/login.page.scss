@@ -57,6 +57,8 @@
     &::placeholder { color: var(--textm); }
     &.input-error { border-color: rgba(192, 57, 43, .5); }
   }
+
+  .field-hint { font: 400 11px var(--font); color: var(--textd); }
 }
 
 .auth-submit { margin-top: 8px; width: 100%; padding: 14px; font-size: 14px; }

@@ -20,7 +20,9 @@
             formControlName="username" 
             placeholder="GrandMaitre99"
             [class.input-error]="registerForm.get('username')?.touched && registerForm.get('username')?.invalid"
+            aria-describedby="username-hint"
           />
+          <small id="username-hint" class="field-hint">3 à 30 caractères : lettres, chiffres, _ ou -</small>
         </div>
   
         <div class="form-group">

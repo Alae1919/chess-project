@@ -1,24 +1,25 @@
 package com.chess.security;
 
+import com.chess.persistence.repository.UserRepository;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.UUID;
 
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
 
-    private final JwtService         jwtService;
-    private final UserDetailsService userDetailsService;
+    private final JwtService     jwtService;
+    private final UserRepository userRepository;
 
-    public JwtAuthFilter(JwtService jwtService, UserDetailsService userDetailsService) {
-        this.jwtService         = jwtService;
-        this.userDetailsService = userDetailsService;
+    public JwtAuthFilter(JwtService jwtService, UserRepository userRepository) {
+        this.jwtService     = jwtService;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -31,13 +32,18 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return;
         }
         try {
-            String token    = header.substring(7);
-            String username = jwtService.validateAndParse(token).get("username", String.class);
-            if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                var userDetails = userDetailsService.loadUserByUsername(username);
-                var auth = new UsernamePasswordAuthenticationToken(
-                    userDetails, null, userDetails.getAuthorities());
-                SecurityContextHolder.getContext().setAuthentication(auth);
+            var claims = jwtService.validateAndParse(header.substring(7));
+            // Refresh tokens share the signing key; they are only good for /api/auth/refresh
+            boolean isRefreshToken = "refresh".equals(claims.get("type", String.class));
+            if (!isRefreshToken && SecurityContextHolder.getContext().getAuthentication() == null) {
+                // Resolve by user id (sub), never by the username claim: usernames can
+                // change, and the old lookup also matched emails, so a user named after
+                // someone's email was authenticated as that person.
+                userRepository.findById(UUID.fromString(claims.getSubject()))
+                    .map(SecurityConfig::toUserDetails)
+                    .ifPresent(userDetails -> SecurityContextHolder.getContext().setAuthentication(
+                        new UsernamePasswordAuthenticationToken(
+                            userDetails, null, userDetails.getAuthorities())));
             }
         } catch (Exception ignored) {
             // Invalid token — request proceeds unauthenticated

@@ -13,6 +13,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.*;
 
+import com.chess.persistence.entity.UserEntity;
 import com.chess.persistence.repository.UserRepository;
 
 import java.util.List;
@@ -50,14 +51,19 @@ public class SecurityConfig {
 
     @Bean
     public UserDetailsService userDetailsService() {
-        // Login uses email as the principal; JWT filter still passes the username claim.
-        return principal -> userRepository.findByEmail(principal)
-            .or(() -> userRepository.findByUsername(principal))
-            .map(u -> User.withUsername(u.getUsername())
-                .password(u.getPasswordHash())
-                .roles("USER")
-                .build())
-            .orElseThrow(() -> new UsernameNotFoundException("User not found: " + principal));
+        // Password login only: the principal is the email. JwtAuthFilter resolves
+        // tokens by user id and never comes through here.
+        return email -> userRepository.findByEmail(email)
+            .map(SecurityConfig::toUserDetails)
+            .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
+    }
+
+    /** The authenticated principal; controllers resolve the caller from its username. */
+    static UserDetails toUserDetails(UserEntity u) {
+        return User.withUsername(u.getUsername())
+            .password(u.getPasswordHash())
+            .roles("USER")
+            .build();
     }
 
     @Bean
