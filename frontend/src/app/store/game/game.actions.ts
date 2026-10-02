@@ -32,6 +32,7 @@ export const GameActions = createActionGroup({
     // AI
     'Request AI Move': emptyProps(),
     'AI Move Success': props<{ game: Game }>(),
+    'AI Move Failure': props<{ error: string }>(),
 
     // Game actions
     'Save Game': emptyProps(),
@@ -55,6 +56,9 @@ export const GameActions = createActionGroup({
 
     // Timer
     'Tick Timer': emptyProps(),
+
+    // A game action (resign, chat...) failed; the effect stays alive
+    'Request Failed': props<{ error: string }>(),
 
     // Reset
     'Reset Game': emptyProps(),

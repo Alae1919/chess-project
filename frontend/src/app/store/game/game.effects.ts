@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { Store } from '@ngrx/store';
 import { interval, of, Subscription } from 'rxjs';
-import { catchError, filter, map, switchMap, tap, withLatestFrom } from 'rxjs/operators';
+import { catchError, concatMap, filter, map, switchMap, tap, withLatestFrom } from 'rxjs/operators';
 import { GameActions } from './game.actions';
 import { isPlayableStatus } from '../../core/utils/game-status.utils';
 import { needsPromotionChoice } from '../../core/utils/promotion.utils';
@@ -117,7 +117,7 @@ export class GameEffects {
       switchMap(([, game]) =>
         this.gameService.getAiMove(game!.id).pipe(
           map((updatedGame) => GameActions.aIMoveSuccess({ game: updatedGame })),
-          catchError(() => of(GameActions.createGameFailure({ error: 'AI move failed' })))
+          catchError((error) => of(GameActions.aIMoveFailure({ error: error.message ?? 'AI move failed' })))
         )
       )
     )
@@ -165,15 +165,19 @@ export class GameEffects {
     )
   );
 
-  resign$ = createEffect(
-    () =>
-      this.actions$.pipe(
-        ofType(GameActions.resign),
-        withLatestFrom(this.store.select(selectCurrentGame)),
-        filter(([, game]) => !!game),
-        switchMap(([, game]) => this.gameService.resign(game!.id))
-      ),
-    { dispatch: false }
+  // The finished game comes back in the response; the GAME_OVER broadcast may also arrive
+  resign$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(GameActions.resign),
+      withLatestFrom(this.store.select(selectCurrentGame)),
+      filter(([, game]) => !!game),
+      switchMap(([, game]) =>
+        this.gameService.resign(game!.id).pipe(
+          map((finished) => GameActions.gameOver({ game: finished })),
+          catchError((error) => of(GameActions.requestFailed({ error: error.message })))
+        )
+      )
+    )
   );
 
   loadSavedGames$ = createEffect(() =>
@@ -188,19 +192,19 @@ export class GameEffects {
     )
   );
 
-  sendChatMessage$ = createEffect(
-    () =>
-      this.actions$.pipe(
-        ofType(GameActions.sendChatMessage),
-        withLatestFrom(this.store.select(selectCurrentGame)),
-        filter(([, game]) => !!game),
-        switchMap(([{ content }, game]) =>
-          this.chatService.sendMessage(game!.id, content).pipe(
-            map((msg) => this.store.dispatch(GameActions.receiveChatMessage({ message: msg })))
-          )
+  // concatMap: quick successive messages are all sent, in order
+  sendChatMessage$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(GameActions.sendChatMessage),
+      withLatestFrom(this.store.select(selectCurrentGame)),
+      filter(([, game]) => !!game),
+      concatMap(([{ content }, game]) =>
+        this.chatService.sendMessage(game!.id, content).pipe(
+          map((message) => GameActions.receiveChatMessage({ message })),
+          catchError((error) => of(GameActions.requestFailed({ error: error.message })))
         )
-      ),
-    { dispatch: false }
+      )
+    )
   );
 
   /** Tick the timer every second while a game is active */

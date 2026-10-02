@@ -69,6 +69,14 @@ export const gameReducer = createReducer(
     ...state, currentGame: game, isAiThinking: false,
   })),
 
+  on(GameActions.aIMoveFailure, (state, { error }) => ({
+    ...state, isAiThinking: false, error,
+  })),
+
+  on(GameActions.requestFailed, (state, { error }) => ({
+    ...state, isLoading: false, error,
+  })),
+
   on(GameActions.undoMoveSuccess, (state, { game }) => ({
     ...state, currentGame: game,
   })),

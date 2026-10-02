@@ -52,6 +52,15 @@ describe('gameReducer', () => {
     expect(next.isAiThinking).toBeFalse();
   });
 
+  it('stops the AI spinner when the AI move fails', () => {
+    const state = withGame({ isAiThinking: true });
+
+    const next = gameReducer(state, GameActions.aIMoveFailure({ error: 'timeout' }));
+
+    expect(next.isAiThinking).toBeFalse();
+    expect(next.error).toBe('timeout');
+  });
+
   it('ignores a chat message it already has (HTTP response + WebSocket echo)', () => {
     const message = makeChatMessage();
     const state = withGame({ chatMessages: [message] });
