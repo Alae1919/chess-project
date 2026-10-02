@@ -38,6 +38,8 @@ app:
   # Browser origins allowed to call the API and open WebSockets (comma-separated,
   # Spring origin patterns). In production set ALLOWED_ORIGINS to the site's own
   # origin, e.g. https://chess.example.com: behind the proxy it counts as cross-origin.
+  # How long a player can stay disconnected from an online game before they lose it
+  abandon-timeout-seconds: 60
   allowed-origins: ${ALLOWED_ORIGINS:http://localhost:[*],http://127.0.0.1:[*]}
 
 springdoc:

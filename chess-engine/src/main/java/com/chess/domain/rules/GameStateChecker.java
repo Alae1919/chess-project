@@ -19,14 +19,15 @@ import com.chess.domain.model.Color;
  *   Session-only outcomes (not produced by evaluate(), set on GameSession,
  *   which owns the move history these need):
  *   WHITE_RESIGNED, BLACK_RESIGNED, DRAW_AGREED, DRAW_REPETITION,
- *   WHITE_FLAGGED, BLACK_FLAGGED (that side ran out of time) — game is over.
+ *   WHITE_FLAGGED, BLACK_FLAGGED (that side ran out of time),
+ *   WHITE_ABANDONED, BLACK_ABANDONED (that side left an online game) — game is over.
  */
 public final class GameStateChecker {
 
     public enum State {
         ONGOING, CHECK, CHECKMATE, STALEMATE, DRAW_50_MOVE, DRAW_INSUFFICIENT_MATERIAL,
         WHITE_RESIGNED, BLACK_RESIGNED, DRAW_AGREED, DRAW_REPETITION,
-        WHITE_FLAGGED, BLACK_FLAGGED
+        WHITE_FLAGGED, BLACK_FLAGGED, WHITE_ABANDONED, BLACK_ABANDONED
     }
 
     private GameStateChecker() {}
@@ -54,6 +55,8 @@ public final class GameStateChecker {
             || state == State.DRAW_AGREED
             || state == State.DRAW_REPETITION
             || state == State.WHITE_FLAGGED
-            || state == State.BLACK_FLAGGED;
+            || state == State.BLACK_FLAGGED
+            || state == State.WHITE_ABANDONED
+            || state == State.BLACK_ABANDONED;
     }
 }

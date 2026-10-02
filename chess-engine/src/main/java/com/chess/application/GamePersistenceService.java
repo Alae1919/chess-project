@@ -559,6 +559,8 @@ public class GamePersistenceService {
             case "WHITE_RESIGNED" -> new GameDto.GameResult("black", "resignation");
             case "BLACK_RESIGNED" -> new GameDto.GameResult("white", "resignation");
             case "DRAW_AGREED"    -> new GameDto.GameResult(null, "draw_agreement");
+            case "WHITE_ABANDONED" -> new GameDto.GameResult("black", "abandonment");
+            case "BLACK_ABANDONED" -> new GameDto.GameResult("white", "abandonment");
             case "WHITE_FLAGGED"  -> new GameDto.GameResult("black", "timeout");
             case "BLACK_FLAGGED"  -> new GameDto.GameResult("white", "timeout");
             default               -> null;

@@ -56,6 +56,8 @@ export class GameService {
       DRAW_REPETITION: 'draw_repetition',
       WHITE_FLAGGED: 'white_flagged',
       BLACK_FLAGGED: 'black_flagged',
+      WHITE_ABANDONED: 'white_abandoned',
+      BLACK_ABANDONED: 'black_abandoned',
       WHITE_RESIGNED: 'white_resigned',
       BLACK_RESIGNED: 'black_resigned',
       DRAW_AGREED: 'draw_agreed',

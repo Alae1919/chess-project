@@ -34,7 +34,7 @@ import java.util.stream.Collectors;
  * Chess rules live exclusively in the domain layer; HTTP concerns stay in the controller.
  */
 @Service
-public final class GameApplicationService {
+public class GameApplicationService {
 
     private final GameStore              store;
     private final GameRepository         gameRepository;
@@ -228,6 +228,20 @@ public final class GameApplicationService {
     }
 
     // ----------------------------------------------------------------
+    // USE CASE — A player left
+    // ----------------------------------------------------------------
+
+    /** {@code loser} left the game for good. Empty if the game was already over. */
+    public Optional<GameStateResponse> abandon(String gameId, Color loser) {
+        GameSession session = requireSession(gameId);
+        if (session.isOver()) return Optional.empty();
+        session.abandon(loser);
+        GameStateResponse r = toResponse(session);
+        finaliseIfTerminal(gameId, r.status(), r.activeColor());
+        return Optional.of(r);
+    }
+
+    // ----------------------------------------------------------------
     // USE CASE — Time runs out
     // ----------------------------------------------------------------
 
@@ -343,6 +357,8 @@ public final class GameApplicationService {
             case insufficient_material -> GameStateChecker.State.DRAW_INSUFFICIENT_MATERIAL;
             case threefold_repetition  -> GameStateChecker.State.DRAW_REPETITION;
             case draw_agreement  -> GameStateChecker.State.DRAW_AGREED;
+            case abandonment     -> whiteWon ? GameStateChecker.State.BLACK_ABANDONED
+                                             : GameStateChecker.State.WHITE_ABANDONED;
             case timeout         -> whiteWon ? GameStateChecker.State.BLACK_FLAGGED
                                              : GameStateChecker.State.WHITE_FLAGGED;
             case resignation     -> whiteWon ? GameStateChecker.State.BLACK_RESIGNED
@@ -366,6 +382,8 @@ public final class GameApplicationService {
             case "DRAW_REPETITION"            -> reason = "threefold_repetition";
             case "WHITE_RESIGNED" -> { winner = "black"; reason = "resignation"; }
             case "BLACK_RESIGNED" -> { winner = "white"; reason = "resignation"; }
+            case "WHITE_ABANDONED" -> { winner = "black"; reason = "abandonment"; }
+            case "BLACK_ABANDONED" -> { winner = "white"; reason = "abandonment"; }
             case "WHITE_FLAGGED"  -> { winner = "black"; reason = "timeout"; }
             case "BLACK_FLAGGED"  -> { winner = "white"; reason = "timeout"; }
             case "DRAW_AGREED"    -> reason = "draw_agreement";

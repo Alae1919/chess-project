@@ -35,6 +35,30 @@ public class WebSocketSessionManager {
         }
     }
 
+    /** Whether {@code userId} has an open socket on this game (they may have several tabs). */
+    public boolean isConnected(String gameId, String userId) {
+        Set<WebSocketSession> gameSessions = sessions.get(gameId);
+        if (gameSessions == null) return false;
+        return gameSessions.stream().anyMatch(s ->
+            s.isOpen() && userId.equals(s.getAttributes().get("userId")));
+    }
+
+    /** Whether anyone has an open socket on this game. */
+    public boolean hasAnyConnection(String gameId) {
+        Set<WebSocketSession> gameSessions = sessions.get(gameId);
+        return gameSessions != null && gameSessions.stream().anyMatch(WebSocketSession::isOpen);
+    }
+
+    /** Sends one event to one socket. */
+    public void send(WebSocketSession session, String type, Object payload) {
+        try {
+            String json = objectMapper.writeValueAsString(Map.of("type", type, "payload", payload));
+            if (session.isOpen()) session.sendMessage(new TextMessage(json));
+        } catch (Exception ignored) {
+            // the socket closed, or the payload could not be written: nothing to deliver to
+        }
+    }
+
     public void broadcast(String gameId, String type, Object payload) {
         Set<WebSocketSession> gameSessions = sessions.get(gameId);
         if (gameSessions == null || gameSessions.isEmpty()) return;

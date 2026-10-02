@@ -837,6 +837,26 @@ class GameControllerTest {
         }
 
         @Test
+        @DisplayName("a player who left is scored as a loss and the result is stored")
+        void abandonmentIsRated() throws Exception {
+            String id = createOnlineGame();
+            int whiteBefore = user(playerId).getElo();
+
+            engineService.abandon(id, com.chess.domain.model.Color.WHITE);
+
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(jsonPath("$.status").value("WHITE_ABANDONED"))
+                .andExpect(jsonPath("$.result.winner").value("black"))
+                .andExpect(jsonPath("$.result.reason").value("abandonment"))
+                .andExpect(jsonPath("$.result.whiteEloChange", lessThan(0)));
+            org.junit.jupiter.api.Assertions.assertTrue(user(playerId).getElo() < whiteBefore);
+
+            gameStore.delete(id); // and after a restart
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(jsonPath("$.status").value("WHITE_ABANDONED"));
+        }
+
+        @Test
         @DisplayName("games against the AI don't change the rating")
         void aiGameIsUnrated() throws Exception {
             String id = createGame("BLACK");

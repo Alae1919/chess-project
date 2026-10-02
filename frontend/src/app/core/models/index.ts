@@ -121,7 +121,7 @@ export interface Game {
 export type GameMode = 'ai' | 'local' | 'online' | 'saved';
 export type GameStatus =
   | 'waiting' | 'active' | 'check' | 'paused' | 'finished' | 'aborted'
-  | 'checkmate' | 'stalemate' | 'draw_50_move' | 'draw_insufficient_material' | 'draw_repetition' | 'white_flagged' | 'black_flagged'
+  | 'checkmate' | 'stalemate' | 'draw_50_move' | 'draw_insufficient_material' | 'draw_repetition' | 'white_flagged' | 'black_flagged' | 'white_abandoned' | 'black_abandoned'
   | 'white_resigned' | 'black_resigned' | 'draw_agreed';
 export type PieceColor = 'white' | 'black';
 

@@ -1,5 +1,6 @@
 package com.chess.infrastructure.websocket;
 
+import com.chess.application.AbandonmentService;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -10,9 +11,11 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 public class GameWebSocketHandler extends TextWebSocketHandler {
 
     private final WebSocketSessionManager sessionManager;
+    private final AbandonmentService      abandonment;
 
-    public GameWebSocketHandler(WebSocketSessionManager sessionManager) {
+    public GameWebSocketHandler(WebSocketSessionManager sessionManager, AbandonmentService abandonment) {
         this.sessionManager = sessionManager;
+        this.abandonment    = abandonment;
     }
 
     @Override
@@ -20,23 +23,30 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
         String gameId = extractGameId(session);
         if (gameId != null) {
             sessionManager.register(gameId, session);
+            abandonment.playerConnected(gameId, userId(session), session);
         }
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        String gameId = extractGameId(session);
-        if (gameId != null) {
-            sessionManager.unregister(gameId, session);
-        }
+        left(session);
     }
 
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
+        left(session);
+    }
+
+    private void left(WebSocketSession session) {
         String gameId = extractGameId(session);
         if (gameId != null) {
             sessionManager.unregister(gameId, session);
+            abandonment.playerDisconnected(gameId, userId(session));
         }
+    }
+
+    private static String userId(WebSocketSession session) {
+        return (String) session.getAttributes().get("userId");
     }
 
     @Override

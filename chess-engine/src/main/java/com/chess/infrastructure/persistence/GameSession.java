@@ -140,6 +140,15 @@ public final class GameSession {
             : GameStateChecker.State.BLACK_RESIGNED;
     }
 
+    /** {@code loser} left an online game and did not come back; the opponent wins. */
+    public synchronized void abandon(Color loser) {
+        if (isOver()) return;
+        stopClock();
+        state = loser == Color.WHITE
+            ? GameStateChecker.State.WHITE_ABANDONED
+            : GameStateChecker.State.BLACK_ABANDONED;
+    }
+
     /**
      * The side whose time has run out, or null. Only the side to move can: its
      * clock is the one running.

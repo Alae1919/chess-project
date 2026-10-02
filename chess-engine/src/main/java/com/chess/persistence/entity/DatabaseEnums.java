@@ -9,7 +9,8 @@ public final class DatabaseEnums {
 
     public enum GameEndReason {
         checkmate, stalemate, resignation, timeout,
-        draw_agreement, threefold_repetition, fifty_move_rule, insufficient_material
+        draw_agreement, threefold_repetition, fifty_move_rule, insufficient_material,
+        abandonment
     }
 
     /** {@code piece_color} */
