@@ -9,6 +9,7 @@ import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.net.URI;
+import java.util.NoSuchElementException;
 
 /**
  * Converts all chess-specific exceptions to RFC-7807 ProblemDetail responses.
@@ -52,6 +53,22 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(NotYourTurnException.class)
     ProblemDetail handleNotYourTurn(NotYourTurnException ex) {
         return problem(HttpStatus.CONFLICT, "not-your-turn", "Not Your Turn", ex);
+    }
+
+    @ExceptionHandler(NotAPlayerException.class)
+    ProblemDetail handleNotAPlayer(NotAPlayerException ex) {
+        return problem(HttpStatus.FORBIDDEN, "not-a-player", "Not A Player", ex);
+    }
+
+    /** An action that doesn't fit the game's current state, e.g. undo with no moves played. */
+    @ExceptionHandler(IllegalStateException.class)
+    ProblemDetail handleIllegalState(IllegalStateException ex) {
+        return problem(HttpStatus.CONFLICT, "conflict", "Conflict", ex);
+    }
+
+    @ExceptionHandler(NoSuchElementException.class)
+    ProblemDetail handleNoSuchElement(NoSuchElementException ex) {
+        return problem(HttpStatus.NOT_FOUND, "not-found", "Not Found", ex);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

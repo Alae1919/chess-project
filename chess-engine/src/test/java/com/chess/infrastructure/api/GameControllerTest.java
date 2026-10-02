@@ -1,14 +1,24 @@
 package com.chess.infrastructure.api;
 
 import com.chess.ChessApplication;
+import com.chess.application.GameApplicationService;
+import com.chess.application.GamePersistenceService;
 import com.chess.application.UserService;
+import com.chess.infrastructure.api.dto.CreateGameRequest;
+import com.chess.persistence.entity.DatabaseEnums.TimeControlKind;
+import com.chess.persistence.entity.UserEntity;
+import com.chess.persistence.entity.UserPreferencesEntity;
+import com.chess.persistence.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -16,8 +26,10 @@ import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.hamcrest.Matchers.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -38,11 +50,34 @@ class GameControllerTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @MockBean  UserService userService;
+    @Autowired UserRepository userRepository;
+    @Autowired GameApplicationService engineService;
+    @Autowired GamePersistenceService persistService;
+
+    private UUID playerId;
+    private UUID opponentId;
 
     @BeforeEach
     void stubUserService() {
-        // white_user_id / black_user_id are nullable FKs — null is valid
-        Mockito.when(userService.getUserIdByUsername(Mockito.anyString())).thenReturn(null);
+        // "user" (the @WithMockUser principal) plays every game it creates;
+        // "intruder" plays none of them
+        playerId   = ensureUser("gc_test_player");
+        opponentId = ensureUser("gc_test_opponent");
+        UUID intruderId = ensureUser("gc_test_intruder");
+        Mockito.when(userService.getUserIdByUsername("user")).thenReturn(playerId);
+        Mockito.when(userService.getUserIdByUsername("intruder")).thenReturn(intruderId);
+    }
+
+    /** Games reference real user rows, so the test players must exist (kept across runs). */
+    private UUID ensureUser(String username) {
+        return userRepository.findByUsername(username).orElseGet(() -> {
+            var u = new UserEntity();
+            u.setUsername(username);
+            u.setEmail(username + "@example.com");
+            u.setPasswordHash("unused");
+            u.setPreferences(UserPreferencesEntity.defaultsFor(u));
+            return userRepository.save(u);
+        }).getId();
     }
 
     // ----------------------------------------------------------------
@@ -64,6 +99,16 @@ class GameControllerTest {
         body.put("aiDifficulty", 4);
         body.put("timeControl", tc);
         return body;
+    }
+
+    /** An online game between "user" (white) and another player, as matchmaking creates it. */
+    private String createOnlineGame() {
+        String id = engineService.createGame(new CreateGameRequest(null, "NONE", 1)).gameId();
+        persistService.persistNewOnlineGame(id,
+            playerId, "gc_test_player", 1200,
+            opponentId, "gc_test_opponent", 1200,
+            TimeControlKind.unlimited, 0, 0);
+        return id;
     }
 
     /** Creates a game and returns its ID. */
@@ -393,6 +438,84 @@ class GameControllerTest {
         void deleteUnknown() throws Exception {
             mvc.perform(delete("/api/games/does-not-exist"))
                 .andExpect(status().isNotFound());
+        }
+    }
+
+    // ================================================================
+    // Access — only a game's players may act on it
+    // ================================================================
+
+    @Nested
+    @DisplayName("Access — only a game's players may act on it")
+    class PlayersOnly {
+
+        @ParameterizedTest(name = "{0} /api/games/<id>{1} by another user returns 403")
+        @CsvSource({
+            "GET,    ''",
+            "GET,    /legal-moves",
+            "POST,   /moves",
+            "POST,   /ai-move",
+            "POST,   /resign",
+            "POST,   /draw-offer",
+            "DELETE, /moves/last",
+            "POST,   /save",
+            "GET,    /evaluation",
+            "DELETE, ''",
+            "GET,    /chat",
+            "POST,   /chat",
+        })
+        void anotherUserIsForbidden(String method, String path) throws Exception {
+            String id = createGame("NONE");
+            // one body that satisfies both the move and the chat request validation
+            mvc.perform(request(HttpMethod.valueOf(method), "/api/games/" + id + path)
+                    .with(user("intruder"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"move\":\"e2e4\",\"content\":\"hi\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.title").value("Not A Player"));
+        }
+
+        @Test
+        @DisplayName("the intruder's attempt leaves the game untouched")
+        void forbiddenMoveIsNotPlayed() throws Exception {
+            String id = createGame("NONE");
+            mvc.perform(post("/api/games/" + id + "/moves")
+                    .with(user("intruder"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", "e2e4"))))
+                .andExpect(status().isForbidden());
+
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.moveHistory", hasSize(0)));
+        }
+
+        @Test
+        @DisplayName("online games: no undo, no delete and no engine help while playing")
+        void onlineGameRestrictions() throws Exception {
+            String id = createOnlineGame();
+            mvc.perform(post("/api/games/" + id + "/moves")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", "e2e4"))))
+                .andExpect(status().isOk());
+
+            mvc.perform(delete("/api/games/" + id + "/moves/last"))
+                .andExpect(status().isForbidden());
+            mvc.perform(delete("/api/games/" + id))
+                .andExpect(status().isForbidden());
+            mvc.perform(get("/api/games/" + id + "/evaluation"))
+                .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @DisplayName("online games can't be created directly")
+        void onlineModeIsRejectedOnCreate() throws Exception {
+            Map<String, Object> body = new LinkedHashMap<>(gameBody("NONE"));
+            body.put("mode", "online");
+            mvc.perform(post("/api/games")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(body)))
+                .andExpect(status().isBadRequest());
         }
     }
 

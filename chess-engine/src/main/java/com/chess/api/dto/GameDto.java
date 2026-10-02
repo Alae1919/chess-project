@@ -76,7 +76,9 @@ public final class GameDto {
 
     // POST /api/games request body
     public record CreateGameRequest(
-        @NotBlank String mode,
+        // Online games are only created by matchmaking or an accepted invitation
+        @NotBlank @Pattern(regexp = "ai|local|saved", message = "must be ai, local or saved")
+        String mode,
         Integer aiDifficulty,
         String  playerColor,
         @NotNull TimeControl timeControl,

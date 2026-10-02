@@ -7,8 +7,9 @@ import com.chess.engine.eval.Evaluator;
 import com.chess.engine.search.AlphaBetaSearch;
 import com.chess.infrastructure.websocket.WebSocketSessionManager;
 import com.chess.persistence.entity.DatabaseEnums.GameMode;
+import com.chess.persistence.entity.DatabaseEnums.GameStatus;
 import com.chess.persistence.entity.DatabaseEnums.PlayerSide;
-import com.chess.persistence.repository.GameRepository;
+import com.chess.persistence.entity.GameEntity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -16,6 +17,7 @@ import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
 
@@ -28,7 +30,7 @@ public class GameController {
     private final GamePersistenceService persistService;
     private final UserService userService;
     private final WebSocketSessionManager wsManager;
-    private final GameRepository gameRepository;
+    private final GameAccess gameAccess;
     private final AlphaBetaSearch search = new AlphaBetaSearch();
     private final Evaluator evaluator = new Evaluator();
 
@@ -36,12 +38,12 @@ public class GameController {
             GamePersistenceService persistService,
             UserService userService,
             WebSocketSessionManager wsManager,
-            GameRepository gameRepository) {
+            GameAccess gameAccess) {
         this.engineService  = engineService;
         this.persistService = persistService;
         this.userService    = userService;
         this.wsManager      = wsManager;
-        this.gameRepository = gameRepository;
+        this.gameAccess     = gameAccess;
     }
 
     @PostMapping
@@ -62,14 +64,20 @@ public class GameController {
 
     @GetMapping("/{gameId}")
     @Operation(summary = "Get current game state")
-    public GameDto.Game getGame(@PathVariable String gameId) {
+    public GameDto.Game getGame(
+            @PathVariable String gameId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        requirePlayer(gameId, userDetails);
         var r = engineService.getGame(gameId);
         return persistService.toFullGameDto(gameId, r);
     }
 
     @GetMapping("/{gameId}/legal-moves")
     @Operation(summary = "List legal moves for the active player")
-    public GameDto.LegalMovesResponse getLegalMoves(@PathVariable String gameId) {
+    public GameDto.LegalMovesResponse getLegalMoves(
+            @PathVariable String gameId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        requirePlayer(gameId, userDetails);
         var resp = engineService.getLegalMoves(gameId);
         return new GameDto.LegalMovesResponse(resp.gameId(), resp.activeColor(), resp.legalMoves());
     }
@@ -80,22 +88,14 @@ public class GameController {
             @PathVariable String gameId,
             @Valid @RequestBody GameDto.MoveRequest req,
             @AuthenticationPrincipal UserDetails userDetails) {
-        // For online games, verify the caller is the player whose turn it is.
-        // A malformed id can't be a stored game: skip the check and let the engine answer 404.
-        var dbId = parseUuid(gameId);
-        if (userDetails != null && dbId != null) {
-            var dbGame = gameRepository.findById(dbId);
-            dbGame.ifPresent(g -> {
-                if (g.getMode() == GameMode.online) {
-                    UUID callerId = userService.getUserIdByUsername(userDetails.getUsername());
-                    PlayerSide turn = g.getCurrentTurn();
-                    UUID expectedId = turn == PlayerSide.white ? g.getWhiteUserId() : g.getBlackUserId();
-                    if (!callerId.equals(expectedId)) {
-                        throw new org.springframework.web.server.ResponseStatusException(
-                            HttpStatus.FORBIDDEN, "It is not your turn");
-                    }
-                }
-            });
+        UUID callerId = callerId(userDetails);
+        GameEntity dbGame = gameAccess.requirePlayer(gameId, callerId);
+        // Online: each player only moves their own pieces
+        if (dbGame.getMode() == GameMode.online) {
+            UUID expectedId = dbGame.getCurrentTurn() == PlayerSide.white
+                ? dbGame.getWhiteUserId() : dbGame.getBlackUserId();
+            if (!callerId.equals(expectedId))
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "It is not your turn");
         }
         var r = engineService.submitMove(gameId, req.move());
         var game = persistService.toFullGameDto(gameId, r);
@@ -105,7 +105,10 @@ public class GameController {
 
     @PostMapping("/{gameId}/ai-move")
     @Operation(summary = "Let the AI play its move")
-    public GameDto.Game playAiMove(@PathVariable String gameId) {
+    public GameDto.Game playAiMove(
+            @PathVariable String gameId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        requirePlayer(gameId, userDetails);
         var r = engineService.playAiMove(gameId);
         var game = persistService.toFullGameDto(gameId, r);
         wsManager.broadcast(gameId, game.result() != null ? "GAME_OVER" : "MOVE_MADE", game);
@@ -117,6 +120,7 @@ public class GameController {
     public GameDto.Game resign(
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
+        requirePlayer(gameId, userDetails);
         var r = engineService.resign(gameId, userDetails.getUsername());
         var game = persistService.toFullGameDto(gameId, r);
         wsManager.broadcast(gameId, "GAME_OVER", game);
@@ -128,6 +132,7 @@ public class GameController {
     public GameDto.Game offerDraw(
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
+        requirePlayer(gameId, userDetails);
         var r = engineService.offerDraw(gameId, userDetails.getUsername());
         var game = persistService.toFullGameDto(gameId, r);
         wsManager.broadcast(gameId, "GAME_OVER", game);
@@ -136,7 +141,11 @@ public class GameController {
 
     @DeleteMapping("/{gameId}/moves/last")
     @Operation(summary = "Undo the last move")
-    public GameDto.Game undoMove(@PathVariable String gameId) {
+    public GameDto.Game undoMove(
+            @PathVariable String gameId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        if (requirePlayer(gameId, userDetails).getMode() == GameMode.online)
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Undo is not available in online games");
         var r = engineService.undoLastMove(gameId);
         return persistService.toFullGameDto(gameId, r);
     }
@@ -146,13 +155,21 @@ public class GameController {
     public GameDto.SavedGame saveGame(
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        UUID userId = userService.getUserIdByUsername(userDetails.getUsername());
+        UUID userId = callerId(userDetails);
+        gameAccess.requirePlayer(gameId, userId);
         return persistService.saveCurrentGame(gameId, userId);
     }
 
     @GetMapping("/{gameId}/evaluation")
     @Operation(summary = "Evaluate the current position using the chess engine")
-    public EvaluationDto.PositionEvaluation evaluate(@PathVariable String gameId) {
+    public EvaluationDto.PositionEvaluation evaluate(
+            @PathVariable String gameId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        GameEntity dbGame = requirePlayer(gameId, userDetails);
+        // An engine during a live online game would be cheating; afterwards it is analysis
+        if (dbGame.getMode() == GameMode.online && dbGame.getStatus() == GameStatus.active)
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                "Engine evaluation is not available during an online game");
         String fen = engineService.getGame(gameId).fen();
         var board = FenParser.parse(fen);
         int score = evaluator.evaluate(board, board.activeColor());
@@ -166,7 +183,12 @@ public class GameController {
     @DeleteMapping("/{gameId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Abandon / delete a game session")
-    public void deleteGame(@PathVariable String gameId) {
+    public void deleteGame(
+            @PathVariable String gameId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        // A hard delete: an online game is also part of the opponent's history
+        if (requirePlayer(gameId, userDetails).getMode() == GameMode.online)
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Online games can't be deleted");
         engineService.deleteGame(gameId);
     }
 
@@ -183,12 +205,14 @@ public class GameController {
 
 
 
-    /** The id as a UUID, or null when it isn't one. */
-    private static UUID parseUuid(String id) {
-        try {
-            return UUID.fromString(id);
-        } catch (IllegalArgumentException e) {
-            return null;
-        }
+    // ── Access helpers ────────────────────────────────────────────────────────
+
+    private UUID callerId(UserDetails userDetails) {
+        return userService.getUserIdByUsername(userDetails.getUsername());
+    }
+
+    /** The stored game if the caller plays in it: 404 for unknown ids, 403 for anyone else. */
+    private GameEntity requirePlayer(String gameId, UserDetails userDetails) {
+        return gameAccess.requirePlayer(gameId, callerId(userDetails));
     }
 }

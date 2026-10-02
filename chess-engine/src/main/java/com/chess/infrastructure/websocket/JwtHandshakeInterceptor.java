@@ -1,5 +1,6 @@
 package com.chess.infrastructure.websocket;
 
+import com.chess.application.GameAccess;
 import com.chess.security.JwtService;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
@@ -8,14 +9,21 @@ import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
 import java.util.Map;
+import java.util.UUID;
 
+/**
+ * Authenticates /ws/game/{gameId} and admits only that game's players, since
+ * the socket carries its moves and chat.
+ */
 @Component
 public class JwtHandshakeInterceptor implements HandshakeInterceptor {
 
     private final JwtService jwtService;
+    private final GameAccess gameAccess;
 
-    public JwtHandshakeInterceptor(JwtService jwtService) {
+    public JwtHandshakeInterceptor(JwtService jwtService, GameAccess gameAccess) {
         this.jwtService = jwtService;
+        this.gameAccess = gameAccess;
     }
 
     @Override
@@ -35,11 +43,17 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
 
         try {
             var claims = jwtService.validateAndParse(token);
-            String username = claims.get("username", String.class);
-            if (username == null) return false;
-            attributes.put("username", username);
+            if ("refresh".equals(claims.get("type", String.class))) return false;
+
+            UUID userId   = UUID.fromString(claims.getSubject());
+            String path   = request.getURI().getPath();
+            String gameId = path.substring(path.lastIndexOf('/') + 1);
+            gameAccess.requirePlayer(gameId, userId);
+
+            attributes.put("userId", userId.toString());
             return true;
         } catch (Exception e) {
+            // bad token, unknown game, or not one of its players
             return false;
         }
     }

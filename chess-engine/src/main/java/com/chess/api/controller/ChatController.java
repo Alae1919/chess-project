@@ -2,6 +2,7 @@ package com.chess.api.controller;
 
 import com.chess.api.dto.ChatDto;
 import com.chess.application.ChatService;
+import com.chess.application.GameAccess;
 import com.chess.application.UserService;
 import com.chess.infrastructure.websocket.WebSocketSessionManager;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,17 +23,23 @@ public class ChatController {
     private final ChatService             chatService;
     private final UserService             userService;
     private final WebSocketSessionManager wsManager;
+    private final GameAccess              gameAccess;
 
     public ChatController(ChatService chatService, UserService userService,
-                          WebSocketSessionManager wsManager) {
+                          WebSocketSessionManager wsManager, GameAccess gameAccess) {
         this.chatService = chatService;
         this.userService = userService;
         this.wsManager   = wsManager;
+        this.gameAccess  = gameAccess;
     }
 
     @GetMapping
     @Operation(summary = "Get all chat messages for a game")
-    public List<ChatDto.ChatMessage> getMessages(@PathVariable UUID gameId) {
+    public List<ChatDto.ChatMessage> getMessages(
+            @PathVariable UUID gameId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        gameAccess.requirePlayer(gameId.toString(),
+            userService.getUserIdByUsername(userDetails.getUsername()));
         return chatService.getMessages(gameId);
     }
 
@@ -42,9 +49,8 @@ public class ChatController {
             @PathVariable UUID gameId,
             @Valid @RequestBody ChatDto.SendMessageRequest req,
             @AuthenticationPrincipal UserDetails userDetails) {
-        // add logs here for debugging
-        System.out.println("Sending chat message for game: " + gameId);
         UUID userId = userService.getUserIdByUsername(userDetails.getUsername());
+        gameAccess.requirePlayer(gameId.toString(), userId);
         var message = chatService.send(gameId, userId, userDetails.getUsername(), req.content());
         wsManager.broadcast(gameId.toString(), "CHAT_MESSAGE", message);
         return message;
