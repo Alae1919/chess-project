@@ -80,9 +80,11 @@ public class GameController {
             @PathVariable String gameId,
             @Valid @RequestBody GameDto.MoveRequest req,
             @AuthenticationPrincipal UserDetails userDetails) {
-        // For online games, verify the caller is the player whose turn it is
-        if (userDetails != null) {
-            var dbGame = gameRepository.findById(UUID.fromString(gameId));
+        // For online games, verify the caller is the player whose turn it is.
+        // A malformed id can't be a stored game: skip the check and let the engine answer 404.
+        var dbId = parseUuid(gameId);
+        if (userDetails != null && dbId != null) {
+            var dbGame = gameRepository.findById(dbId);
             dbGame.ifPresent(g -> {
                 if (g.getMode() == GameMode.online) {
                     UUID callerId = userService.getUserIdByUsername(userDetails.getUsername());
@@ -180,4 +182,13 @@ public class GameController {
     }
 
 
+
+    /** The id as a UUID, or null when it isn't one. */
+    private static UUID parseUuid(String id) {
+        try {
+            return UUID.fromString(id);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
 }
