@@ -1,5 +1,6 @@
 package com.chess.application;
 
+import com.chess.api.dto.GameDto;
 import com.chess.domain.board.Board;
 import com.chess.domain.board.BoardFactory;
 import com.chess.domain.board.FenParser;
@@ -296,7 +297,7 @@ public class GameApplicationService {
         Board board = FenParser.parse(dbGame.getCurrentFen());
 
         Color aiColor = null;
-        int aiDifficulty = 1;
+        int aiDifficulty = GameDto.CreateGameRequest.DEFAULT_AI_DIFFICULTY;
         if (Boolean.TRUE.equals(dbGame.isWhiteIsAi())) {
             aiColor = Color.WHITE;
             if (dbGame.getWhiteAiDifficulty() != null)

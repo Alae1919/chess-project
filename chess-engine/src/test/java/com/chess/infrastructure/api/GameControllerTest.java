@@ -248,6 +248,37 @@ class GameControllerTest {
         }
 
         @Test
+        @DisplayName("an AI game started without a level plays at level 4, also after a reload")
+        void defaultAiLevelSurvivesReload() throws Exception {
+            Map<String, Object> body = new LinkedHashMap<>(gameBody("BLACK"));
+            body.remove("aiDifficulty");
+            MvcResult created = mvc.perform(post("/api/games")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+            String id = json.readTree(created.getResponse().getContentAsString()).get("id").asText();
+            assertEquals(4, gameStore.findById(id).orElseThrow().aiDepth());
+
+            gameStore.delete(id);          // what a restart does to the in-memory session
+            mvc.perform(get("/api/games/" + id))   // loads it back from the database
+                .andExpect(status().isOk());
+
+            assertEquals(4, gameStore.findById(id).orElseThrow().aiDepth());
+        }
+
+        @Test
+        @DisplayName("returns 400 for an AI level outside 1 to 6")
+        void createOutOfRangeLevelIsRejected() throws Exception {
+            Map<String, Object> body = new LinkedHashMap<>(gameBody("BLACK"));
+            body.put("aiDifficulty", 9);
+            mvc.perform(post("/api/games")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(body)))
+                .andExpect(status().isBadRequest());
+        }
+
+        @Test
         @DisplayName("a random colour picks either side, and the engine and database agree on it")
         void randomColourIsRandomAndConsistent() throws Exception {
             Map<String, Object> body = new LinkedHashMap<>(gameBody("BLACK"));

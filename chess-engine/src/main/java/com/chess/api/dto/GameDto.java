@@ -91,7 +91,7 @@ public final class GameDto {
         // saved game is loaded by id, not created
         @NotBlank @Pattern(regexp = "ai|local", message = "must be ai or local")
         String mode,
-        Integer aiDifficulty,
+        @Min(1) @Max(6) Integer aiDifficulty,
         @Pattern(regexp = "(?i)white|black|random", message = "must be white, black or random")
         String  playerColor,
         @NotNull TimeControl timeControl,
@@ -102,16 +102,22 @@ public final class GameDto {
         String  savedGameId,
         String  fen             // custom starting position
     ) {
+        /** The level an AI game gets when the request names none. */
+        public static final int DEFAULT_AI_DIFFICULTY = 4;
+
         /**
-         * The same request with a "random" colour replaced by a concrete one, so the engine
-         * and the database see the same side.
+         * The same request with its open choices settled: a "random" colour becomes a
+         * concrete one and a missing AI level becomes the default. The engine and the
+         * database then see the same game, now and after a reload.
          *
          * @param userPlaysWhite decides the side when the colour is "random"
          */
-        public CreateGameRequest withColorResolved(java.util.function.BooleanSupplier userPlaysWhite) {
-            if (!"random".equalsIgnoreCase(playerColor)) return this;
-            return new CreateGameRequest(mode, aiDifficulty,
-                    userPlaysWhite.getAsBoolean() ? "white" : "black", timeControl,
+        public CreateGameRequest withDefaultsResolved(java.util.function.BooleanSupplier userPlaysWhite) {
+            String color = "random".equalsIgnoreCase(playerColor)
+                    ? (userPlaysWhite.getAsBoolean() ? "white" : "black")
+                    : playerColor;
+            Integer level = aiDifficulty != null ? aiDifficulty : DEFAULT_AI_DIFFICULTY;
+            return new CreateGameRequest(mode, level, color, timeControl,
                     enableUndo, confirmMoves, showLegalMoves, realTimeAnalysis, savedGameId, fen);
         }
     }
