@@ -10,8 +10,8 @@ drawn on repetition, the fifty-move rule, insufficient material, or after a long
         --b ..\\tools\\engine\\rexchess-uci.cmd --b-opt Level=1 \\
         --pairs 20 --movetime 100
 
-Results are from engine A's point of view. The Elo difference comes with a 95% error bar, and
-an SPRT log-likelihood ratio lets a long run stop early once it is conclusive.
+Results are from engine A's point of view. The Elo difference comes with a 95% error bar. With --sprt
+(for example --sprt 0 5, "is A at least 5 Elo better?") the run stops as soon as the evidence is decisive.
 """
 from __future__ import annotations
 
@@ -152,20 +152,24 @@ def play_game(white: Spec, black: Spec, opening: str, limit: chess.engine.Limit,
                 pass
 
 
-def run(args: argparse.Namespace) -> Tally:
-    a = Spec(args.a, dict(o.split("=", 1) for o in args.a_opt), "A")
-    b = Spec(args.b, dict(o.split("=", 1) for o in args.b_opt), "B")
-    limit = chess.engine.Limit(time=args.movetime / 1000.0) if not args.nodes else chess.engine.Limit(nodes=args.nodes)
-    rng = random.Random(args.seed)
-    openings = [rng.choice(OPENINGS) for _ in range(args.pairs)]
+def play_match(a: Spec, b: Spec, pairs: int, limit: chess.engine.Limit, concurrency: int = 2, max_plies: int = 240,
+               seed: int = 1, on_game=None, should_stop=None) -> Tally:
+    """Plays `pairs` opening pairs of A against B. `on_game(tally)` is called after every game, and the
+    match ends early once `should_stop(tally)` is true (an SPRT that has reached its answer, say)."""
+    rng = random.Random(seed)
+    order = OPENINGS[:]
+    rng.shuffle(order)
+    openings = [order[i % len(order)] for i in range(pairs)]
     tally = Tally()
     lock = threading.Lock()
+    done = threading.Event()
 
     def one_pair(index: int) -> None:
-        opening = openings[index]
         for a_is_white in (True, False):
+            if done.is_set():
+                return
             white, black = (a, b) if a_is_white else (b, a)
-            white_score = play_game(white, black, opening, limit, args.max_plies)
+            white_score = play_game(white, black, openings[index], limit, max_plies)
             a_score = white_score if a_is_white else 1.0 - white_score
             with lock:
                 if a_score == 1.0:
@@ -174,15 +178,32 @@ def run(args: argparse.Namespace) -> Tally:
                     tally.losses += 1
                 else:
                     tally.draws += 1
-                elo, err = elo_report(tally)
-                line = f"games {tally.games}: +{tally.wins} ={tally.draws} -{tally.losses}  score {tally.score:.3f}  Elo {elo:+.0f} +/- {err:.0f}"
-                if args.sprt:
-                    line += f"  LLR {sprt_llr(tally, *args.sprt):+.2f}"
-                print(line, flush=True)
+                if on_game:
+                    on_game(tally)
+                if should_stop and should_stop(tally):
+                    done.set()
 
-    with ThreadPoolExecutor(max_workers=args.concurrency) as pool:
-        list(pool.map(one_pair, range(args.pairs)))
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        list(pool.map(one_pair, range(pairs)))
     return tally
+
+
+def run(args: argparse.Namespace) -> Tally:
+    a = Spec(args.a, dict(o.split("=", 1) for o in args.a_opt), "A")
+    b = Spec(args.b, dict(o.split("=", 1) for o in args.b_opt), "B")
+    limit = chess.engine.Limit(time=args.movetime / 1000.0) if not args.nodes else chess.engine.Limit(nodes=args.nodes)
+
+    def report(t: Tally) -> None:
+        elo, err = elo_report(t)
+        line = f"games {t.games}: +{t.wins} ={t.draws} -{t.losses}  score {t.score:.3f}  Elo {elo:+.0f} +/- {err:.0f}"
+        if args.sprt:
+            line += f"  LLR {sprt_llr(t, *args.sprt):+.2f}"
+        print(line, flush=True)
+
+    # with an SPRT, stop as soon as it decides (5% error either way)
+    bound = math.log(0.95 / 0.05)
+    stop = (lambda t: abs(sprt_llr(t, *args.sprt)) >= bound) if args.sprt else None
+    return play_match(a, b, args.pairs, limit, args.concurrency, args.max_plies, args.seed, report, stop)
 
 
 def main() -> None:
@@ -197,7 +218,8 @@ def main() -> None:
     p.add_argument("--concurrency", type=int, default=2, help="games at once")
     p.add_argument("--max-plies", type=int, default=240)
     p.add_argument("--seed", type=int, default=1)
-    p.add_argument("--sprt", type=float, nargs=2, metavar=("ELO0", "ELO1"), help="also print the SPRT log-likelihood ratio")
+    p.add_argument("--sprt", type=float, nargs=2, metavar=("ELO0", "ELO1"),
+                   help="test whether A is better than B by ELO1 rather than ELO0, and stop once that is decided")
     args = p.parse_args()
     t = run(args)
     elo, err = elo_report(t)
