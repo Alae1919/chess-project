@@ -149,3 +149,19 @@
   .mode-card__icon { width: 40px; height: 40px; }
   .mode-card .tag { display: none; }
 }
+
+.start-error {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #ffb4a8;
+  background: rgba(255, 90, 70, 0.12);
+  border: 1px solid rgba(255, 90, 70, 0.35);
+}
+
+.start-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

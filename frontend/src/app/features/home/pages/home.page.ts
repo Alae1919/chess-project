@@ -7,8 +7,9 @@ import { ReactiveFormsModule, FormBuilder, FormGroup } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { GameActions } from '../../../store/game/game.actions';
-import { selectSavedGames } from '../../../store/game/game.selectors';
+import { selectNotice, selectSavedGames } from '../../../store/game/game.selectors';
 import { AiDifficulty, GameMode, GameOptions, PieceColor, TimeControl } from '../../../core/models';
+import { AuthService } from '../../../core/services/auth.service';
 import { BoardPrefsService } from '../../../core/services/board-prefs.service';
 import { map } from 'rxjs';
 import { ChessBoard3DComponent } from '../../../shared/components/chess-board-3d/chess-board-3d.component';
@@ -27,8 +28,11 @@ export class HomePage implements OnInit {
   private store = inject(Store);
   private fb = inject(FormBuilder);
   private router = inject(Router);
+  private auth = inject(AuthService);
 
   savedGames$ = this.store.select(selectSavedGames);
+  /** Why the last game could not be started, if it could not */
+  readonly notice$ = this.store.select(selectNotice);
 
   selectedMode: GameMode = 'ai';
   selectedDifficulty: AiDifficulty = 1;
@@ -70,7 +74,18 @@ export class HomePage implements OnInit {
     this.selectedTime = time;
   }
 
+  /** A saved game is picked from the list, so there is nothing to start in that mode. */
+  get canStart(): boolean {
+    return this.selectedMode !== 'saved';
+  }
+
   startGame(): void {
+    if (!this.canStart) return;
+    // Games belong to an account: without one the request would only fail, silently
+    if (!this.auth.isLoggedIn) {
+      this.router.navigate(['/login'], { queryParams: { returnUrl: '/home' } });
+      return;
+    }
     if (this.selectedMode === 'online') {
       this.router.navigate(['/online']);
       return;

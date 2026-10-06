@@ -193,8 +193,10 @@
         </form>
       </div>
 
-      <button class="btn-p start-btn" (click)="startGame()">
-        Lancer la partie →
+      <p class="start-error" role="alert" *ngIf="notice$ | async as notice">{{ notice }}</p>
+
+      <button class="btn-p start-btn" [disabled]="!canStart" (click)="startGame()">
+        {{ canStart ? 'Lancer la partie →' : 'Choisissez une partie dans la liste' }}
       </button>
     </div>
   </aside>
