@@ -8,8 +8,9 @@ import { GameState, initialGameState } from './game.state';
 export const gameReducer = createReducer(
   initialGameState,
 
-  on(GameActions.createGame, (state) => ({
-    ...initialGameState, savedGames: state.savedGames, isLoading: true,
+  on(GameActions.createGame, (state, { options }) => ({
+    // "Analyse en temps réel" on the home page starts the game with the evaluation bar on
+    ...initialGameState, savedGames: state.savedGames, isLoading: true, analysis: !!options.realTimeAnalysis,
   })),
 
   on(GameActions.loadGame, (state, { gameId }) => ({

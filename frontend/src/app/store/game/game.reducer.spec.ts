@@ -310,6 +310,14 @@ describe('gameReducer', () => {
       expect(gameReducer(hinted, GameActions.undoMoveSuccess({ game })).hint).toBeNull();
     });
 
+    it('starts a new game with the analysis on when the player asked for it on the home page', () => {
+      const options = { realTimeAnalysis: true } as any;
+
+      expect(gameReducer(withGame(), GameActions.createGame({ options })).analysis).toBeTrue();
+      expect(gameReducer(withGame({ analysis: true }), GameActions.createGame({ options: { realTimeAnalysis: false } as any })).analysis)
+        .toBeFalse();
+    });
+
     it('does not carry the analysis or a hint over to another game', () => {
       const state = withGame({ analysis: true, hint: 'e2e4', evaluation });
 
