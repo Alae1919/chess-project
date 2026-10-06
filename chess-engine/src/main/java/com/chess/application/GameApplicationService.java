@@ -39,6 +39,9 @@ import java.util.stream.Collectors;
 @Service
 public class GameApplicationService {
 
+    private static final org.slf4j.Logger log =
+            org.slf4j.LoggerFactory.getLogger(GameApplicationService.class);
+
     private final GameStore              store;
     private final GameRepository         gameRepository;
     private final GamePersistenceService persistenceService;
@@ -311,17 +314,53 @@ public class GameApplicationService {
         List<GameStateResponse> ended = new java.util.ArrayList<>();
         for (GameSession session : store.all()) {
             if (!session.isOnline() || !session.firstMoveOverdue(limit)) continue;
+            try {
+                underTurnLock(session, () -> {
+                    // a move may have arrived while we waited for the lock
+                    if (!session.firstMoveOverdue(limit)) return null;
+                    session.abort();
+                    GameStateResponse r = toResponse(session);
+                    finaliseIfTerminal(session.id(), r.status(), r.activeColor());
+                    ended.add(r);
+                    return null;
+                });
+            } catch (RuntimeException e) {
+                log.warn("Could not call off stalled game {}; will retry", session.id(), e);
+            }
+        }
+        return ended;
+    }
+
+    /** After this many failed attempts a result is given up on, so a broken row can't be retried forever. */
+    private static final int MAX_SAVE_ATTEMPTS = 10;
+
+    /**
+     * Stores the result of every game that ended in memory but could not be written to the
+     * database (it was down for a moment, say), and returns those games so the players can be
+     * told: their original announcement never went out.
+     */
+    public List<GameStateResponse> saveUnsavedResults() {
+        List<GameStateResponse> saved = new java.util.ArrayList<>();
+        for (GameSession session : store.all()) {
+            if (!session.isOver() || session.resultSaved()) continue;
             underTurnLock(session, () -> {
-                // a move may have arrived while we waited for the lock
-                if (!session.firstMoveOverdue(limit)) return null;
-                session.abort();
+                if (session.resultSaved()) return null;
                 GameStateResponse r = toResponse(session);
-                finaliseIfTerminal(session.id(), r.status(), r.activeColor());
-                ended.add(r);
+                try {
+                    finaliseIfTerminal(session.id(), r.status(), r.activeColor());
+                    saved.add(r);
+                } catch (RuntimeException e) {
+                    if (session.recordSaveFailure() >= MAX_SAVE_ATTEMPTS) {
+                        session.markResultSaved();
+                        log.error("Giving up saving the result of game {}", session.id(), e);
+                    } else {
+                        log.warn("Could not save the result of game {}; will retry", session.id(), e);
+                    }
+                }
                 return null;
             });
         }
-        return ended;
+        return saved;
     }
 
     // ----------------------------------------------------------------
@@ -336,16 +375,22 @@ public class GameApplicationService {
         List<GameStateResponse> ended = new java.util.ArrayList<>();
         for (GameSession session : store.all()) {
             if (session.flaggedSide() == null) continue; // cheap look first, without the lock
-            underTurnLock(session, () -> {
-                // a move may have beaten the clock while we waited for the lock
-                Color flagged = session.flaggedSide();
-                if (flagged == null) return null;
-                session.flag(flagged);
-                GameStateResponse r = toResponse(session);
-                finaliseIfTerminal(session.id(), r.status(), r.activeColor());
-                ended.add(r);
-                return null;
-            });
+            try {
+                underTurnLock(session, () -> {
+                    // a move may have beaten the clock while we waited for the lock
+                    Color flagged = session.flaggedSide();
+                    if (flagged == null) return null;
+                    session.flag(flagged);
+                    GameStateResponse r = toResponse(session);
+                    // The game is over in memory from here on. If saving it fails, the
+                    // result is saved later by saveUnsavedResults(), and the players told then.
+                    finaliseIfTerminal(session.id(), r.status(), r.activeColor());
+                    ended.add(r);
+                    return null;
+                });
+            } catch (RuntimeException e) {
+                log.warn("Could not end game {} on time; will retry", session.id(), e);
+            }
         }
         return ended;
     }
@@ -499,11 +544,13 @@ public class GameApplicationService {
             case "DRAW_AGREED"    -> reason = "draw_agreement";
             case "ABORTED"        -> {
                 persistenceService.abortGame(UUID.fromString(gameId));
+                store.findById(gameId).ifPresent(GameSession::markResultSaved);
                 return;
             }
             default               -> { return; }
         }
         persistenceService.finaliseGame(UUID.fromString(gameId), winner, reason);
+        store.findById(gameId).ifPresent(GameSession::markResultSaved);
     }
 
     private Move parseMoveFromLegalList(GameSession session, String uciMove) {

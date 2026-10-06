@@ -37,16 +37,17 @@ public class ClockWatcher {
 
     @Scheduled(fixedDelay = 500)
     public void endGamesOutOfTime() {
+        // each step on its own, so one failing never keeps the others from running
+        run("end games out of time", engineService::expireFlaggedGames);
+        run("call off stalled games", () -> engineService.abortStalledOnlineGames(firstMoveTimeout));
+        run("save results that failed to save", engineService::saveUnsavedResults);
+    }
+
+    private void run(String what, java.util.function.Supplier<java.util.List<com.chess.infrastructure.api.dto.GameStateResponse>> step) {
         try {
-            tellPlayers(engineService.expireFlaggedGames());
+            tellPlayers(step.get());
         } catch (RuntimeException e) {
-            // never let one bad game stop the watcher
-            log.warn("Clock watcher failed", e);
-        }
-        try {
-            tellPlayers(engineService.abortStalledOnlineGames(firstMoveTimeout));
-        } catch (RuntimeException e) {
-            log.warn("Clock watcher could not call off stalled games", e);
+            log.warn("Clock watcher could not {}", what, e);
         }
     }
 

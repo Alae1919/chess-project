@@ -57,6 +57,8 @@ public final class GameSession {
     private final ReentrantLock turnLock = new ReentrantLock();
     private final AtomicBoolean aiThinking = new AtomicBoolean();
     private volatile Instant lastAccessAt; // when a request last looked at this session
+    private volatile boolean resultSaved;  // the end of the game has been written to the database
+    private int saveFailures;              // times writing that result has failed
 
     public GameSession(String id, Board initialBoard,
                        Color aiColor, int aiDepth) {
@@ -101,6 +103,14 @@ public final class GameSession {
     public void touch() { lastAccessAt = clock.instant(); }
 
     public Instant lastAccessAt() { return lastAccessAt; }
+
+    /** Whether the way this game ended is stored. A game over in memory but not here still needs saving. */
+    public boolean resultSaved() { return resultSaved; }
+
+    public void markResultSaved() { resultSaved = true; }
+
+    /** Notes a failed attempt to store the result and returns how many have failed so far. */
+    public synchronized int recordSaveFailure() { return ++saveFailures; }
 
     /** True for a game between two people, which matchmaking or an invitation created. */
     public boolean isOnline() { return metadata != null && "online".equals(metadata.mode()); }
@@ -267,6 +277,7 @@ public final class GameSession {
         if (outcome != null) state = outcome;
         closed = true;
         turnStartAt = null;
+        resultSaved = true; // it came from the database
     }
 
     /** Records that {@code side} offers a draw. */
