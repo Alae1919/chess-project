@@ -1,0 +1,8 @@
+node_modules
+dist
+.angular
+.git
+.vscode
+code.txt
+send_to_chat_V2.py
+src/environments/code.txt
