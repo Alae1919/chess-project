@@ -83,6 +83,11 @@ public class GameApplicationService {
         return toResponse(session);
     }
 
+    /** Brings a stored game back into memory if it isn't there; used when the server starts. */
+    public GameSession restore(String gameId) {
+        return requireSession(gameId);
+    }
+
     // ----------------------------------------------------------------
     // USE CASE 2 — Get game state
     // ----------------------------------------------------------------
@@ -462,7 +467,10 @@ public class GameApplicationService {
         GameSession session = replayStoredMoves(gameId, dbGame, aiColor, aiDifficulty);
         if (session == null) session = new GameSession(gameId, board, aiColor, aiDifficulty);
         session.initClock(dbGame.getWhiteTimeRemainingMs(), dbGame.getBlackTimeRemainingMs(),
-                dbGame.getTimeControlIncrementMs());
+                dbGame.getTimeControlIncrementMs(), dbGame.getTurnStartedAt());
+        // Known from the start, so the clock watcher and the first-move timer can tell it is
+        // an online game without waiting for a request to fill this in
+        session.setMetadata(persistenceService.metadataFor(dbGame));
         if (dbGame.getStatus() == GameStatus.aborted)
             session.restoreOutcome(GameStateChecker.State.ABORTED);
         else if (dbGame.getStatus() == GameStatus.finished)

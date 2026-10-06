@@ -123,12 +123,27 @@ public final class GameSession {
      * once White has made the first move, so a game with no moves yet isn't ticking.
      */
     public synchronized void initClock(long whiteMs, long blackMs, long incrementMs) {
+        initClock(whiteMs, blackMs, incrementMs, null);
+    }
+
+    /**
+     * Like {@link #initClock(long, long, long)}, for a game loaded from the database:
+     * {@code turnStartedAt} is when the running clock started, so the time since then,
+     * including any time the server was down, counts against the side to move.
+     * Null means "just now".
+     */
+    public synchronized void initClock(long whiteMs, long blackMs, long incrementMs, Instant turnStartedAt) {
         this.whiteTimeRemainingMs = whiteMs;
         this.blackTimeRemainingMs = blackMs;
         this.incrementMs          = incrementMs;
         this.timed                = whiteMs > 0 || blackMs > 0;
-        this.turnStartAt          = timed && !moveHistory.isEmpty() && !isOver() ? clock.instant() : null;
+        boolean clockRunning      = timed && !moveHistory.isEmpty() && !isOver();
+        this.turnStartAt          = !clockRunning ? null
+                                  : turnStartedAt != null ? turnStartedAt : clock.instant();
     }
+
+    /** When the running clock started, or null if none is running. */
+    public synchronized Instant turnStartedAt() { return turnStartAt; }
 
     public synchronized void applyMove(com.chess.domain.model.Move move) {
         if (isOver())

@@ -34,6 +34,10 @@ public interface GameRepository extends JpaRepository<GameEntity, UUID> {
             @Param("userId") UUID userId,
             @Param("statuses") List<GameStatus> statuses);
 
+    @Query("SELECT g.id FROM GameEntity g WHERE g.mode = :mode AND g.status = :status")
+    List<UUID> findIdsByModeAndStatus(@Param("mode") com.chess.persistence.entity.DatabaseEnums.GameMode mode,
+                                      @Param("status") GameStatus status);
+
     /** Rows of (game id, number of moves played) for the given games, in one query. */
     @Query("SELECT m.game.id, COUNT(m) FROM GameMoveEntity m WHERE m.game.id IN :ids GROUP BY m.game.id")
     List<Object[]> countMovesByGameIds(@Param("ids") java.util.Collection<UUID> ids);

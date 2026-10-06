@@ -231,6 +231,7 @@ public class GamePersistenceService {
         gameStore.findById(dbGameId.toString()).ifPresent(s -> {
             game.setWhiteTimeRemainingMs(s.whiteTimeRemainingMs());
             game.setBlackTimeRemainingMs(s.blackTimeRemainingMs());
+            game.setTurnStartedAt(s.turnStartedAt()); // lets a restart charge the time it was down
         });
 
         game.getMoves().add(moveEntity);
@@ -557,6 +558,11 @@ public class GamePersistenceService {
             e.getOpening(), e.getCreatedAt(), e.getUpdatedAt(),
             engineState.fen(), engineState.legalMoves(),
             engineState.moveHistory(), engineState.lastMove(), null);
+    }
+
+    /** The stable, database-only facts about a game, to cache on its in-memory session. */
+    public GameMetadata metadataFor(GameEntity e) {
+        return buildMetadata(e);
     }
 
     private GameMetadata buildMetadata(GameEntity e) {

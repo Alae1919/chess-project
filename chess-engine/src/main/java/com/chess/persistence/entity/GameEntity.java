@@ -79,6 +79,10 @@ public class GameEntity {
     @Column(name = "starting_fen")
     private String startingFen;
 
+    /** When the side to move's clock started; null while no clock is running. */
+    @Column(name = "turn_started_at")
+    private java.time.Instant turnStartedAt;
+
     @Column(name = "half_move_clock", nullable = false)
     private int halfMoveClock = 0;
 
@@ -170,6 +174,8 @@ public class GameEntity {
     public void setBlackAiDifficulty(Integer v)  { this.blackAiDifficulty = v; }
     public String getCurrentFen()                { return currentFen; }
     public void setCurrentFen(String v)          { this.currentFen = v; }
+    public java.time.Instant getTurnStartedAt()  { return turnStartedAt; }
+    public void setTurnStartedAt(java.time.Instant v) { this.turnStartedAt = v; }
     public String getStartingFen()               { return startingFen; }
     public void setStartingFen(String v)         { this.startingFen = v; }
     public int getHalfMoveClock()                { return halfMoveClock; }
