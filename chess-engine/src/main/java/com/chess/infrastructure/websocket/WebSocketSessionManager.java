@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class WebSocketSessionManager {
 
     private final ConcurrentHashMap<String, Set<WebSocketSession>> sessions = new ConcurrentHashMap<>();
+    private final SafeSockets safe = new SafeSockets();
     private final ObjectMapper objectMapper;
 
     public WebSocketSessionManager(ObjectMapper objectMapper) {
@@ -21,11 +22,13 @@ public class WebSocketSessionManager {
     }
 
     public void register(String gameId, WebSocketSession session) {
+        safe.add(session);
         sessions.computeIfAbsent(gameId, id -> Collections.newSetFromMap(new ConcurrentHashMap<>()))
                 .add(session);
     }
 
     public void unregister(String gameId, WebSocketSession session) {
+        safe.remove(session);
         Set<WebSocketSession> gameSessions = sessions.get(gameId);
         if (gameSessions != null) {
             gameSessions.remove(session);
@@ -49,11 +52,25 @@ public class WebSocketSessionManager {
         return gameSessions != null && gameSessions.stream().anyMatch(WebSocketSession::isOpen);
     }
 
+    /** Sends a ping to every open socket: traffic on an idle one keeps a proxy from closing it. */
+    public void pingAll() {
+        for (Set<WebSocketSession> gameSessions : sessions.values()) {
+            for (WebSocketSession session : gameSessions) {
+                if (!session.isOpen()) continue;
+                try {
+                    safe.forSending(session).sendMessage(new org.springframework.web.socket.PingMessage());
+                } catch (Exception ignored) {
+                    // closed meanwhile
+                }
+            }
+        }
+    }
+
     /** Sends one event to one socket. */
     public void send(WebSocketSession session, String type, Object payload) {
         try {
             String json = objectMapper.writeValueAsString(Map.of("type", type, "payload", payload));
-            if (session.isOpen()) session.sendMessage(new TextMessage(json));
+            if (session.isOpen()) safe.forSending(session).sendMessage(new TextMessage(json));
         } catch (Exception ignored) {
             // the socket closed, or the payload could not be written: nothing to deliver to
         }
@@ -74,7 +91,7 @@ public class WebSocketSessionManager {
         for (WebSocketSession session : gameSessions) {
             if (session.isOpen()) {
                 try {
-                    session.sendMessage(message);
+                    safe.forSending(session).sendMessage(message);
                 } catch (Exception ignored) {
                     // session may have closed between the isOpen check and sendMessage
                 }

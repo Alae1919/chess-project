@@ -16,6 +16,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class LobbySessionManager {
 
     private final ConcurrentHashMap<String, WebSocketSession> sessions = new ConcurrentHashMap<>();
+    private final SafeSockets safe = new SafeSockets();
     private final ObjectMapper objectMapper;
 
     public LobbySessionManager(ObjectMapper objectMapper) {
@@ -23,6 +24,7 @@ public class LobbySessionManager {
     }
 
     public void register(String userId, WebSocketSession session) {
+        safe.add(session);
         sessions.put(userId, session);
     }
 
@@ -32,7 +34,20 @@ public class LobbySessionManager {
      * afterwards must not knock the newer socket out.
      */
     public void unregister(String userId, WebSocketSession session) {
+        safe.remove(session); // also when a newer tab already replaced it
         sessions.remove(userId, session);
+    }
+
+    /** Sends a ping to every open socket: traffic on an idle one keeps a proxy from closing it. */
+    public void pingAll() {
+        for (WebSocketSession session : sessions.values()) {
+            if (!session.isOpen()) continue;
+            try {
+                safe.forSending(session).sendMessage(new org.springframework.web.socket.PingMessage());
+            } catch (Exception ignored) {
+                // closed meanwhile
+            }
+        }
     }
 
     public boolean isConnected(String userId) {
@@ -56,7 +71,7 @@ public class LobbySessionManager {
         }
 
         try {
-            session.sendMessage(new TextMessage(json));
+            safe.forSending(session).sendMessage(new TextMessage(json));
         } catch (Exception ignored) {
             // session may have closed between the isOpen check and sendMessage
         }
