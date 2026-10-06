@@ -36,7 +36,7 @@ and using the last round to order moves. The usual techniques make it far more s
 a transposition table (positions reached by different move orders are searched once), null-move pruning, late
 move reductions, futility pruning, killer and history move ordering, static exchange evaluation for captures, and a
 quiescence search that plays out captures before it trusts a score. Mate scores are never pruned or reduced, so
-the shortest mate is found (a test checks 36 positions with a mate in 1 to 4 that python-chess found by brute force).
+the shortest mate is found (a test checks 36 positions with a mate in 1, 2 or 3 that python-chess found by brute force).
 
 ## The evaluation
 
