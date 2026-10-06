@@ -1,6 +1,8 @@
 package com.chess.application;
 
 import com.chess.api.dto.GameDto;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import com.chess.domain.board.Board;
 import com.chess.domain.board.BoardFactory;
 import com.chess.domain.board.FenParser;
@@ -40,14 +42,19 @@ public class GameApplicationService {
     private final GameStore              store;
     private final GameRepository         gameRepository;
     private final GamePersistenceService persistenceService;
+    /** Restoring reads lazy collections, so it needs a session of its own. */
+    private final TransactionTemplate    readOnly;
     private final Object[] restoreLocks = newLocks(16);
 
     public GameApplicationService(GameStore store,
                                    GameRepository gameRepository,
-                                   GamePersistenceService persistenceService) {
+                                   GamePersistenceService persistenceService,
+                                   PlatformTransactionManager transactionManager) {
         this.store              = store;
         this.gameRepository     = gameRepository;
         this.persistenceService = persistenceService;
+        this.readOnly           = new TransactionTemplate(transactionManager);
+        this.readOnly.setReadOnly(true);
     }
 
     private static Object[] newLocks(int n) {
@@ -370,7 +377,8 @@ public class GameApplicationService {
         // One restore per game at a time: two requests must not each build a session,
         // or one of them would go on playing a session the store no longer holds
         synchronized (restoreLocks[Math.floorMod(gameId.hashCode(), restoreLocks.length)]) {
-            return store.findById(gameId).orElseGet(() -> restoreGameFromDatabase(gameId));
+            return store.findById(gameId)
+                    .orElseGet(() -> readOnly.execute(status -> restoreGameFromDatabase(gameId)));
         }
     }
 

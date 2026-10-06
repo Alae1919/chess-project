@@ -997,6 +997,35 @@ class GameControllerTest {
         }
 
         @Test
+        @DisplayName("the match history counts the moves that were played")
+        void historyCountsMoves() throws Exception {
+            String id = createOnlineGame();
+            mvc.perform(post("/api/games/" + id + "/moves")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", "e2e4"))))
+                .andExpect(status().isOk());
+            mvc.perform(post("/api/games/" + id + "/moves")
+                    .with(org.springframework.security.test.web.servlet.request
+                        .SecurityMockMvcRequestPostProcessors.user("opponent")) // this group has its own user(UUID)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", "e7e5"))))
+                .andExpect(status().isOk());
+            mvc.perform(post("/api/games/" + id + "/resign")).andExpect(status().isOk());
+
+            mvc.perform(get("/api/users/me/match-history?size=50"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.id == '" + id + "')].movesCount", contains(2)));
+        }
+
+        @Test
+        @DisplayName("a page of the history is at most 50 games, however many are asked for")
+        void historyPageSizeIsCapped() throws Exception {
+            mvc.perform(get("/api/users/me/match-history?size=100000"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size").value(50));
+        }
+
+        @Test
         @DisplayName("an aborted game has no result and changes nobody's rating")
         void abortedGameIsUnrated() throws Exception {
             String id = createOnlineGame();

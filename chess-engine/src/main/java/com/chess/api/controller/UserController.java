@@ -78,9 +78,12 @@ public class UserController {
             @AuthenticationPrincipal UserDetails userDetails,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        var result = gamePersist.getMatchHistory(extractId(userDetails), page, size);
+        // a page holds at most 50 games, whatever the caller asks for
+        int pageSize = Math.max(1, Math.min(size, 50));
+        int pageIndex = Math.max(0, page);
+        var result = gamePersist.getMatchHistory(extractId(userDetails), pageIndex, pageSize);
         return new MatchHistoryDto.PagedMatchHistory(
-            result.getContent(), page, size,
+            result.getContent(), pageIndex, pageSize,
             result.getTotalElements(), result.getTotalPages()
         );
     }

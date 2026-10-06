@@ -34,6 +34,10 @@ public interface GameRepository extends JpaRepository<GameEntity, UUID> {
             @Param("userId") UUID userId,
             @Param("statuses") List<GameStatus> statuses);
 
+    /** Rows of (game id, number of moves played) for the given games, in one query. */
+    @Query("SELECT m.game.id, COUNT(m) FROM GameMoveEntity m WHERE m.game.id IN :ids GROUP BY m.game.id")
+    List<Object[]> countMovesByGameIds(@Param("ids") java.util.Collection<UUID> ids);
+
     default List<GameEntity> findActiveGamesForUser(UUID userId) {
         return findActiveGamesForUserWithStatuses(
                 userId, List.of(GameStatus.active, GameStatus.paused));

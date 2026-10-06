@@ -286,9 +286,18 @@ public class GamePersistenceService {
 
     // ── Queries ───────────────────────────────────────────────────────────────
 
+    @Transactional(readOnly = true)
     public Page<MatchHistoryDto.MatchHistory> getMatchHistory(UUID userId, int page, int size) {
-        return gameRepo.findMatchHistoryForUser(userId, PageRequest.of(page, size))
-            .map(g -> toMatchHistoryDto(g, userId));
+        Page<GameEntity> games = gameRepo.findMatchHistoryForUser(userId, PageRequest.of(page, size));
+        // one query for the whole page, not one per game
+        Map<UUID, Long> moveCounts = new HashMap<>();
+        if (games.hasContent()) {
+            for (Object[] row : gameRepo.countMovesByGameIds(
+                    games.getContent().stream().map(GameEntity::getId).toList())) {
+                moveCounts.put((UUID) row[0], (Long) row[1]);
+            }
+        }
+        return games.map(g -> toMatchHistoryDto(g, userId, moveCounts.getOrDefault(g.getId(), 0L).intValue()));
     }
 
     public List<GameDto.SavedGame> getSavedGames(UUID userId) {
@@ -376,7 +385,7 @@ public class GamePersistenceService {
         if (newElo != null) eloRepo.save(new EloHistoryEntity(user, newElo));
     }
 
-    private MatchHistoryDto.MatchHistory toMatchHistoryDto(GameEntity g, UUID userId) {
+    private MatchHistoryDto.MatchHistory toMatchHistoryDto(GameEntity g, UUID userId, int movesCount) {
         boolean isWhite = userId.equals(g.getWhiteUserId());
         String  color   = isWhite ? "white" : "black";
         String  result;
@@ -391,7 +400,7 @@ public class GamePersistenceService {
         return new MatchHistoryDto.MatchHistory(
             g.getId().toString(), opponentUsername, g.getMode().name(),
             tcLabel, result, color,
-            g.getMoves().size(), isWhite ? g.getWhiteEloChange() : g.getBlackEloChange(),
+            movesCount, isWhite ? g.getWhiteEloChange() : g.getBlackEloChange(),
             g.getUpdatedAt()
         );
     }

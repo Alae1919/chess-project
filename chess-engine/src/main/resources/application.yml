@@ -11,6 +11,9 @@ spring:
       maximum-pool-size: 10
 
   jpa:
+    # Off: a request must not hold a database connection while it does other work (an AI
+    # search can take seconds). Code that reads lazy collections opens its own transaction.
+    open-in-view: false
     hibernate:
       ddl-auto: validate        # Flyway owns the schema; Hibernate only validates
     show-sql: false
@@ -18,6 +21,11 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
+
+  task:
+    scheduling:
+      pool:
+        size: 4                 # the clock watcher, matchmaking and countdowns must not queue behind each other
 
   flyway:
     enabled: true
