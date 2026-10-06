@@ -233,6 +233,18 @@ export class GamePage implements OnInit, OnDestroy {
     this.store.dispatch(GameActions.createGame({ options: rematchOptions(game, mine) }));
   }
 
+  /**
+   * Goes back to the home page. Walking away from an online game that is still going starts
+   * the forfeit countdown, so that gets a confirmation; the others cost nothing.
+   */
+  leave(game: Game): void {
+    if (game.mode === 'online' && isPlayableStatus(game.status)
+        && !confirm('Quitter la partie en cours ? Vous la perdrez si vous ne revenez pas à temps.')) {
+      return;
+    }
+    this.router.navigate(['/home']);
+  }
+
   newGame(): void { this.router.navigate(['/home']); }
   toLobby(): void { this.router.navigate(['/online']); }
 

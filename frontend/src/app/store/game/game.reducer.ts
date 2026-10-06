@@ -138,6 +138,10 @@ export const gameReducer = createReducer(
 
   on(GameActions.gameOver, (state, { game }) => ({
     ...state, currentGame: game, opponentAway: null, isAiThinking: false,
+    // A called-off game has no result, so the result dialog never opens: say what happened here
+    notice: game.status === 'aborted'
+      ? "La partie a été annulée : personne n'a joué à temps. Aucun résultat, aucun changement de classement."
+      : state.notice,
   })),
 
   on(GameActions.opponentDisconnected, (state, { color, until }) => ({

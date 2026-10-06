@@ -1,6 +1,6 @@
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { MockStore, provideMockStore } from '@ngrx/store/testing';
 import { of } from 'rxjs';
 import { Game, User } from '../../../core/models';
@@ -172,6 +172,43 @@ describe('GamePage', () => {
 
     it('is not offered once the game is over', () => {
       expect(page.canUndo(makeGame({ mode: 'ai', status: 'checkmate' }))).toBeFalse();
+    });
+  });
+
+
+  describe('leaving', () => {
+    let confirmSpy: jasmine.Spy;
+    let navigate: jasmine.Spy;
+
+    beforeEach(() => {
+      confirmSpy = spyOn(window, 'confirm');
+      navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+    });
+
+    it('asks first in an online game that is still going: walking away forfeits it', () => {
+      confirmSpy.and.returnValue(false);
+
+      page.leave(makeGame({ mode: 'online', status: 'active' }));
+
+      expect(confirmSpy).toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('leaves when the player confirms', () => {
+      confirmSpy.and.returnValue(true);
+
+      page.leave(makeGame({ mode: 'online', status: 'active' }));
+
+      expect(navigate).toHaveBeenCalledWith(['/home']);
+    });
+
+    it('leaves straight away from a game against the AI, a local game, or a finished game', () => {
+      page.leave(makeGame({ mode: 'ai', status: 'active' }));
+      page.leave(makeGame({ mode: 'local', status: 'active' }));
+      page.leave(makeGame({ mode: 'online', status: 'checkmate' }));
+
+      expect(confirmSpy).not.toHaveBeenCalled();
+      expect(navigate).toHaveBeenCalledTimes(3);
     });
   });
 });

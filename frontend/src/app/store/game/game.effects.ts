@@ -115,6 +115,19 @@ export class GameEffects {
     )
   );
 
+  // The chat is not part of the game payload: without this, a reload or a reconnect empties it
+  loadChatHistory$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(GameActions.loadGameSuccess),
+      switchMap(({ game }) =>
+        this.chatService.getMessages(game.id).pipe(
+          map((messages) => GameActions.loadChatMessagesSuccess({ messages })),
+          catchError(() => EMPTY) // the game works without it; the chat just starts empty
+        )
+      )
+    )
+  );
+
   selectSquare$ = createEffect(() =>
     this.actions$.pipe(
       ofType(GameActions.selectSquare),

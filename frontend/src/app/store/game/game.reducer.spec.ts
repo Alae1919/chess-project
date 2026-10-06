@@ -249,4 +249,19 @@ describe('gameReducer', () => {
       expect(done.isAiThinking).toBeFalse();
     });
   });
+
+
+  describe('a game that was called off', () => {
+    it('tells the player there is no result and nothing was rated', () => {
+      const next = gameReducer(withGame(), GameActions.gameOver({ game: makeGame({ status: 'aborted', result: undefined }) }));
+
+      expect(next.notice).toContain('annulée');
+    });
+
+    it('says nothing extra when a game ends the usual way', () => {
+      const next = gameReducer(withGame(), GameActions.gameOver({ game: makeGame({ status: 'checkmate' }) }));
+
+      expect(next.notice).toBeNull();
+    });
+  });
 });

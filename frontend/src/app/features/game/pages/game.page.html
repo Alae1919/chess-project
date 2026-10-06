@@ -24,7 +24,7 @@
       <button type="button" class="act-btn" (click)="toggleSettings()" [attr.aria-expanded]="settingsOpen" title="Réglages du plateau">
         ⚙ <span class="act-btn__txt">Plateau</span>
       </button>
-      <a class="act-btn" routerLink="/home" title="Quitter">← <span class="act-btn__txt">Quitter</span></a>
+      <button type="button" class="act-btn" (click)="leave(vm.game)" title="Quitter">← <span class="act-btn__txt">Quitter</span></button>
     </div>
   </header>
 

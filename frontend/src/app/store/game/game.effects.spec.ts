@@ -27,7 +27,7 @@ describe('GameEffects', () => {
     socketService = Object.assign(jasmine.createSpyObj('WebSocketService', ['connect', 'disconnect']), { reconnected$ });
     gameService = jasmine.createSpyObj<GameService>('GameService',
       ['resign', 'getAiMove', 'offerDraw', 'acceptDraw', 'declineDraw', 'undoMove', 'submitMove', 'createGame', 'getGame']);
-    chatService = jasmine.createSpyObj<ChatService>('ChatService', ['sendMessage']);
+    chatService = jasmine.createSpyObj<ChatService>('ChatService', ['sendMessage', 'getMessages']);
     TestBed.configureTestingModule({
       providers: [
         GameEffects,
@@ -329,6 +329,29 @@ describe('GameEffects', () => {
       actions$.next(GameActions.loadGame({ gameId: 'x' }));
 
       expect(out).toEqual([GameActions.loadGameFailure({ error: 'Game not found: x' })]);
+    });
+  });
+
+
+  describe('chat history', () => {
+    it('loads the messages of a game when it is opened, so a reload does not empty the chat', () => {
+      const earlier = [makeChatMessage({ id: 'm1' }), makeChatMessage({ id: 'm2' })];
+      chatService.getMessages.and.returnValue(of(earlier));
+      const out = collect(effects.loadChatHistory$);
+
+      actions$.next(GameActions.loadGameSuccess({ game: makeGame({ id: 'game-7' }) }));
+
+      expect(chatService.getMessages).toHaveBeenCalledWith('game-7');
+      expect(out).toEqual([GameActions.loadChatMessagesSuccess({ messages: earlier })]);
+    });
+
+    it('opens the game with an empty chat if the history can\'t be fetched', () => {
+      chatService.getMessages.and.returnValue(throwError(() => new Error('offline')));
+      const out = collect(effects.loadChatHistory$);
+
+      actions$.next(GameActions.loadGameSuccess({ game: makeGame() }));
+
+      expect(out).toEqual([]);   // the game itself still works; chat just starts empty
     });
   });
 });
