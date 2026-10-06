@@ -1,0 +1,14 @@
+# Production settings, on top of application.yml. Activated by SPRING_PROFILES_ACTIVE=prod
+# (docker-compose.prod.yml sets it).
+
+spring:
+  flyway:
+    # A database that already has tables but no Flyway history is not one we created:
+    # refuse to touch it instead of silently adopting it as version 1.
+    baseline-on-migrate: false
+
+logging:
+  level:
+    root: INFO
+    com.chess: INFO
+    org.hibernate.SQL: WARN     # one log line per query is noise, and cost, in production

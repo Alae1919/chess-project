@@ -55,6 +55,17 @@ app:
     auth-per-minute: 20
   allowed-origins: ${ALLOWED_ORIGINS:http://localhost:[*],http://127.0.0.1:[*]}
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health         # nothing else: no env, beans or heap dumps
+  endpoint:
+    health:
+      probes:
+        enabled: true           # /actuator/health/liveness and /readiness
+      show-details: never
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

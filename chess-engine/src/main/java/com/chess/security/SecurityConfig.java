@@ -48,6 +48,8 @@ public class SecurityConfig {
                     "/api/auth/**",
                     "/error",   // the error page of a failed request must not itself need a login
                     "/ws/**",
+                    // the container healthcheck; nginx only proxies /api and /ws, so it is not public
+                    "/actuator/health/**",
                     "/swagger-ui/**", "/swagger-ui.html",
                     "/api-docs/**", "/v3/api-docs/**"
                 ).permitAll()

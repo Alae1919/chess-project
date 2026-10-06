@@ -95,6 +95,12 @@
       <artifactId>spring-boot-starter-validation</artifactId>
     </dependency>
 
+    <!-- Health probe for the container healthcheck (only /actuator/health is exposed) -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+
     <!-- 📘 Swagger / OpenAPI -->
     <dependency>
       <groupId>org.springdoc</groupId>
