@@ -159,6 +159,8 @@
             <!-- the dev database keeps games from earlier runs; resurrecting them would change
                  ratings in the middle of a test. GameRecoveryTest calls the recovery itself. -->
             <app.recover-games-on-startup>false</app.recover-games-on-startup>
+            <!-- many tests register users from one address; AuthRateLimitTest sets its own low limit -->
+            <app.rate-limit.auth-per-minute>1000</app.rate-limit.auth-per-minute>
           </systemPropertyVariables>
         </configuration>
       </plugin>

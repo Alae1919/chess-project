@@ -26,12 +26,15 @@ public class SecurityConfig {
     private final JwtAuthFilter jwtAuthFilter;
     private final UserRepository userRepository;
     private final List<String> allowedOrigins;
+    private final int authAttemptsPerMinute;
 
     public SecurityConfig(@Lazy JwtAuthFilter jwtAuthFilter, UserRepository userRepository,
-                          @Value("${app.allowed-origins}") List<String> allowedOrigins) {
+                          @Value("${app.allowed-origins}") List<String> allowedOrigins,
+                          @Value("${app.rate-limit.auth-per-minute:20}") int authAttemptsPerMinute) {
         this.jwtAuthFilter  = jwtAuthFilter;
         this.userRepository = userRepository;
         this.allowedOrigins = allowedOrigins;
+        this.authAttemptsPerMinute = authAttemptsPerMinute;
     }
 
     @Bean
@@ -55,6 +58,7 @@ public class SecurityConfig {
             .exceptionHandling(e -> e.authenticationEntryPoint(
                 new org.springframework.security.web.authentication.HttpStatusEntryPoint(
                     org.springframework.http.HttpStatus.UNAUTHORIZED)))
+            .addFilterBefore(new AuthRateLimitFilter(authAttemptsPerMinute), UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .build();
     }
