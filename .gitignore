@@ -10,3 +10,6 @@ training/.venv/
 training/data/
 training/runs/
 training/__pycache__/
+
+# external engines used only as match opponents
+tools/engine/external/

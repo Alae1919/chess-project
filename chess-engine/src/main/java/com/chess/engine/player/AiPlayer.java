@@ -7,7 +7,7 @@ import com.chess.domain.model.Move;
 import com.chess.domain.rules.MoveGenerator;
 import com.chess.engine.core.Position;
 import com.chess.engine.core.book.PolyglotBook;
-import com.chess.engine.core.eval.ClassicalEvaluator;
+import com.chess.engine.core.eval.Evaluators;
 import com.chess.engine.core.search.SearchLimits;
 import com.chess.engine.core.search.SearchResult;
 import com.chess.engine.core.search.Searcher;
@@ -77,7 +77,7 @@ public final class AiPlayer implements Player {
         }
 
         Searcher s = searcher;
-        if (s == null) searcher = s = new Searcher(new ClassicalEvaluator(), level.hashMegabytes());
+        if (s == null) searcher = s = new Searcher(Evaluators.create(), level.hashMegabytes());
         long remaining = pos.sideToMove() == Position.WHITE ? whiteMs : blackMs;
         SearchResult result = s.search(pos, level.limits(remaining, incrementMs));
         return toDomain(board, level.choose(result, random));

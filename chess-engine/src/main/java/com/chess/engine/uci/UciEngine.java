@@ -3,8 +3,8 @@ package com.chess.engine.uci;
 import com.chess.engine.core.Move;
 import com.chess.engine.core.Perft;
 import com.chess.engine.core.Position;
-import com.chess.engine.core.eval.ClassicalEvaluator;
 import com.chess.engine.core.eval.Evaluator;
+import com.chess.engine.core.eval.Evaluators;
 import com.chess.engine.core.search.SearchInfo;
 import com.chess.engine.core.search.SearchLimits;
 import com.chess.engine.core.search.SearchResult;
@@ -41,11 +41,13 @@ public final class UciEngine {
 
     private Position position = Position.startPosition();
     private Searcher searcher;
-    private Supplier<Evaluator> evaluatorFactory = ClassicalEvaluator::new;
+    private Supplier<Evaluator> evaluatorFactory = Evaluators.supplier();
     private int hashMegabytes = 16;
     private int multiPv = 1;
     /** 0 = full strength; 1 to 6 plays like that level of the app's AI (see AiLevel). */
     private int level = 0;
+    private Evaluators.Mode evalMode = Evaluators.Mode.NNUE;
+    private java.nio.file.Path evalFile;
     private final Random random = new Random();
     private Thread worker;
 
@@ -93,6 +95,8 @@ public final class UciEngine {
         send("option name Hash type spin default 16 min 1 max 1024");
         send("option name MultiPV type spin default 1 min 1 max 16");
         send("option name Level type spin default 0 min 0 max 6");
+        send("option name Eval type combo default nnue var nnue var classical");
+        send("option name EvalFile type string default <bundled>");
         send("uciok");
     }
 
@@ -106,8 +110,17 @@ public final class UciEngine {
             case "hash" -> { hashMegabytes = clamp(parseInt(value, 16), 1, 1024); searcher = null; }
             case "multipv" -> multiPv = clamp(parseInt(value, 1), 1, 16);
             case "level" -> level = clamp(parseInt(value, 0), 0, 6);
+            case "eval" -> chooseEvaluation(value.equalsIgnoreCase("classical") ? Evaluators.Mode.CLASSICAL : Evaluators.Mode.NNUE, evalFile);
+            case "evalfile" -> chooseEvaluation(evalMode, value.isBlank() || value.startsWith("<") ? null : java.nio.file.Path.of(value));
             default -> send("info string unknown option " + name);
         }
+    }
+
+    private void chooseEvaluation(Evaluators.Mode mode, java.nio.file.Path file) {
+        evalMode = mode;
+        evalFile = file;
+        send("info string " + Evaluators.configure(mode, file));
+        searcher = null;   // a new evaluator is made with the next search
     }
 
     private void setPosition(String[] t) {

@@ -1,7 +1,7 @@
 package com.chess.application;
 
 import com.chess.engine.core.Position;
-import com.chess.engine.core.eval.ClassicalEvaluator;
+import com.chess.engine.core.eval.Evaluators;
 import com.chess.engine.core.search.SearchLimits;
 import com.chess.engine.core.search.SearchResult;
 import com.chess.engine.core.search.Searcher;
@@ -39,7 +39,7 @@ public class AnalysisService {
         }
         if (!got) throw new IllegalStateException("The engine is busy; try again in a moment");
         try {
-            Searcher searcher = new Searcher(new ClassicalEvaluator(), 4);
+            Searcher searcher = new Searcher(Evaluators.create(), 4);
             SearchResult result = searcher.search(pos, SearchLimits.moveTime(THINK_MS));
             int score = pos.sideToMove() == Position.WHITE ? result.score() : -result.score();
             return new Analysis(score, result.depth(), result.bestMove() == 0 ? null : result.bestMoveUci(), result.isMate());
