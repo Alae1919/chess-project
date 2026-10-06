@@ -99,6 +99,11 @@ public final class UserDto {
     ) {}
 
     // POST /me/change-password
+    /** Deleting an account asks for the password again: a stolen login must not be enough. */
+    public record DeleteAccountRequest(
+        @NotBlank String password
+    ) {}
+
     public record ChangePasswordRequest(
         @NotBlank String oldPassword,
         @NotBlank @Size(min = 6) String newPassword

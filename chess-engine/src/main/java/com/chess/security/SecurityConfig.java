@@ -43,12 +43,18 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/api/auth/**",
+                    "/error",   // the error page of a failed request must not itself need a login
                     "/ws/**",
                     "/swagger-ui/**", "/swagger-ui.html",
                     "/api-docs/**", "/v3/api-docs/**"
                 ).permitAll()
                 .anyRequest().authenticated()
             )
+            // No login is 401, so a client knows to sign in again; 403 would mean "signed in,
+            // but not allowed", and a client has no reason to refresh its token for that
+            .exceptionHandling(e -> e.authenticationEntryPoint(
+                new org.springframework.security.web.authentication.HttpStatusEntryPoint(
+                    org.springframework.http.HttpStatus.UNAUTHORIZED)))
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .build();
     }

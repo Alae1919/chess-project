@@ -32,4 +32,8 @@ public final class AuthDto {
     public record RefreshRequest(
         @NotBlank String refreshToken
     ) {}
+
+    public record LogoutRequest(
+        @NotBlank String refreshToken
+    ) {}
 }

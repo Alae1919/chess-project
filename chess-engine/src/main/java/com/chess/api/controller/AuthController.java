@@ -29,6 +29,13 @@ public class AuthController {
         return authService.login(req);
     }
 
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "End a session: its refresh token stops working")
+    public void logout(@Valid @RequestBody AuthDto.LogoutRequest req) {
+        authService.logout(req.refreshToken());
+    }
+
     @PostMapping("/refresh")
     @Operation(summary = "Exchange a refresh token for new tokens")
     public AuthDto.AuthTokens refresh(@Valid @RequestBody AuthDto.RefreshRequest req) {

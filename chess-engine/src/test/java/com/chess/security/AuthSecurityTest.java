@@ -89,7 +89,7 @@ class AuthSecurityTest {
             .get("refreshToken").asText();
 
         mvc.perform(get("/api/users/me").header("Authorization", "Bearer " + refreshToken))
-            .andExpect(status().isForbidden());
+            .andExpect(status().isUnauthorized());
     }
 
     @Test

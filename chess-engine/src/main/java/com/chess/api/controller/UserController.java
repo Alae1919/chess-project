@@ -99,9 +99,11 @@ public class UserController {
 
     @DeleteMapping("/me")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @Operation(summary = "Delete the authenticated user's account")
-    public void deleteAccount(@AuthenticationPrincipal UserDetails userDetails) {
-        userService.deleteAccount(extractId(userDetails));
+    @Operation(summary = "Delete the authenticated user's account (asks for the password again)")
+    public void deleteAccount(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody UserDto.DeleteAccountRequest req) {
+        userService.deleteAccount(extractId(userDetails), req.password());
     }
 
     // ── Saved games ──────────────────────────────────────────────────────────

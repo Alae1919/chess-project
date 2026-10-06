@@ -21,13 +21,16 @@ public class UserService {
     private final UserMapper                userMapper;
     private final StatsMapper               statsMapper;
     private final PasswordEncoder           encoder;
+    private final RefreshTokenRepository    refreshTokens;
 
     public UserService(UserRepository userRepo, EloHistoryRepository eloRepo,
                        UserAchievementRepository achievementRepo,
                        UserPreferencesMapper preferencesMapper,
                        UserMapper userMapper,
                        StatsMapper statsMapper,
-                       PasswordEncoder encoder) {
+                       PasswordEncoder encoder,
+                       RefreshTokenRepository refreshTokens) {
+        this.refreshTokens     = refreshTokens;
         this.userRepo          = userRepo;
         this.eloRepo           = eloRepo;
         this.achievementRepo   = achievementRepo;
@@ -108,10 +111,16 @@ public class UserService {
             throw new IllegalArgumentException("Incorrect current password");
         user.setPasswordHash(encoder.encode(req.newPassword()));
         userRepo.save(user);
+        // Whoever else is signed in with the old password, on any device, is signed out
+        refreshTokens.revokeAllForUser(userId);
     }
 
     @Transactional
-    public void deleteAccount(UUID userId) {
+    public void deleteAccount(UUID userId, String password) {
+        var user = userRepo.findById(userId)
+            .orElseThrow(() -> new EntityNotFoundException("User not found"));
+        if (!encoder.matches(password, user.getPasswordHash()))
+            throw new IllegalArgumentException("Incorrect password");
         userRepo.deleteById(userId);
     }
 }

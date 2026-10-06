@@ -67,18 +67,34 @@ public class AuthService {
         return issueTokens(user);
     }
 
-    @Transactional
+    /**
+     * Trades a refresh token for a new pair. Each token works once: a token that was already
+     * traded in is a copy somebody kept, so showing it ends every session of that user (the
+     * real owner signs in again; a thief's copy of the newest token dies with the rest).
+     * {@code noRollbackFor}: that revocation must outlive the error reported to the caller.
+     */
+    @Transactional(noRollbackFor = IllegalArgumentException.class)
     public AuthDto.AuthTokens refresh(String rawRefreshToken) {
         String hash = sha256(rawRefreshToken);
         var stored  = refreshRepo.findByTokenHash(hash)
             .orElseThrow(() -> new IllegalArgumentException("Invalid refresh token"));
 
-        if (stored.isRevoked() || stored.getExpiresAt().isBefore(Instant.now()))
+        if (stored.isRevoked()) {
+            refreshRepo.revokeAllForUser(stored.getUser().getId());
+            throw new IllegalArgumentException("Refresh token expired or revoked");
+        }
+        if (stored.getExpiresAt().isBefore(Instant.now()))
             throw new IllegalArgumentException("Refresh token expired or revoked");
 
         stored.setRevoked(true);
         var user = stored.getUser();
         return issueTokens(user);
+    }
+
+    /** Ends the session that owns this refresh token. A token we don't know is ignored. */
+    @Transactional
+    public void logout(String rawRefreshToken) {
+        refreshRepo.findByTokenHash(sha256(rawRefreshToken)).ifPresent(t -> t.setRevoked(true));
     }
 
     // ── Private ──────────────────────────────────────────────────────────────

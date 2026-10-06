@@ -43,6 +43,7 @@ public class JwtService {
 
     public String generateAccessToken(UUID userId, String username) {
         return Jwts.builder()
+            .id(UUID.randomUUID().toString()) // times have one-second resolution: this keeps every token unique
             .subject(userId.toString())
             .claim("username", username)
             .issuedAt(new Date())
@@ -53,6 +54,7 @@ public class JwtService {
 
     public String generateRefreshToken(UUID userId) {
         return Jwts.builder()
+            .id(UUID.randomUUID().toString()) // two in one second would otherwise be identical, and the stored hash is unique
             .subject(userId.toString())
             .claim("type", "refresh")
             .issuedAt(new Date())
