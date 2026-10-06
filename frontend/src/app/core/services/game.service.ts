@@ -124,9 +124,13 @@ export class GameService {
     return this.http.post<Game>(`${this.base}/${gameId}/ai-move`, {}).pipe(map((raw: any) => this.mapGame(raw)));
   }
 
-  /** Undo the last move (if allowed by game options) */
-  undoMove(gameId: string): Observable<Game> {
-    return this.http.delete<Game>(`${this.base}/${gameId}/moves/last`).pipe(map((raw: any) => this.mapGame(raw)));
+  /**
+   * Undo the last move, or the last two (`plies` = 2): against the AI, a player takes back
+   * their own move together with the AI's reply, in one step.
+   */
+  undoMove(gameId: string, plies = 1): Observable<Game> {
+    return this.http.delete<Game>(`${this.base}/${gameId}/moves/last`, { params: { plies } })
+      .pipe(map((raw: any) => this.mapGame(raw)));
   }
 
   /** Save current game state */

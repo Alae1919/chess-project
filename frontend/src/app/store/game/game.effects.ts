@@ -2,8 +2,8 @@
 import { Injectable, inject } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { Action, Store } from '@ngrx/store';
-import { interval, of, Subscription } from 'rxjs';
-import { catchError, concatMap, filter, map, switchMap, tap, withLatestFrom } from 'rxjs/operators';
+import { EMPTY, interval, of, Subscription } from 'rxjs';
+import { catchError, concatMap, exhaustMap, filter, map, switchMap, tap, withLatestFrom } from 'rxjs/operators';
 import { GameActions } from './game.actions';
 import { isPlayableStatus } from '../../core/utils/game-status.utils';
 import { needsPromotionChoice } from '../../core/utils/promotion.utils';
@@ -17,6 +17,21 @@ import { Router } from '@angular/router';
 /** The server's explanation for a failed request, else the generic error text. */
 function errorMessage(error: any): string {
   return error?.error?.detail ?? error?.message ?? 'Request failed';
+}
+
+/** The server refused because the AI is already working out this game's move. */
+function isAiBusy(error: any): boolean {
+  return error?.status === 409 && String(error?.error?.type ?? '').endsWith('/ai-busy');
+}
+
+/**
+ * How many moves "undo" takes back. Against the AI the player takes back their own move
+ * together with the AI's reply (2), once it is their turn again; otherwise just the last one.
+ */
+function pliesToUndo(game: Game): number {
+  const aiColor = game.playerWhite?.isAi ? 'white' : game.playerBlack?.isAi ? 'black' : null;
+  const playersTurnAgainstAi = game.mode === 'ai' && aiColor !== null && game.currentTurn !== aiColor;
+  return playersTurnAgainstAi && game.moves.length >= 2 ? 2 : 1;
 }
 
 @Injectable()
@@ -35,7 +50,7 @@ export class GameEffects {
       switchMap(({ options }) =>
         this.gameService.createGame(options).pipe(
           map((game) => GameActions.createGameSuccess({ game })),
-          catchError((error) => of(GameActions.createGameFailure({ error: error.message })))
+          catchError((error) => of(GameActions.createGameFailure({ error: errorMessage(error) })))
         )
       )
     )
@@ -61,7 +76,7 @@ export class GameEffects {
       switchMap(({ gameId }) =>
         this.gameService.getGame(gameId).pipe(
           map((game) => GameActions.loadGameSuccess({ game })),
-          catchError((error) => of(GameActions.loadGameFailure({ error: error.message })))
+          catchError((error) => of(GameActions.loadGameFailure({ error: errorMessage(error) })))
         )
       )
     )
@@ -123,10 +138,12 @@ export class GameEffects {
       ofType(GameActions.submitMove),
       withLatestFrom(this.store.select(selectCurrentGame)),
       filter(([{ move }, game]) => !!game && !needsPromotionChoice(move)),
-      switchMap(([{ move }, game]) =>
+      // exhaustMap: a double click must not send the move twice, and switchMap would drop the
+      // first answer, which in an AI game is what asks the AI to reply
+      exhaustMap(([{ move }, game]) =>
         this.gameService.submitMove(game!.id, move).pipe(
           map((updatedGame) => GameActions.submitMoveSuccess({ game: updatedGame })),
-          catchError((error) => of(GameActions.submitMoveFailure({ error: error.message })))
+          catchError((error) => of(GameActions.submitMoveFailure({ error: errorMessage(error) })))
         )
       )
     )
@@ -137,10 +154,15 @@ export class GameEffects {
       ofType(GameActions.requestAIMove),
       withLatestFrom(this.store.select(selectCurrentGame)),
       filter(([, game]) => !!game),
-      switchMap(([, game]) =>
+      // exhaustMap: while the server is searching, a second request only repeats the work
+      exhaustMap(([, game]) =>
         this.gameService.getAiMove(game!.id).pipe(
           map((updatedGame) => GameActions.aIMoveSuccess({ game: updatedGame })),
-          catchError((error) => of(GameActions.aIMoveFailure({ error: error.message ?? 'AI move failed' })))
+          // Already searching (a request from before a reload, say): its move arrives on its
+          // own, over the socket, so there is nothing to report
+          catchError((error) => isAiBusy(error)
+            ? EMPTY
+            : of(GameActions.aIMoveFailure({ error: errorMessage(error) })))
         )
       )
     )
@@ -148,7 +170,9 @@ export class GameEffects {
 
   triggerAiMove$ = createEffect(() =>
     this.actions$.pipe(
-      ofType(GameActions.submitMoveSuccess, GameActions.createGameSuccess, GameActions.loadGameSuccess),
+      // Not createGameSuccess: the game page loads the new game next, and that asks. Asking
+      // here too sent two requests for the same move.
+      ofType(GameActions.submitMoveSuccess, GameActions.loadGameSuccess, GameActions.undoMoveSuccess),
       filter(({ game }) => {
         if (game.mode === 'online') return false; // online games never trigger AI
         const isAiTurn =
@@ -166,9 +190,9 @@ export class GameEffects {
       withLatestFrom(this.store.select(selectCurrentGame)),
       filter(([, game]) => !!game),
       switchMap(([, game]) =>
-        this.gameService.undoMove(game!.id).pipe(
+        this.gameService.undoMove(game!.id, pliesToUndo(game!)).pipe(
           map((updatedGame) => GameActions.undoMoveSuccess({ game: updatedGame })),
-          catchError(() => of(GameActions.clearSelection()))
+          catchError((error) => of(GameActions.requestFailed({ error: errorMessage(error) })))
         )
       )
     )
@@ -182,7 +206,7 @@ export class GameEffects {
       switchMap(([, game]) =>
         this.gameService.saveGame(game!.id).pipe(
           map((savedGame) => GameActions.saveGameSuccess({ savedGame })),
-          catchError(() => of(GameActions.clearSelection()))
+          catchError((error) => of(GameActions.requestFailed({ error: errorMessage(error) })))
         )
       )
     )

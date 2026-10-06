@@ -22,8 +22,9 @@ export const gameReducer = createReducer(
     ...state, currentGame: game, isLoading: false,
   })),
 
+  // A failed request is told to the player (the notice), not just kept in the store
   on(GameActions.createGameFailure, GameActions.loadGameFailure, (state, { error }) => ({
-    ...state, isLoading: false, error,
+    ...state, isLoading: false, error, notice: error,
   })),
 
   on(GameActions.selectSquare, (state, { square }) => ({
@@ -49,16 +50,17 @@ export const gameReducer = createReducer(
     ...state, pendingPromotion: null, selectedSquare: null, legalMoves: [],
   })),
 
-  //on(GameActions.submitMoveSuccess, GameActions.receiveMoveSuccess ?? GameActions.receiveMove,
-  on(GameActions.submitMoveSuccess, GameActions.receiveMove,  
+  // A move arriving over the socket may be the AI's: its search is over
+  on(GameActions.submitMoveSuccess, GameActions.receiveMove,
     (state, { game }) => ({
-      ...state, currentGame: game, isLoading: false,
+      ...state, currentGame: game, isLoading: false, isAiThinking: false,
       selectedSquare: null, legalMoves: [],
     })
   ),
 
   on(GameActions.submitMoveFailure, (state, { error }) => ({
-    ...state, isLoading: false, error,
+    ...state, isLoading: false, error, notice: error,
+    selectedSquare: null, legalMoves: [],
   })),
 
   on(GameActions.requestAIMove, (state) => ({
@@ -70,7 +72,7 @@ export const gameReducer = createReducer(
   })),
 
   on(GameActions.aIMoveFailure, (state, { error }) => ({
-    ...state, isAiThinking: false, error,
+    ...state, isAiThinking: false, error, notice: error,
   })),
 
   on(GameActions.requestFailed, (state, { error }) => ({
@@ -79,10 +81,12 @@ export const gameReducer = createReducer(
 
   on(GameActions.dismissNotice, (state) => ({ ...state, notice: null })),
 
-  on(GameActions.gameUpdated, (state, { game }) => ({ ...state, currentGame: game })),
+  on(GameActions.gameUpdated, (state, { game }) => ({ ...state, currentGame: game, isAiThinking: false })),
+
+  on(GameActions.undoMove, (state) => ({ ...state, selectedSquare: null, legalMoves: [] })),
 
   on(GameActions.undoMoveSuccess, (state, { game }) => ({
-    ...state, currentGame: game,
+    ...state, currentGame: game, selectedSquare: null, legalMoves: [], isAiThinking: false,
   })),
 
   on(GameActions.updateEvaluation, (state, { evaluation }) => ({
@@ -133,7 +137,7 @@ export const gameReducer = createReducer(
   }),
 
   on(GameActions.gameOver, (state, { game }) => ({
-    ...state, currentGame: game, opponentAway: null,
+    ...state, currentGame: game, opponentAway: null, isAiThinking: false,
   })),
 
   on(GameActions.opponentDisconnected, (state, { color, until }) => ({

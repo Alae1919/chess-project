@@ -2,6 +2,9 @@
 // src/app/store/game/game.selectors.ts
 // ─────────────────────────────────────────────────────────────────────────────
 import { createFeatureSelector, createSelector } from '@ngrx/store';
+import { PieceColor } from '../../core/models';
+import { playerColorOf } from '../../core/utils/game-result.utils';
+import { selectUser } from '../account/account.reducer';
 import { GameState } from './game.state';
 
 const selectGameFeature = createFeatureSelector<GameState>('game');
@@ -25,3 +28,22 @@ export const selectWhitePlayer       = createSelector(selectCurrentGame, (g) => 
 export const selectBlackPlayer       = createSelector(selectCurrentGame, (g) => g?.playerBlack ?? null);
 export const selectGameStatus        = createSelector(selectCurrentGame, (g) => g?.status ?? null);
 export const selectOpening           = createSelector(selectCurrentGame, (g) => g?.opening ?? null);
+
+/**
+ * The colour the viewer may pick up and move right now, or null: not their turn, a move is on
+ * its way to the server, or the AI is thinking. In a local game one person plays both sides, so
+ * it is whichever side is to move. Both boards use this, so neither lets a player touch the
+ * opponent's pieces.
+ */
+export const selectMovableColor = createSelector(
+  selectCurrentGame, selectUser, selectIsLoading, selectIsAiThinking,
+  (game, user, loading, aiThinking): PieceColor | null => {
+    if (!game || loading || aiThinking) return null;
+    const mine = playerColorOf(game, user?.id);
+    if (mine === null) {
+      // null means "both seats" in a local game, but "unknown" online until the profile loads
+      return game.mode === 'online' ? null : game.currentTurn;
+    }
+    return mine === game.currentTurn ? game.currentTurn : null;
+  }
+);

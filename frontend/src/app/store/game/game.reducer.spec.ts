@@ -192,4 +192,61 @@ describe('gameReducer', () => {
       expect(next).toBe(state);
     });
   });
+
+
+  describe('failed requests are shown, not swallowed', () => {
+    it('a failed AI move, move, creation or load each leave a notice', () => {
+      const failures = [
+        GameActions.aIMoveFailure({ error: 'The AI is busy' }),
+        GameActions.submitMoveFailure({ error: 'Illegal move' }),
+        GameActions.createGameFailure({ error: 'Could not start' }),
+        GameActions.loadGameFailure({ error: 'Game not found' }),
+      ];
+
+      for (const failure of failures) {
+        const next = gameReducer(withGame(), failure);
+        expect(next.notice).toBe((failure as { error: string }).error);
+        expect(next.error).toBe((failure as { error: string }).error);
+      }
+    });
+
+    it('a rejected move releases the board and drops the selection', () => {
+      const state = withGame({ isLoading: true, selectedSquare: { row: 6, col: 4 }, legalMoves: [{ row: 4, col: 4 }] });
+
+      const next = gameReducer(state, GameActions.submitMoveFailure({ error: 'Illegal move' }));
+
+      expect(next.isLoading).toBeFalse();
+      expect(next.selectedSquare).toBeNull();
+      expect(next.legalMoves).toEqual([]);
+    });
+  });
+
+  describe('the AI spinner', () => {
+    it('stops when the AI\'s move arrives over the socket instead of the request', () => {
+      const state = withGame({ isAiThinking: true });
+
+      expect(gameReducer(state, GameActions.receiveMove({ game: makeGame() })).isAiThinking).toBeFalse();
+    });
+
+    it('stops when the game ends or is updated', () => {
+      const state = withGame({ isAiThinking: true });
+
+      expect(gameReducer(state, GameActions.gameOver({ game: makeGame() })).isAiThinking).toBeFalse();
+      expect(gameReducer(state, GameActions.gameUpdated({ game: makeGame() })).isAiThinking).toBeFalse();
+    });
+  });
+
+  describe('undo', () => {
+    it('drops the selection when undo is asked for, and again when it lands', () => {
+      const state = withGame({ selectedSquare: { row: 6, col: 4 }, legalMoves: [{ row: 4, col: 4 }], isAiThinking: true });
+
+      const asked = gameReducer(state, GameActions.undoMove());
+      expect(asked.selectedSquare).toBeNull();
+      expect(asked.legalMoves).toEqual([]);
+
+      const done = gameReducer({ ...state, isAiThinking: true }, GameActions.undoMoveSuccess({ game: makeGame() }));
+      expect(done.selectedSquare).toBeNull();
+      expect(done.isAiThinking).toBeFalse();
+    });
+  });
 });
