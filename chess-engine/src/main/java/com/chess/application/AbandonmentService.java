@@ -33,6 +33,9 @@ public class AbandonmentService {
 
     private static final Logger log = LoggerFactory.getLogger(AbandonmentService.class);
 
+    /** Fewer moves than this and a game with nobody left in it is called off rather than scored. */
+    private static final int MIN_MOVES_TO_SCORE = 2;
+
     private record Countdown(ScheduledFuture<?> task, Color color, long timeoutMs) {}
 
     private final WebSocketSessionManager sockets;
@@ -105,14 +108,18 @@ public class AbandonmentService {
         Countdown countdown = pending.remove(key(gameId, userId));
         if (countdown == null || sockets.isConnected(gameId, userId)) return;
         try {
-            // If the opponent is gone too there is nobody to award the game to: leave it open
+            // Nobody connected means both players are gone, and this countdown is the one
+            // that ran out first, so this player left first. A game that never really began
+            // is called off; one that was played is lost by whoever left first.
             boolean opponentHere = sockets.hasAnyConnection(gameId);
-            if (!opponentHere) return;
+            boolean calledOff = !opponentHere && engine.getMoveCount(gameId) < MIN_MOVES_TO_SCORE;
+            var ended = calledOff ? engine.abort(gameId) : engine.abandon(gameId, countdown.color());
 
-            engine.abandon(gameId, countdown.color()).ifPresent(ended -> {
-                var game = persistence.toFullGameDto(gameId, ended);
+            ended.ifPresent(over -> {
+                var game = persistence.toFullGameDto(gameId, over);
                 sockets.broadcast(gameId, "GAME_OVER", game);
-                log.info("Game {} ended: {} left", gameId, colorName(countdown.color()));
+                log.info("Game {} {}: {} left", gameId, calledOff ? "aborted" : "ended",
+                         colorName(countdown.color()));
             });
         } catch (RuntimeException e) {
             log.warn("Could not end abandoned game {}", gameId, e);

@@ -32,6 +32,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -45,6 +46,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -928,9 +930,13 @@ class GameControllerTest {
 
             clockWatcher.endGamesOutOfTime();
 
-            mvc.perform(get("/api/games/" + id))
-                .andExpect(jsonPath("$.result.reason").value("timeout"))
-                .andExpect(jsonPath("$.result.whiteEloChange", greaterThan(0)));
+            // The app's own watcher runs every 500 ms and may have flagged the game first; the
+            // result is visible at once but the rating change is saved a moment later. Awaitility
+            // polls on its own thread, where the mock login doesn't apply, hence with(user(..))
+            await().atMost(Duration.ofSeconds(5)).untilAsserted(() ->
+                mvc.perform(get("/api/games/" + id).with(user("user")))
+                    .andExpect(jsonPath("$.result.reason").value("timeout"))
+                    .andExpect(jsonPath("$.result.whiteEloChange", greaterThan(0))));
             assertEquals(EloCalculator.apply(whiteBefore, EloCalculator.delta(whiteBefore, blackBefore, 1.0)),
                 userRepository.findById(playerId).orElseThrow().getElo());
         }
@@ -988,6 +994,33 @@ class GameControllerTest {
             gameStore.delete(id); // and after a restart
             mvc.perform(get("/api/games/" + id))
                 .andExpect(jsonPath("$.status").value("WHITE_ABANDONED"));
+        }
+
+        @Test
+        @DisplayName("an aborted game has no result and changes nobody's rating")
+        void abortedGameIsUnrated() throws Exception {
+            String id = createOnlineGame();
+            int whiteBefore = user(playerId).getElo();
+            int blackBefore = user(opponentId).getElo();
+            long gamesBefore = user(playerId).getGamesPlayed();
+
+            engineService.abort(id);
+
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(jsonPath("$.status").value("ABORTED"))
+                .andExpect(jsonPath("$.result").value(is(nullValue())));
+            assertEquals(whiteBefore, user(playerId).getElo());
+            assertEquals(blackBefore, user(opponentId).getElo());
+            assertEquals(gamesBefore, user(playerId).getGamesPlayed());
+
+            mvc.perform(post("/api/games/" + id + "/moves")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", "e2e4"))))
+                .andExpect(status().isConflict());
+
+            gameStore.delete(id); // and after a restart
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(jsonPath("$.status").value("ABORTED"));
         }
 
         @Test

@@ -129,14 +129,48 @@ class AbandonmentServiceTest {
     }
 
     @Test
-    @DisplayName("if both players are gone nobody wins and the game stays open")
-    void nobodyToAwardTheGameTo() throws Exception {
+    @DisplayName("if both players are gone from a game that was played, the one who left first loses")
+    void bothGoneFirstLeaverLoses() throws Exception {
         when(sockets.hasAnyConnection(gameId)).thenReturn(false);
+        when(engine.getMoveCount(gameId)).thenReturn(12);
 
         service.playerDisconnected(gameId, whiteId.toString());
 
-        waitPastTheTimeout();
+        verify(engine, timeout(TIMEOUT_MS * 5)).abandon(gameId, Color.WHITE);
+        verify(engine, never()).abort(any());
+        verify(sockets, timeout(TIMEOUT_MS * 5)).broadcast(eq(gameId), eq("GAME_OVER"), any());
+    }
+
+    @Test
+    @DisplayName("if both players are gone before the game really began, it is aborted, not scored")
+    void bothGoneEarlyIsAborted() throws Exception {
+        when(sockets.hasAnyConnection(gameId)).thenReturn(false);
+        when(engine.getMoveCount(gameId)).thenReturn(1);
+        when(engine.abort(gameId)).thenReturn(Optional.of(new GameStateResponse(
+            gameId, "fen", "WHITE", "ABORTED", null, List.of(), List.of(), List.of())));
+
+        service.playerDisconnected(gameId, whiteId.toString());
+
+        verify(engine, timeout(TIMEOUT_MS * 5)).abort(gameId);
         verify(engine, never()).abandon(any(), any());
+        verify(sockets, timeout(TIMEOUT_MS * 5)).broadcast(eq(gameId), eq("GAME_OVER"), any());
+    }
+
+    @Test
+    @DisplayName("the second player to leave does not start a second ending")
+    void secondLeaverIsNotScoredAgain() throws Exception {
+        when(sockets.hasAnyConnection(gameId)).thenReturn(false);
+        when(engine.getMoveCount(gameId)).thenReturn(12);
+        when(engine.abandon(eq(gameId), eq(Color.WHITE))).thenReturn(Optional.of(new GameStateResponse(
+            gameId, "fen", "WHITE", "WHITE_ABANDONED", null, List.of(), List.of(), List.of())));
+        when(engine.abandon(eq(gameId), eq(Color.BLACK))).thenReturn(Optional.empty()); // already over
+
+        service.playerDisconnected(gameId, whiteId.toString());
+        service.playerDisconnected(gameId, blackId.toString());
+
+        verify(engine, timeout(TIMEOUT_MS * 5)).abandon(gameId, Color.WHITE);
+        waitPastTheTimeout();
+        verify(sockets, times(1)).broadcast(eq(gameId), eq("GAME_OVER"), any());
     }
 
     @Test

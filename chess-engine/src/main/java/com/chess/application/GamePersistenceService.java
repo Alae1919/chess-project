@@ -275,6 +275,15 @@ public class GamePersistenceService {
         updateUserStats(game, winner);
     }
 
+    /** The game was called off: it ends with no result, and nobody's rating or stats change. */
+    @Transactional
+    public void abortGame(UUID dbGameId) {
+        var game = gameRepo.findById(dbGameId).orElseThrow();
+        if (game.getStatus() == GameStatus.finished || game.getStatus() == GameStatus.aborted) return;
+        game.setStatus(GameStatus.aborted);
+        gameRepo.save(game);
+    }
+
     // ── Queries ───────────────────────────────────────────────────────────────
 
     public Page<MatchHistoryDto.MatchHistory> getMatchHistory(UUID userId, int page, int size) {

@@ -167,6 +167,14 @@ public final class GameSession {
             : GameStateChecker.State.BLACK_ABANDONED;
     }
 
+    /** The game is called off: no result, no winner. */
+    public synchronized void abort() {
+        if (isOver()) return;
+        stopClock();
+        drawOfferedBy = null;
+        state = GameStateChecker.State.ABORTED;
+    }
+
     /**
      * The side whose time has run out, or null. Only the side to move can: its
      * clock is the one running.

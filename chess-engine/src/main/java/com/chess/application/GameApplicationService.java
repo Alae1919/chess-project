@@ -283,6 +283,18 @@ public class GameApplicationService {
         });
     }
 
+    /** Calls the game off: no result and no rating change. Empty if it was already over. */
+    public Optional<GameStateResponse> abort(String gameId) {
+        GameSession session = requireSession(gameId);
+        return underTurnLock(session, () -> {
+            if (session.isOver()) return Optional.<GameStateResponse>empty();
+            session.abort();
+            GameStateResponse r = toResponse(session);
+            finaliseIfTerminal(gameId, r.status(), r.activeColor());
+            return Optional.of(r);
+        });
+    }
+
     // ----------------------------------------------------------------
     // USE CASE — Time runs out
     // ----------------------------------------------------------------
@@ -376,7 +388,9 @@ public class GameApplicationService {
         if (session == null) session = new GameSession(gameId, board, aiColor, aiDifficulty);
         session.initClock(dbGame.getWhiteTimeRemainingMs(), dbGame.getBlackTimeRemainingMs(),
                 dbGame.getTimeControlIncrementMs());
-        if (dbGame.getStatus() == GameStatus.finished || dbGame.getStatus() == GameStatus.aborted)
+        if (dbGame.getStatus() == GameStatus.aborted)
+            session.restoreOutcome(GameStateChecker.State.ABORTED);
+        else if (dbGame.getStatus() == GameStatus.finished)
             session.restoreOutcome(storedOutcome(dbGame));
         store.save(session);
         return session;
@@ -453,6 +467,10 @@ public class GameApplicationService {
             case "WHITE_FLAGGED"  -> { winner = "black"; reason = "timeout"; }
             case "BLACK_FLAGGED"  -> { winner = "white"; reason = "timeout"; }
             case "DRAW_AGREED"    -> reason = "draw_agreement";
+            case "ABORTED"        -> {
+                persistenceService.abortGame(UUID.fromString(gameId));
+                return;
+            }
             default               -> { return; }
         }
         persistenceService.finaliseGame(UUID.fromString(gameId), winner, reason);
