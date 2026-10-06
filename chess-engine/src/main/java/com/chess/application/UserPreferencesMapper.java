@@ -38,13 +38,23 @@ public interface UserPreferencesMapper {
 
     @Named("mapStringToBoardTheme")
     default UserPreferencesEntity.BoardTheme mapBoardTheme(String value) {
-        return value == null ? null :
-            UserPreferencesEntity.BoardTheme.valueOf(value.replace("-", "_").toUpperCase());
+        return value == null ? null : parseEnum(UserPreferencesEntity.BoardTheme.class, value, "board theme");
     }
 
     @Named("mapStringToPieceStyle")
     default UserPreferencesEntity.PieceStyle mapPieceStyle(String value) {
-        return value == null ? null :
-            UserPreferencesEntity.PieceStyle.valueOf(value.replace("-", "_").toUpperCase());
+        return value == null ? null : parseEnum(UserPreferencesEntity.PieceStyle.class, value, "piece style");
+    }
+
+    /**
+     * Reads the client's hyphenated name ("classic-wood") as the lowercase, underscored
+     * constant ("classic_wood"). The error names the value, never the Java class.
+     */
+    private static <E extends Enum<E>> E parseEnum(Class<E> type, String value, String what) {
+        String constant = value.replace('-', '_').toLowerCase(java.util.Locale.ROOT);
+        for (E candidate : type.getEnumConstants()) {
+            if (candidate.name().equals(constant)) return candidate;
+        }
+        throw new IllegalArgumentException("Unknown " + what + ": " + value);
     }
 }
