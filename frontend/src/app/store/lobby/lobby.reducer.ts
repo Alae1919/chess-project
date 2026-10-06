@@ -30,6 +30,8 @@ export const lobbyReducer = createReducer<LobbyState>(
     matchFound: payload,
     isSearching: false,
     queueEntry: null,
+    // a game against the player we invited means they accepted: we are no longer waiting
+    sentInvitation: state.sentInvitation?.inviteeUsername === payload.opponentUsername ? null : state.sentInvitation,
   })),
 
   on(LobbyActions.clearMatchFound, (state) => ({

@@ -101,5 +101,6 @@ export class UserSearchComponent {
     this.userSelected.emit(user);
     this.searchControl.setValue(user.username, { emitEvent: false });
     this.results = [];
+    this.searched = false; // a pick is not an empty search
   }
 }

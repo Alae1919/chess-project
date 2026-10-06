@@ -63,7 +63,8 @@ export class AccountPage implements OnInit {
 
   winRateLabel(stats: any): string {
     if (!stats) return '0%';
-    return `${Math.round(stats.winRate * 100)}%`;
+    // the API already sends a percentage (0–100)
+    return `${Math.round(stats.winRate)}%`;
   }
 
   eloDeltaLabel(delta?: number | null): string {

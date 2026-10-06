@@ -1,4 +1,4 @@
-import { GameInvitation } from '../../core/models';
+import { GameInvitation, MatchFoundPayload } from '../../core/models';
 import { LobbyActions } from './lobby.actions';
 import { lobbyReducer } from './lobby.reducer';
 import { initialLobbyState, LobbyState } from './lobby.state';
@@ -8,6 +8,13 @@ function invitation(id: string): GameInvitation {
     invitationId: id, inviterUsername: 'ann', inviteeUsername: 'bob', status: 'pending',
     timeControlType: 'blitz', timeControlInitialMs: 300_000, timeControlIncrementMs: 0,
     createdAt: '2026-01-01T00:00:00Z', expiresAt: '2026-01-01T00:02:00Z',
+  };
+}
+
+function match(opponentUsername: string): MatchFoundPayload {
+  return {
+    gameId: 'game-1', opponentUsername, opponentElo: 1200, playerColor: 'white',
+    timeControlType: 'blitz', timeControlInitialMs: 300_000, timeControlIncrementMs: 0,
   };
 }
 
@@ -32,6 +39,18 @@ describe('lobbyReducer invitations', () => {
   it('removes an expired or cancelled invitation from the inbox', () => {
     expect(lobbyReducer(waiting, LobbyActions.inviteExpired({ invitationId: 'inbox-1' })).pendingInvitations).toEqual([]);
     expect(lobbyReducer(waiting, LobbyActions.inviteCancelled({ invitationId: 'inbox-1' })).pendingInvitations).toEqual([]);
+  });
+
+  it('clears it when the invited player accepts and the game starts', () => {
+    const next = lobbyReducer(waiting, LobbyActions.matchFound({ payload: match('bob') }));
+
+    expect(next.sentInvitation).toBeNull();
+  });
+
+  it('keeps it when a match against someone else is found', () => {
+    const next = lobbyReducer(waiting, LobbyActions.matchFound({ payload: match('carol') }));
+
+    expect(next.sentInvitation?.invitationId).toBe('sent-1');
   });
 
   it('leaves the waiting state alone when another invitation ends', () => {

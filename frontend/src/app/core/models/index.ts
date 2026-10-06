@@ -43,6 +43,7 @@ export interface UserStats {
   wins: number;
   losses: number;
   draws: number;
+  /** Percentage of games won, 0–100 */
   winRate: number;
   currentStreak: number;
   bestStreak: number;
