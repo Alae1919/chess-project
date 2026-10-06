@@ -115,7 +115,7 @@
             *ngFor="let label of difficultyLabels; let i = index"
             [class.opt-btn--sel]="selectedDifficulty === i + 1"
             (click)="selectDifficulty(i + 1)"
-          >{{ label }}</button>
+          >{{ label }}<small class="opt-btn__elo">≈ {{ difficultyElo[i] }}</small></button>
         </div>
       </div>
 

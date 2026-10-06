@@ -48,6 +48,8 @@ export class HomePage implements OnInit {
   });
 
   readonly difficultyLabels = ['Facile', 'Moyen', 'Difficile', 'Expert', 'Maître', 'Maximum'];
+  /** Approximate strength of each level, measured against Stockfish (see docs/how-the-ai-works.md) */
+  readonly difficultyElo = [1100, 1400, 1750, 2050, 2550, 2900];
   readonly timeControls: Record<string, TimeControl> = {
     blitz:     { type: 'blitz',     initialMs: 5 * 60 * 1000,  incrementMs: 0 },
     rapid:     { type: 'rapid',     initialMs: 10 * 60 * 1000, incrementMs: 0 },

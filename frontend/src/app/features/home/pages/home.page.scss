@@ -122,6 +122,7 @@
 
   &:hover { border-color: var(--borderh); color: var(--text); }
   &--sel { background: var(--pd); border-color: var(--p); color: var(--p); }
+  &__elo { display: block; margin-top: 2px; font-size: 10px; letter-spacing: .04em; opacity: .7; }
 }
 
 .toggle-list { display: flex; flex-direction: column; gap: 11px; margin-bottom: 18px; }
