@@ -239,14 +239,14 @@ public class GamePersistenceService {
     }
 
     /**
-     * Reverts the last move in the DB.
-     * Called by GameApplicationService after undoLastMove() succeeds.
+     * Reverts the last {@code plies} moves in the DB.
+     * Called by GameApplicationService after the in-memory undo succeeds.
      *
-     * @param previousFen   FEN after undo (the board state before the undone move)
+     * @param previousFen   FEN after undo (the board state before the undone moves)
      * @param previousColor Active color after undo (lowercase, e.g. "white")
      */
     @Transactional
-    public void undoLastMove(UUID dbGameId, String previousFen, String previousColor) {
+    public void undoLastMoves(UUID dbGameId, String previousFen, String previousColor, int plies) {
         var game = gameRepo.findById(dbGameId).orElseThrow();
         game.setCurrentFen(previousFen);
         game.setCurrentTurn(PlayerSide.valueOf(previousColor.toLowerCase()));
@@ -254,7 +254,7 @@ public class GamePersistenceService {
         if (parts.length >= 5) game.setHalfMoveClock(Integer.parseInt(parts[4]));
         if (parts.length >= 6) game.setFullMoveNumber(Integer.parseInt(parts[5]));
         var moves = game.getMoves();
-        if (!moves.isEmpty()) moves.remove(moves.size() - 1);
+        for (int i = 0; i < plies && !moves.isEmpty(); i++) moves.remove(moves.size() - 1);
         gameRepo.save(game);
     }
 

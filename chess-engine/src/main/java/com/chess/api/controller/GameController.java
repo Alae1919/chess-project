@@ -168,13 +168,14 @@ public class GameController {
     }
 
     @DeleteMapping("/{gameId}/moves/last")
-    @Operation(summary = "Undo the last move")
+    @Operation(summary = "Undo the last move, or the last two (a move against the AI and its reply)")
     public GameDto.Game undoMove(
             @PathVariable String gameId,
+            @RequestParam(defaultValue = "1") int plies,
             @AuthenticationPrincipal UserDetails userDetails) {
         if (requirePlayer(gameId, userDetails).getMode() == GameMode.online)
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Undo is not available in online games");
-        var r = engineService.undoLastMove(gameId);
+        var r = engineService.undoLastMove(gameId, plies);
         return persistService.toFullGameDto(gameId, r);
     }
 

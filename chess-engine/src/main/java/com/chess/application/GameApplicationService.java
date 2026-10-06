@@ -187,15 +187,22 @@ public class GameApplicationService {
     // USE CASE — Undo the last move
     // ----------------------------------------------------------------
 
-    public GameStateResponse undoLastMove(String gameId) {
+    /**
+     * Takes back the last {@code plies} moves (1 or 2) as one step. Two plies is how a player
+     * takes back their own move against the AI: the AI's reply goes with it, and it is their
+     * turn again. Either all of them are undone or none is.
+     */
+    public GameStateResponse undoLastMove(String gameId, int plies) {
+        if (plies < 1 || plies > 2) throw new IllegalArgumentException("plies must be 1 or 2");
         GameSession session = requireSession(gameId);
         return underTurnLock(session, () -> {
             // Undoing past the end would reopen a finished (and already scored) game
             if (session.isOver()) throw new GameOverException(gameId);
-            session.undoLastMove();
+            if (session.moveHistory().size() < plies) throw new IllegalStateException("No moves to undo");
+            for (int i = 0; i < plies; i++) session.undoLastMove();
             GameStateResponse r = toResponse(session);
-            persistenceService.undoLastMove(UUID.fromString(gameId),
-                    r.fen(), r.activeColor().toLowerCase());
+            persistenceService.undoLastMoves(UUID.fromString(gameId),
+                    r.fen(), r.activeColor().toLowerCase(), plies);
             return r;
         });
     }

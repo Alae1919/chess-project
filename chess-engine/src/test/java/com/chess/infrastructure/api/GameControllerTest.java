@@ -1438,4 +1438,82 @@ class GameControllerTest {
             create(withTimeControl("unlimited", 0, 0)).andExpect(status().isCreated());
         }
     }
+
+    // ================================================================
+    // Taking moves back
+    // ================================================================
+
+    @Nested
+    @DisplayName("Undo")
+    class Undo {
+
+        private void move(String id, String uci) throws Exception {
+            mvc.perform(post("/api/games/" + id + "/moves")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", uci))))
+                .andExpect(status().isOk());
+        }
+
+        private int storedMoves(String id) {
+            return jdbc.queryForObject(
+                "select count(*) from game_moves where game_id = cast(? as uuid)", Integer.class, id);
+        }
+
+        /** An AI game (AI plays Black) where White has played e4 and the AI has answered. */
+        private String afterOneExchange() throws Exception {
+            String id = createGame("BLACK");
+            move(id, "e2e4");
+            mvc.perform(post("/api/games/" + id + "/ai-move")).andExpect(status().isOk());
+            return id;
+        }
+
+        @Test
+        @DisplayName("one ply by default: only the last move is taken back")
+        void onePlyByDefault() throws Exception {
+            String id = afterOneExchange();
+
+            mvc.perform(delete("/api/games/" + id + "/moves/last"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.moveHistory", hasSize(1)))
+                .andExpect(jsonPath("$.currentTurn").value("black"));
+            assertEquals(1, storedMoves(id));
+        }
+
+        @Test
+        @DisplayName("two plies take back the AI's reply and the player's move together")
+        void twoPliesTakeBackTheWholeExchange() throws Exception {
+            String id = afterOneExchange();
+
+            mvc.perform(delete("/api/games/" + id + "/moves/last").param("plies", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.moveHistory", hasSize(0)))
+                .andExpect(jsonPath("$.currentTurn").value("white"))
+                .andExpect(jsonPath("$.fen", startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w")));
+            assertEquals(0, storedMoves(id));
+        }
+
+        @Test
+        @DisplayName("more moves than were played is a conflict, and nothing is undone")
+        void tooManyPliesChangesNothing() throws Exception {
+            String id = createGame("NONE");
+            move(id, "e2e4");
+
+            mvc.perform(delete("/api/games/" + id + "/moves/last").param("plies", "2"))
+                .andExpect(status().isConflict());
+
+            mvc.perform(get("/api/games/" + id)).andExpect(jsonPath("$.moveHistory", hasSize(1)));
+            assertEquals(1, storedMoves(id));
+        }
+
+        @Test
+        @DisplayName("only 1 or 2 plies can be asked for")
+        void pliesAreBounded() throws Exception {
+            String id = afterOneExchange();
+
+            mvc.perform(delete("/api/games/" + id + "/moves/last").param("plies", "0"))
+                .andExpect(status().isBadRequest());
+            mvc.perform(delete("/api/games/" + id + "/moves/last").param("plies", "3"))
+                .andExpect(status().isBadRequest());
+        }
+    }
 }
