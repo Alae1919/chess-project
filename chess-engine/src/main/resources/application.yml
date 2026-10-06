@@ -40,6 +40,8 @@ app:
   # origin, e.g. https://chess.example.com: behind the proxy it counts as cross-origin.
   # How long a player can stay disconnected from an online game before they lose it
   abandon-timeout-seconds: 60
+  # An online game is called off, unrated, if a side takes longer than this to make its first move
+  first-move-timeout-seconds: 30
   allowed-origins: ${ALLOWED_ORIGINS:http://localhost:[*],http://127.0.0.1:[*]}
 
 springdoc:

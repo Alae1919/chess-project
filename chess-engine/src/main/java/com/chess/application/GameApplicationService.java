@@ -295,6 +295,33 @@ public class GameApplicationService {
         });
     }
 
+    /**
+     * Calls off every online game in which a side has taken longer than {@code limit} to
+     * make its first move, and returns those games so the caller can tell the players.
+     * Such a game is not scored: nobody lost a game that never started.
+     */
+    public List<GameStateResponse> abortStalledOnlineGames(java.time.Duration limit) {
+        List<GameStateResponse> ended = new java.util.ArrayList<>();
+        for (GameSession session : store.all()) {
+            if (!isOnline(session) || !session.firstMoveOverdue(limit)) continue;
+            underTurnLock(session, () -> {
+                // a move may have arrived while we waited for the lock
+                if (!session.firstMoveOverdue(limit)) return null;
+                session.abort();
+                GameStateResponse r = toResponse(session);
+                finaliseIfTerminal(session.id(), r.status(), r.activeColor());
+                ended.add(r);
+                return null;
+            });
+        }
+        return ended;
+    }
+
+    private static boolean isOnline(GameSession session) {
+        var metadata = session.metadata();
+        return metadata != null && "online".equals(metadata.mode());
+    }
+
     // ----------------------------------------------------------------
     // USE CASE — Time runs out
     // ----------------------------------------------------------------

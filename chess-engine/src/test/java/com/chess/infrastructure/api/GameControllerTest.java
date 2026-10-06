@@ -1296,4 +1296,65 @@ class GameControllerTest {
                 .andExpect(jsonPath("$.currentTurn").value("black"));
         }
     }
+
+    // ================================================================
+    // Online games where nobody makes the first move
+    // ================================================================
+
+    @Nested
+    @DisplayName("A first move that never comes")
+    class StalledFirstMove {
+
+        private String statusInDb(String id) {
+            return jdbc.queryForObject(
+                "select status::text from games where id = cast(? as uuid)", String.class, id);
+        }
+
+        @Test
+        @DisplayName("an online game nobody moves in is aborted, unrated and with no result")
+        void stalledOnlineGameIsAborted() throws Exception {
+            String id = createOnlineGame();
+            int whiteBefore = userRepository.findById(playerId).orElseThrow().getElo();
+
+            var ended = engineService.abortStalledOnlineGames(java.time.Duration.ZERO);
+
+            assertEquals(1, ended.stream().filter(r -> r.gameId().equals(id)).count());
+            assertEquals("aborted", statusInDb(id));
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(jsonPath("$.status").value("ABORTED"))
+                .andExpect(jsonPath("$.result").value(is(nullValue())));
+            assertEquals(whiteBefore, userRepository.findById(playerId).orElseThrow().getElo());
+        }
+
+        @Test
+        @DisplayName("an online game that is under way is left alone")
+        void startedOnlineGameIsKept() throws Exception {
+            String id = createOnlineGame();
+            mvc.perform(post("/api/games/" + id + "/moves")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", "e2e4"))))
+                .andExpect(status().isOk());
+            mvc.perform(post("/api/games/" + id + "/moves")
+                    .with(user("opponent"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", "e7e5"))))
+                .andExpect(status().isOk());
+
+            engineService.abortStalledOnlineGames(java.time.Duration.ZERO);
+
+            assertEquals("active", statusInDb(id));
+        }
+
+        @Test
+        @DisplayName("local and AI games wait as long as their player likes")
+        void otherModesAreLeftAlone() throws Exception {
+            String local = createGame("NONE");
+            String ai = createGame("BLACK");
+
+            engineService.abortStalledOnlineGames(java.time.Duration.ZERO);
+
+            assertEquals("active", statusInDb(local));
+            assertEquals("active", statusInDb(ai));
+        }
+    }
 }

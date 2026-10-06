@@ -53,6 +53,7 @@ public final class GameSession {
     private long   blackTimeRemainingMs;
     private long   incrementMs;          // added to the mover's clock after each move
     private Instant turnStartAt;         // when the side to move's clock started; null = not running
+    private Instant lastMoveAt;          // the latest move, or the start of the game
     private final ReentrantLock turnLock = new ReentrantLock();
     private final AtomicBoolean aiThinking = new AtomicBoolean();
 
@@ -73,6 +74,7 @@ public final class GameSession {
         this.sanHistory   = new ArrayList<>();
         this.boardHistory = new ArrayDeque<>();
         this.createdAt    = clock.instant();
+        this.lastMoveAt   = createdAt;
         this.state        = GameStateChecker.evaluate(board, board.activeColor());
         countPosition(board);
     }
@@ -122,6 +124,7 @@ public final class GameSession {
         drawOfferedBy = null; // a move answers any draw offer
         boardHistory.push(board);
         moveHistory.add(move.toUci());
+        lastMoveAt = clock.instant();
         Board before = board;
         board = board.apply(move);
         state = GameStateChecker.evaluate(board, board.activeColor());
@@ -165,6 +168,15 @@ public final class GameSession {
         state = loser == Color.WHITE
             ? GameStateChecker.State.WHITE_ABANDONED
             : GameStateChecker.State.BLACK_ABANDONED;
+    }
+
+    /**
+     * True when the game is still waiting for its first move by either side (fewer than
+     * two moves played) and nobody has moved for longer than {@code limit}.
+     */
+    public synchronized boolean firstMoveOverdue(Duration limit) {
+        if (isOver() || moveHistory.size() >= 2) return false;
+        return Duration.between(lastMoveAt, clock.instant()).compareTo(limit) > 0;
     }
 
     /** The game is called off: no result, no winner. */
