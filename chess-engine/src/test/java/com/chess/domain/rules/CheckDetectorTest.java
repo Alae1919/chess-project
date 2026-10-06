@@ -229,5 +229,15 @@ class CheckDetectorTest {
             Board adjacent = FenParser.parse("8/8/8/3k4/3K4/8/8/8 w - - 0 1");
             assertTrue(CheckDetector.isInCheck(adjacent, Color.WHITE));
         }
+
+        @Test
+        @DisplayName("kings two files apart on one rank are not in check (castling geometry is not an attack)")
+        void kingsTwoFilesApartAreNotCheck() {
+            // White king d4, black king f4: a king "reaches" two files for castling,
+            // but it attacks only the eight squares around it
+            Board board = FenParser.parse("8/8/8/8/3K1k2/8/8/8 w - - 0 1");
+            assertFalse(CheckDetector.isInCheck(board, Color.WHITE));
+            assertFalse(CheckDetector.isInCheck(board, Color.BLACK));
+        }
     }
 }

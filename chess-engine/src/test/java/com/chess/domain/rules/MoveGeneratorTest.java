@@ -25,6 +25,36 @@ class MoveGeneratorTest {
     // ====================================================================
 
     @Nested
+    @DisplayName("T14 — Kings facing each other across a file")
+    class KingsTwoFilesApart {
+
+        @Test
+        @DisplayName("a king may step to a square two files from the enemy king")
+        void kingMayStepNextToTwoFileGap() {
+            // White Kd3, black Kf4. Kd4 leaves the kings two files apart, which is legal;
+            // only e3 and e4 (next to the black king) are off limits
+            Board board = FenParser.parse("8/8/8/8/5k2/3K4/8/8 w - - 0 1");
+
+            Set<String> moves = MoveGenerator.generateLegalMoves(board, Color.WHITE).stream()
+                    .map(Move::toUci).collect(Collectors.toSet());
+
+            assertEquals(Set.of("d3c2", "d3d2", "d3e2", "d3c3", "d3c4", "d3d4"), moves);
+        }
+
+        @Test
+        @DisplayName("the same holds for the black king")
+        void blackKingMayStepNextToTwoFileGap() {
+            // Mirror image: black Kd6, white Kf5
+            Board board = FenParser.parse("8/8/3k4/5K2/8/8/8/8 b - - 0 1");
+
+            Set<String> moves = MoveGenerator.generateLegalMoves(board, Color.BLACK).stream()
+                    .map(Move::toUci).collect(Collectors.toSet());
+
+            assertEquals(Set.of("d6c7", "d6d7", "d6e7", "d6c6", "d6c5", "d6d5"), moves);
+        }
+    }
+
+    @Nested
     @DisplayName("T14 — No illegal moves generated")
     class NoIllegalMoves {
 

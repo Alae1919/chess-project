@@ -28,6 +28,11 @@ public final class CheckDetector {
                 Piece p = pieceOpt.get();
                 if (p.type() == PieceType.PAWN) {
                     if (pawnAttacks(sq, kingSquare, enemy)) return true;
+                } else if (p.type() == PieceType.KING) {
+                    // A king attacks its eight neighbours only. canReach also covers the
+                    // two-file castling step, which is not an attack.
+                    if (Math.abs(sq.file() - kingSquare.file()) <= 1
+                            && Math.abs(sq.rank() - kingSquare.rank()) <= 1) return true;
                 } else {
                     if (p.type().canReach(sq, kingSquare)) {
                         if (!p.type().isSlider()
