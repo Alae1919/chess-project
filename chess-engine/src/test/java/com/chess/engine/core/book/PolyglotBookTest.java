@@ -126,4 +126,45 @@ class PolyglotBookTest {
 
         assertEquals(Move.NONE, b.pick(start, new Random(1)));
     }
+
+    @Test
+    @DisplayName("the bundled book, built from strong players' games, knows the usual first moves and the replies to them")
+    void bundledBook() {
+        PolyglotBook bundled = PolyglotBook.fromResource("/openings/book.bin");
+        assertTrue(bundled.size() > 5_000, "book size " + bundled.size());
+
+        // from the start, over many draws, the common first moves come up and nothing odd does
+        Random random = new Random(3);
+        java.util.Set<String> firstMoves = new java.util.HashSet<>();
+        for (int i = 0; i < 300; i++) firstMoves.add(pick(bundled, Position.startPosition(), random));
+        assertTrue(firstMoves.contains("e2e4") && firstMoves.contains("d2d4"), firstMoves.toString());
+        assertTrue(java.util.Set.of("e2e4", "d2d4", "g1f3", "c2c4", "b1c3", "g2g3", "b2b3", "f2f4").containsAll(firstMoves), firstMoves.toString());
+
+        // and a reply to 1.e4 is a legal move
+        Position afterE4 = Position.startPosition();
+        afterE4.makeMove(afterE4.parseUci("e2e4"));
+        int reply = bundled.pick(afterE4, new Random(4));
+        assertNotEquals(Move.NONE, reply);
+        assertTrue(java.util.Arrays.stream(afterE4.legalMoves()).anyMatch(m -> m == reply));
+    }
+
+    @Test
+    @DisplayName("every move in the bundled book is legal in its position when played out along its main line")
+    void bundledBookMainLine() {
+        PolyglotBook bundled = PolyglotBook.fromResource("/openings/book.bin");
+        Position pos = Position.startPosition();
+        Random random = new Random(9);
+        int plies = 0;
+        for (; plies < 12; plies++) {
+            int move = bundled.pick(pos, random);
+            if (move == Move.NONE) break;
+            assertTrue(java.util.Arrays.stream(pos.legalMoves()).anyMatch(m -> m == move), pos.toFen());
+            pos.makeMove(move);
+        }
+        assertTrue(plies >= 8, "the book should carry a game at least eight plies: " + plies);
+    }
+
+    private static String pick(PolyglotBook b, Position pos, Random random) {
+        return Move.toUci(b.pick(pos, random));
+    }
 }

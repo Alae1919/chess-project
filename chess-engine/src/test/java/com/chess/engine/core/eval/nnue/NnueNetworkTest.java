@@ -27,7 +27,8 @@ class NnueNetworkTest {
         assertEquals(1024, net.qa());
         assertEquals(1024, net.qb());
         assertEquals(400, net.scale());
-        assertEquals(768 * 32, net.ftWeights().length);
+        assertEquals(768, net.ftRows().length);
+        assertEquals(32, net.ftRows()[0].length);
         assertEquals(64, net.outWeights().length);
     }
 

@@ -19,7 +19,7 @@ import chess.engine
 
 from match import Spec, Tally, play_match
 
-ENGINE = Path(__file__).parent.parent / "tools" / "engine" / "rexchess-uci.cmd"
+ENGINE = Path(__file__).resolve().parent.parent / "tools" / "engine" / "rexchess-uci.cmd"
 GUESS = {1: 1400, 2: 1500, 3: 1700, 4: 1900, 5: 2150, 6: 2400}   # where to start looking for each level
 SF_MIN, SF_MAX = 1320, 3190                                      # the range Stockfish's UCI_Elo accepts
 

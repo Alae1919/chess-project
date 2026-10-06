@@ -25,7 +25,7 @@ import java.util.function.Supplier;
 /**
  * The engine speaking the Universal Chess Interface, the text protocol chess GUIs and
  * match tools use to talk to an engine. Besides the standard commands it understands
- * {@code bench} (a fixed search over fixed positions, whose node count changes whenever the
+ * {@code eval} (the static score of the position), {@code bench} (a fixed search over fixed positions, whose node count changes whenever the
  * search does) and {@code perft} (leaf counts, for checking move generation).
  *
  * Input is read on the calling thread; a search runs on its own thread, so {@code stop},
@@ -80,6 +80,7 @@ public final class UciEngine {
             case "position" -> setPosition(tokens);
             case "go" -> go(tokens);
             case "stop" -> stopSearch();
+            case "eval" -> evaluateNow();
             case "bench" -> bench(tokens.length > 1 ? parseInt(tokens[1], 8) : 8);
             case "perft" -> perft(tokens.length > 1 ? parseInt(tokens[1], 4) : 4);
             case "d" -> send("Fen: " + position.toFen() + "\nKey: " + Long.toHexString(position.key()));
@@ -205,6 +206,13 @@ public final class UciEngine {
           .append(" pv");
         for (int m : info.pv()) sb.append(' ').append(Move.toUci(m));
         send(sb.toString());
+    }
+
+    /** The static score of the current position, without searching: for checking the evaluation itself. */
+    private void evaluateNow() {
+        Evaluator evaluator = evaluatorFactory.get();
+        evaluator.reset(position);
+        send("Static evaluation: " + evaluator.evaluate(position) + " cp (side to move)");
     }
 
     private void perft(int depth) {

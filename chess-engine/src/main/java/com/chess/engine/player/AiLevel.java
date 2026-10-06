@@ -16,7 +16,8 @@ import java.util.random.RandomGenerator;
  * make the sort of inaccuracies a person does rather than the one-ply blunders a depth-limited
  * search makes. The stronger levels search for a fixed time and always take the best move.
  *
- * The numbers are a first calibration: see the Elo estimates measured in the engine README.
+ * The numbers come from calibrating each level against Stockfish held back to a chosen Elo (about 1100,
+ * 1400, 1750, 2050, 2550 and 2900 on Stockfish's scale; see docs/how-the-ai-works.md).
  *
  * @param level          1 (easiest) to 6 (strongest)
  * @param maxDepth       deepest iteration, 0 for no limit
@@ -73,8 +74,8 @@ public record AiLevel(int level, int maxDepth, long maxNodes, long moveTimeMs, i
             case 1 -> new AiLevel(1, 2, 400, 0, 5, 160, 1);
             case 2 -> new AiLevel(2, 3, 1_500, 0, 4, 100, 1);
             case 3 -> new AiLevel(3, 5, 8_000, 0, 3, 50, 2);
-            case 4 -> new AiLevel(4, 0, 0, 150, 1, 0, 4);
-            case 5 -> new AiLevel(5, 0, 0, 600, 1, 0, 8);
+            case 4 -> new AiLevel(4, 0, 5_000, 0, 1, 0, 4);
+            case 5 -> new AiLevel(5, 0, 18_000, 0, 1, 0, 8);
             default -> new AiLevel(6, 0, 0, 2_000, 1, 0, 16);
         };
     }

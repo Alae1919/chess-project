@@ -63,21 +63,23 @@ public final class NnueEvaluator implements Evaluator {
         final int moved = Move.isPromotion(move) ? Position.piece(us, Position.PAWN) : placed;
         final int captured = pos.lastCaptured();
         final int captureSquare = flag == Move.EP_CAPTURE ? (us == Position.WHITE ? target - 8 : target + 8) : target;
+        final boolean castle = flag == Move.KING_CASTLE || flag == Move.QUEEN_CASTLE;
 
+        // Each case is one pass over the hidden layer: the new sums from the old, a row at a time
         for (int perspective = 0; perspective < 2; perspective++) {
-            short[] acc = to[perspective];
-            System.arraycopy(from[perspective], 0, acc, 0, hidden);
-            subtract(acc, perspective, moved, source);
-            add(acc, perspective, placed, target);
-            if (captured != Position.NO_PIECE) subtract(acc, perspective, captured, captureSquare);
-            if (flag == Move.KING_CASTLE) {
-                int rook = Position.piece(us, Position.ROOK);
-                subtract(acc, perspective, rook, us == Position.WHITE ? 7 : 63);
-                add(acc, perspective, rook, us == Position.WHITE ? 5 : 61);
-            } else if (flag == Move.QUEEN_CASTLE) {
-                int rook = Position.piece(us, Position.ROOK);
-                subtract(acc, perspective, rook, us == Position.WHITE ? 0 : 56);
-                add(acc, perspective, rook, us == Position.WHITE ? 3 : 59);
+            final short[] before = from[perspective], after = to[perspective];
+            if (castle) {
+                final boolean kingSide = flag == Move.KING_CASTLE;
+                final int rook = Position.piece(us, Position.ROOK);
+                final int rookFrom = us == Position.WHITE ? (kingSide ? 7 : 0) : (kingSide ? 63 : 56);
+                final int rookTo = us == Position.WHITE ? (kingSide ? 5 : 3) : (kingSide ? 61 : 59);
+                shift(after, before, row(perspective, placed, target), row(perspective, rook, rookTo),
+                      row(perspective, moved, source), row(perspective, rook, rookFrom));
+            } else if (captured != Position.NO_PIECE) {
+                shift(after, before, row(perspective, placed, target),
+                      row(perspective, moved, source), row(perspective, captured, captureSquare));
+            } else {
+                shift(after, before, row(perspective, placed, target), row(perspective, moved, source));
             }
         }
     }
@@ -124,15 +126,31 @@ public final class NnueEvaluator implements Evaluator {
     /** The running hidden layers as they are now, for tests. */
     short[][] current() { return stack[top]; }
 
-    private void add(short[] acc, int perspective, int piece, int square) {
-        int row = NnueNetwork.feature(perspective, Position.colorOf(piece), Position.typeOf(piece), square) * hidden;
-        short[] w = net.ftWeights();
-        for (int i = 0; i < hidden; i++) acc[i] += w[row + i];
+    /** The weights of the input for {@code piece} on {@code square}, seen from {@code perspective}. */
+    private short[] row(int perspective, int piece, int square) {
+        return net.ftRows()[NnueNetwork.feature(perspective, Position.colorOf(piece), Position.typeOf(piece), square)];
     }
 
-    private void subtract(short[] acc, int perspective, int piece, int square) {
-        int row = NnueNetwork.feature(perspective, Position.colorOf(piece), Position.typeOf(piece), square) * hidden;
-        short[] w = net.ftWeights();
-        for (int i = 0; i < hidden; i++) acc[i] -= w[row + i];
+    private void add(short[] acc, int perspective, int piece, int square) {
+        final short[] w = row(perspective, piece, square);
+        for (int i = 0; i < acc.length; i++) acc[i] += w[i];
+    }
+
+    // The three shapes of move. Every array is indexed by the same counter, and the loop bound is
+    // the array's own length: the form the JIT compiler turns into vector instructions.
+
+    /** after = before + add - sub */
+    private static void shift(short[] after, short[] before, short[] add, short[] sub) {
+        for (int i = 0; i < after.length; i++) after[i] = (short) (before[i] + add[i] - sub[i]);
+    }
+
+    /** after = before + add - sub1 - sub2 */
+    private static void shift(short[] after, short[] before, short[] add, short[] sub1, short[] sub2) {
+        for (int i = 0; i < after.length; i++) after[i] = (short) (before[i] + add[i] - sub1[i] - sub2[i]);
+    }
+
+    /** after = before + add1 + add2 - sub1 - sub2 */
+    private static void shift(short[] after, short[] before, short[] add1, short[] add2, short[] sub1, short[] sub2) {
+        for (int i = 0; i < after.length; i++) after[i] = (short) (before[i] + add1[i] + add2[i] - sub1[i] - sub2[i]);
     }
 }

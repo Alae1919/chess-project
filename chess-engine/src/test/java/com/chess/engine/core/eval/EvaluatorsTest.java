@@ -1,6 +1,5 @@
 package com.chess.engine.core.eval;
 
-import com.chess.engine.core.eval.nnue.NnueEvaluator;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,8 +35,17 @@ class EvaluatorsTest {
     void networkFile() throws Exception {
         String described = Evaluators.configure(Evaluators.Mode.NNUE, tinyNetwork());
 
-        assertInstanceOf(NnueEvaluator.class, Evaluators.create());
+        assertInstanceOf(HybridEvaluator.class, Evaluators.create());
         assertTrue(described.contains("neural network") && described.contains("32 hidden"), described);
+    }
+
+    @Test
+    @DisplayName("by default it uses the network bundled with the application")
+    void bundledNetwork() {
+        String described = Evaluators.configure(Evaluators.Mode.NNUE, null);
+
+        assertInstanceOf(HybridEvaluator.class, Evaluators.create());
+        assertTrue(described.contains("256 hidden") && !described.contains(":"), described);
     }
 
     @Test

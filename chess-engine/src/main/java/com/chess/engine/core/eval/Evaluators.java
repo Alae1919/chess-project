@@ -8,8 +8,9 @@ import java.nio.file.Path;
 import java.util.function.Supplier;
 
 /**
- * Chooses the evaluation every new search uses: the trained network if there is one, else the
- * hand-written classical evaluation. The network comes from a file named in the configuration,
+ * Chooses the evaluation every new search uses: the trained network if there is one (with the
+ * classical evaluation taking over against a lone king, see {@link HybridEvaluator}), else the
+ * hand-written classical evaluation alone. The network comes from a file named in the configuration,
  * or else the one bundled with the application; if neither can be loaded the engine plays on
  * with the classical evaluation rather than failing.
  *
@@ -51,7 +52,7 @@ public final class Evaluators {
     /** A new evaluator, for one search. */
     public static Evaluator create() {
         NnueNetwork net = network();
-        return net == null ? new ClassicalEvaluator() : new NnueEvaluator(net);
+        return net == null ? new ClassicalEvaluator() : new HybridEvaluator(new NnueEvaluator(net));
     }
 
     public static Supplier<Evaluator> supplier() {

@@ -58,6 +58,22 @@ class NnueEvaluatorTest {
     }
 
     @Test
+    @DisplayName("the bundled network gives exactly the scores the Python reference computes for it, for 1000 positions")
+    void bundledNetworkMatchesTheReference() throws IOException {
+        NnueNetwork bundled = NnueNetwork.loadBundled();
+        assertNotNull(bundled, "nnue/default.nnue is not on the classpath");
+        List<Golden> rows = golden("/nnue/golden.csv");
+        assertEquals(1000, rows.size());
+        NnueEvaluator eval = new NnueEvaluator(bundled);
+
+        for (Golden g : rows) {
+            Position pos = Position.fromFen(g.fen());
+            eval.reset(pos);
+            assertEquals(g.score(), eval.evaluate(pos), g.fen());
+        }
+    }
+
+    @Test
     @DisplayName("the scores differ between positions and are not all zero (the check above is not vacuous)")
     void scoresVary() throws IOException {
         long distinct = golden("/nnue/tiny-golden.csv").stream().map(Golden::score).distinct().count();

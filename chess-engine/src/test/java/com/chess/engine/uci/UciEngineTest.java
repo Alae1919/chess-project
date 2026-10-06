@@ -196,6 +196,24 @@ class UciEngineTest {
         assertTrue(output().contains("Nodes searched: 400"), output());
     }
 
+    @Test
+    @DisplayName("eval prints the static score of the position, from the side to move's point of view")
+    void eval() {
+        engine.handle("setoption name Eval value classical");
+        engine.handle("position fen 4k3/8/8/8/8/8/PPPPPPPP/4K3 w - - 0 1");
+        engine.handle("eval");
+        engine.handle("position fen 4k3/pppppppp/8/8/8/8/8/4K3 b - - 0 1");
+        engine.handle("eval");
+
+        Matcher m = Pattern.compile("Static evaluation: (-?\\d+) cp").matcher(output());
+        assertTrue(m.find(), output());
+        int white = Integer.parseInt(m.group(1));
+        assertTrue(m.find(), output());
+        int black = Integer.parseInt(m.group(1));
+        assertTrue(white > 300, "eight extra pawns are worth a lot: " + white);
+        assertTrue(black > 300, "the same for the side to move, as Black: " + black);
+    }
+
     // ---- bench -------------------------------------------------------------------------------------
 
     @Test
