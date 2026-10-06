@@ -214,4 +214,20 @@ class FenParserTest {
                 () -> FenParser.parse("   "));
         }
     }
+
+    @Test
+    @DisplayName("a position the other side could never have left is refused: it is not their move and they are in check")
+    void sideNotToMoveInCheckIsRefused() {
+        // Black's king is attacked by the rook, but it is White to move
+        assertThrows(InvalidFenException.class, () -> FenParser.parseStrict("4k3/4R3/8/8/8/8/8/4K3 w - - 0 1"));
+        assertDoesNotThrow(() -> FenParser.parseStrict("4k3/4R3/8/8/8/8/8/4K3 b - - 0 1"));
+        assertDoesNotThrow(() -> FenParser.parse("4k3/4R3/8/8/8/8/8/4K3 w - - 0 1"), "the plain parser stays lenient");
+    }
+
+    @Test
+    @DisplayName("pawns can't stand on the first or last rank")
+    void pawnsOnBackRanksAreRefused() {
+        assertThrows(InvalidFenException.class, () -> FenParser.parseStrict("4k3/8/8/8/8/8/8/P3K3 w - - 0 1"));
+        assertThrows(InvalidFenException.class, () -> FenParser.parseStrict("p3k3/8/8/8/8/8/8/4K3 w - - 0 1"));
+    }
 }

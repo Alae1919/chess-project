@@ -2,9 +2,6 @@ package com.chess.api.controller;
 
 import com.chess.api.dto.*;
 import com.chess.application.*;
-import com.chess.domain.board.FenParser;
-import com.chess.engine.eval.Evaluator;
-import com.chess.engine.search.AlphaBetaSearch;
 import com.chess.infrastructure.api.dto.GameStateResponse;
 import com.chess.infrastructure.websocket.WebSocketSessionManager;
 import com.chess.persistence.entity.DatabaseEnums.GameMode;
@@ -33,14 +30,15 @@ public class GameController {
     private final UserService userService;
     private final WebSocketSessionManager wsManager;
     private final GameAccess gameAccess;
-    private final AlphaBetaSearch search = new AlphaBetaSearch();
-    private final Evaluator evaluator = new Evaluator();
+    private final AnalysisService analysis;
 
     public GameController(GameApplicationService engineService,
             GamePersistenceService persistService,
             UserService userService,
             WebSocketSessionManager wsManager,
-            GameAccess gameAccess) {
+            GameAccess gameAccess,
+            AnalysisService analysis) {
+        this.analysis       = analysis;
         this.engineService  = engineService;
         this.persistService = persistService;
         this.userService    = userService;
@@ -199,15 +197,9 @@ public class GameController {
         if (dbGame.getMode() == GameMode.online && dbGame.getStatus() == GameStatus.active)
             throw new ResponseStatusException(HttpStatus.FORBIDDEN,
                 "Engine evaluation is not available during an online game");
-        String fen = engineService.getGame(gameId).fen();
-        var board = FenParser.parse(fen);
-        int score = evaluator.evaluate(board, board.activeColor());
-        // the search keeps its table between calls, so only one request may use it at a time
-        var best = bestMove(board);
-        return new EvaluationDto.PositionEvaluation(
-                score, 4,
-                best.map(Object::toString).orElse(null),
-                null);
+        var result = analysis.analyse(engineService.getGame(gameId).fen());
+        // positive means White is better, whoever is to move
+        return new EvaluationDto.PositionEvaluation(result.scoreCp(), result.depth(), result.bestMove(), null);
     }
 
     @DeleteMapping("/{gameId}")
@@ -220,11 +212,6 @@ public class GameController {
         if (requirePlayer(gameId, userDetails).getMode() == GameMode.online)
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Online games can't be deleted");
         engineService.deleteGame(gameId);
-    }
-
-    private synchronized java.util.Optional<com.chess.domain.model.Move> bestMove(
-            com.chess.domain.board.Board board) {
-        return search.findBestMove(board, 4);
     }
 
     // ── Mapping helpers ───────────────────────────────────────────────────────

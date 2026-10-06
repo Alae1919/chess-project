@@ -47,6 +47,8 @@ public final class Searcher {
     private long startNs, softNs, hardNs, maxNodes;
     private volatile boolean stopRequested;
     private boolean aborted;
+    /** The first iteration is never cut short by the clock or a node limit: every candidate move gets a score. */
+    private boolean firstIteration;
     private int[] excluded = new int[0];
     /** The clock and node limit are looked at when (nodes & mask) == 0: often when the limit is tiny. */
     private int checkMask = DEFAULT_CLOCK_CHECK_MASK;
@@ -126,6 +128,7 @@ public final class Searcher {
 
         int[] previousScore = new int[lines];
         for (int depth = 1; depth <= maxDepth; depth++) {
+            firstIteration = depth == 1;
             List<SearchResult.Line> found = new ArrayList<>();
             excluded = new int[0];
 
@@ -210,9 +213,11 @@ public final class Searcher {
     private long elapsedMs() { return (System.nanoTime() - startNs) / 1_000_000L; }
 
     private void checkClock() {
-        if (stopRequested
-            || (hardNs > 0 && System.nanoTime() - startNs >= hardNs)
-            || (maxNodes > 0 && nodes >= maxNodes)) {
+        if (stopRequested) {
+            aborted = true;
+        } else if (firstIteration) {
+            return;                                   // depth 1 costs next to nothing and guarantees a scored move list
+        } else if ((hardNs > 0 && System.nanoTime() - startNs >= hardNs) || (maxNodes > 0 && nodes >= maxNodes)) {
             aborted = true;
         }
     }

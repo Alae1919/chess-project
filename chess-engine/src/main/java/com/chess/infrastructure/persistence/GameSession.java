@@ -320,6 +320,12 @@ public final class GameSession {
     public Color                     aiColor()     { return aiColor; }
     public int                       aiDepth()     { return aiDepth; }
     public AiPlayer                  aiPlayer()    { return aiPlayer; }
+
+    /** Where the game began: the oldest board, or the current one if no move has been played. */
+    public synchronized Board        initialBoard() { return boardHistory.isEmpty() ? board : boardHistory.peekLast(); }
+
+    /** The time added to a player's clock after each of their moves, in milliseconds. */
+    public synchronized long         clockIncrementMs() { return incrementMs; }
     public GameStateChecker.State    state()       { return state; }
     public List<String>              moveHistory() { return Collections.unmodifiableList(moveHistory); }
     public List<String>              sanHistory()  { return Collections.unmodifiableList(sanHistory); }

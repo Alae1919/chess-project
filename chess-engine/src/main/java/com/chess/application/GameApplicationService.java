@@ -60,6 +60,9 @@ public class GameApplicationService {
         this.readOnly.setReadOnly(true);
     }
 
+    /** What the AI is told about the game when it is its turn: the position, how it was reached, the clocks. */
+    private record AiTurn(Board position, Board start, List<String> moves, long whiteMs, long blackMs, long incrementMs) { }
+
     private static Object[] newLocks(int n) {
         Object[] locks = new Object[n];
         for (int i = 0; i < n; i++) locks[i] = new Object();
@@ -148,19 +151,22 @@ public class GameApplicationService {
         // One search per game at a time: a second request would only race the first
         if (!session.tryBeginAiSearch()) throw new AiBusyException(gameId);
         try {
-            // Look at the position under the lock, but search without it, so a resignation
-            // or an undo is never held up behind the AI
-            Board position = underTurnLock(session, () -> {
+            // Take a snapshot under the lock, but search without it, so a resignation or an
+            // undo is never held up behind the AI
+            AiTurn turn = underTurnLock(session, () -> {
                 if (session.isOver()) throw new GameOverException(gameId);
                 if (session.flaggedSide() != null) throw new GameOverException(gameId);
                 Color active = session.board().activeColor();
                 if (session.aiColor() == null || session.aiColor() != active)
                     throw new NotYourTurnException(
                             "It is the human's turn (" + active + "). Call /moves instead.");
-                return session.board();
+                return new AiTurn(session.board(), session.initialBoard(), List.copyOf(session.moveHistory()),
+                        session.whiteTimeRemainingMs(), session.blackTimeRemainingMs(), session.clockIncrementMs());
             });
+            Board position = turn.position();
 
-            Move move = session.aiPlayer().chooseMove(position);
+            Move move = session.aiPlayer().chooseMove(position, turn.start(), turn.moves(),
+                    turn.whiteMs(), turn.blackMs(), turn.incrementMs());
 
             return underTurnLock(session, () -> {
                 if (session.isOver()) throw new GameOverException(gameId);
@@ -195,6 +201,7 @@ public class GameApplicationService {
     public GameStateResponse undoLastMove(String gameId, int plies) {
         if (plies < 1 || plies > 2) throw new IllegalArgumentException("plies must be 1 or 2");
         GameSession session = requireSession(gameId);
+        stopAiSearch(session);
         return underTurnLock(session, () -> {
             // Undoing past the end would reopen a finished (and already scored) game
             if (session.isOver()) throw new GameOverException(gameId);
@@ -227,6 +234,7 @@ public class GameApplicationService {
      */
     public GameStateResponse resign(String gameId, Color side) {
         GameSession session = requireSession(gameId);
+        stopAiSearch(session);
         return underTurnLock(session, () -> {
             if (session.isOver()) throw new GameOverException(gameId);
             session.resign(side != null ? side : session.board().activeColor());
@@ -432,6 +440,11 @@ public class GameApplicationService {
             return store.findById(gameId)
                     .orElseGet(() -> readOnly.execute(status -> restoreGameFromDatabase(gameId)));
         }
+    }
+
+    /** The AI's result would be thrown away (the game ended or the position changed): let it stop thinking. */
+    private static void stopAiSearch(GameSession session) {
+        if (session.aiPlayer() != null) session.aiPlayer().stop();
     }
 
     /** Runs {@code action} holding the game's turn lock, so requests for one game take turns. */

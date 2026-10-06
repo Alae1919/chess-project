@@ -43,6 +43,21 @@ public final class FenParser {
         return new Board(grid, activeColor, castling, epTarget, halfMove, fullMove);
     }
 
+    /**
+     * Like {@link #parse}, for a position somebody typed in: it must also be one that could
+     * arise in a game. {@link #parse} stays lenient because the rules are unit-tested on
+     * positions that no game would reach.
+     */
+    public static Board parseStrict(String fen) {
+        Board board = parse(fen);
+        Piece[][] grid = new Piece[Board.SIZE][Board.SIZE];
+        for (int f = 0; f < Board.SIZE; f++)
+            for (int r = 0; r < Board.SIZE; r++)
+                grid[f][r] = board.pieceAt(new Square(f, r)).orElse(null);
+        validateReachable(board, grid);
+        return board;
+    }
+
     public static String toFen(Board board) {
         StringBuilder sb = new StringBuilder();
         // Rank 8 (index 7) first, down to rank 1 (index 0)
@@ -132,6 +147,23 @@ public final class FenParser {
      * Verifies exactly one white king and one black king are present.
      * Missing or duplicate kings both throw InvalidFenException.
      */
+    /**
+     * Rejects positions that cannot arise in a game: a pawn on its first or last rank, or the
+     * side that just moved still in check (it would have been captured). Playing on from one
+     * would send the rules, and any search, into nonsense.
+     */
+    private static void validateReachable(Board board, Piece[][] grid) {
+        for (int f = 0; f < Board.SIZE; f++) {
+            for (int r : new int[]{0, Board.SIZE - 1}) {
+                Piece p = grid[f][r];
+                if (p != null && p.type() == PieceType.PAWN)
+                    throw new InvalidFenException("A pawn can't stand on the first or last rank");
+            }
+        }
+        if (com.chess.domain.rules.CheckDetector.isInCheck(board, board.activeColor().opposite()))
+            throw new InvalidFenException("The side that just moved is in check, which can't happen");
+    }
+
     private static void validateKings(Piece[][] grid) {
         int whiteKings = 0, blackKings = 0;
         for (int f = 0; f < Board.SIZE; f++) {

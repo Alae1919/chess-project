@@ -14,8 +14,8 @@ public final class BoardFactory {
         return FenParser.parse("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     }
 
-    /** Parse a custom FEN string. */
+    /** Parse a custom FEN string, refusing positions that could never arise in a game. */
     public static Board fromFen(String fen) {
-        return FenParser.parse(fen);
+        return FenParser.parseStrict(fen);
     }
 }

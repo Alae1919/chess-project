@@ -129,6 +129,16 @@ class PositionTest {
         }
     }
 
+    @Test
+    @DisplayName("positions that cannot arise are refused: the side that just moved in check, a pawn on a back rank")
+    void impossiblePositionsAreRefused() {
+        assertThrows(IllegalArgumentException.class, () -> Position.fromFen("4k3/4R3/8/8/8/8/8/4K3 w - - 0 1"));   // Black in check, White to move
+        assertThrows(IllegalArgumentException.class, () -> Position.fromFen("4k3/8/8/8/8/8/8/P3K3 w - - 0 1"));     // pawn on rank 1
+        assertThrows(IllegalArgumentException.class, () -> Position.fromFen("P3k3/8/8/8/8/8/8/4K3 w - - 0 1"));     // pawn on rank 8
+        assertThrows(IllegalArgumentException.class, () -> Position.fromFen("8/8/8/8/8/8/3kK3/8 w - - 0 1"));       // kings next to each other
+        assertDoesNotThrow(() -> Position.fromFen("4k3/4R3/8/8/8/8/8/4K3 b - - 0 1"));                               // the same, with Black to move
+    }
+
     // ---- draws -------------------------------------------------------------------------------
 
     @Test

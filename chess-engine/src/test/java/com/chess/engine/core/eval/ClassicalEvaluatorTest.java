@@ -117,7 +117,7 @@ class ClassicalEvaluatorTest {
     @DisplayName("in a won ending the winner is encouraged to push the lone king to the edge")
     void mopUp() {
         int kingInCentre = score("8/8/8/3k4/8/8/8/R3K3 w - - 0 1");
-        int kingInCorner = score("k7/8/8/8/8/8/8/R3K3 w - - 0 1");
+        int kingInCorner = score("7k/8/8/8/8/8/8/R3K3 w - - 0 1");
         assertTrue(kingInCorner > kingInCentre, kingInCorner + " vs " + kingInCentre);
     }
 }

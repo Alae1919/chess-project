@@ -137,6 +137,11 @@ public final class Position {
         if (!f[3].equals("-") && p.ep < 0) throw new IllegalArgumentException("Bad en passant square: " + fen);
         p.halfmove = f.length > 4 ? Integer.parseInt(f[4]) : 0;
         p.fullmove = f.length > 5 ? Integer.parseInt(f[5]) : 1;
+        // Positions that cannot arise in a game would send a search into nonsense (a king captured)
+        if (((p.bb[piece(WHITE, PAWN)] | p.bb[piece(BLACK, PAWN)]) & (Bits.RANK_1 | Bits.RANK_8)) != 0)
+            throw new IllegalArgumentException("A pawn can't stand on the first or last rank: " + fen);
+        if (p.isAttacked(p.kingSquare(p.side ^ 1), p.side))
+            throw new IllegalArgumentException("The side that just moved is in check: " + fen);
         p.key = p.computeKey();
         return p;
     }
