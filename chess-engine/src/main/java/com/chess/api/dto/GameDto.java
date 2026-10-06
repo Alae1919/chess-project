@@ -87,10 +87,12 @@ public final class GameDto {
 
     // POST /api/games request body
     public record CreateGameRequest(
-        // Online games are only created by matchmaking or an accepted invitation
-        @NotBlank @Pattern(regexp = "ai|local|saved", message = "must be ai, local or saved")
+        // Online games are only created by matchmaking or an accepted invitation, and a
+        // saved game is loaded by id, not created
+        @NotBlank @Pattern(regexp = "ai|local", message = "must be ai or local")
         String mode,
         Integer aiDifficulty,
+        @Pattern(regexp = "(?i)white|black|random", message = "must be white, black or random")
         String  playerColor,
         @NotNull TimeControl timeControl,
         Boolean enableUndo,
@@ -99,7 +101,20 @@ public final class GameDto {
         Boolean realTimeAnalysis,
         String  savedGameId,
         String  fen             // custom starting position
-    ) {}
+    ) {
+        /**
+         * The same request with a "random" colour replaced by a concrete one, so the engine
+         * and the database see the same side.
+         *
+         * @param userPlaysWhite decides the side when the colour is "random"
+         */
+        public CreateGameRequest withColorResolved(java.util.function.BooleanSupplier userPlaysWhite) {
+            if (!"random".equalsIgnoreCase(playerColor)) return this;
+            return new CreateGameRequest(mode, aiDifficulty,
+                    userPlaysWhite.getAsBoolean() ? "white" : "black", timeControl,
+                    enableUndo, confirmMoves, showLegalMoves, realTimeAnalysis, savedGameId, fen);
+        }
+    }
 
     // POST /api/games/{id}/moves
     public record MoveRequest(

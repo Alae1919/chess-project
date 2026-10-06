@@ -12,6 +12,7 @@ import com.chess.persistence.entity.DatabaseEnums.TimeControlKind;
 import com.chess.persistence.entity.UserEntity;
 import com.chess.persistence.entity.UserPreferencesEntity;
 import com.chess.persistence.repository.UserRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -28,12 +29,17 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -217,6 +223,92 @@ class GameControllerTest {
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(json.writeValueAsString(body)))
                 .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("returns 400 for mode 'saved': a saved game is loaded, never created")
+        void createSavedModeIsRejected() throws Exception {
+            Map<String, Object> body = new LinkedHashMap<>(gameBody("NONE"));
+            body.put("mode", "saved");
+            mvc.perform(post("/api/games")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(body)))
+                .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("returns 400 for a colour that is not white, black or random")
+        void createUnknownColourIsRejected() throws Exception {
+            Map<String, Object> body = new LinkedHashMap<>(gameBody("BLACK"));
+            body.put("playerColor", "purple");
+            mvc.perform(post("/api/games")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(body)))
+                .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("a random colour picks either side, and the engine and database agree on it")
+        void randomColourIsRandomAndConsistent() throws Exception {
+            Map<String, Object> body = new LinkedHashMap<>(gameBody("BLACK"));
+            body.put("playerColor", "random");
+
+            Set<String> aiSides = new HashSet<>();
+            for (int i = 0; i < 30; i++) {
+                MvcResult created = mvc.perform(post("/api/games")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsString(body)))
+                    .andExpect(status().isCreated())
+                    .andReturn();
+                JsonNode game = json.readTree(created.getResponse().getContentAsString());
+                boolean whiteIsAi = game.get("playerWhite").get("isAi").asBoolean();
+                boolean blackIsAi = game.get("playerBlack").get("isAi").asBoolean();
+                assertNotEquals(whiteIsAi, blackIsAi, "exactly one side is the AI");
+                aiSides.add(whiteIsAi ? "white" : "black");
+            }
+            // 30 fair coin flips all landing the same way: odds of 1 in 2^29
+            assertEquals(Set.of("white", "black"), aiSides);
+        }
+    }
+
+    // ================================================================
+    // Saved games: DELETE /api/users/me/saved-games/{id}
+    // ================================================================
+
+    @Nested
+    @DisplayName("Deleting a saved game")
+    class DeleteSavedGame {
+
+        @Test
+        @DisplayName("a live online game can't be deleted: it belongs to both players")
+        void onlineGameIsRefused() throws Exception {
+            String id = createOnlineGame();
+
+            assertThrows(IllegalStateException.class,
+                () -> persistService.deleteSavedGame(UUID.fromString(id), playerId));
+
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ONGOING"));
+        }
+
+        @Test
+        @DisplayName("a local game is deleted and leaves memory, so it can't be played on")
+        void localGameLeavesMemory() throws Exception {
+            String id = createGame("NONE");
+
+            persistService.deleteSavedGame(UUID.fromString(id), playerId);
+
+            assertTrue(gameStore.findById(id).isEmpty());
+        }
+
+        @Test
+        @DisplayName("someone who is not a player can't delete it")
+        void strangerIsRefused() throws Exception {
+            String id = createGame("NONE");
+
+            assertThrows(IllegalArgumentException.class,
+                () -> persistService.deleteSavedGame(UUID.fromString(id), opponentId));
         }
     }
 

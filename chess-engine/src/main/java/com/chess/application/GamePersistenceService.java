@@ -296,8 +296,13 @@ public class GamePersistenceService {
             .orElseThrow(() -> new EntityNotFoundException("Game not found"));
         if (!userId.equals(game.getWhiteUserId()) && !userId.equals(game.getBlackUserId()))
             throw new IllegalArgumentException("Access denied");
+        // An online game belongs to both players: one of them can't wipe it, and it
+        // would otherwise keep running in memory while the database calls it aborted
+        if (game.getMode() == GameMode.online)
+            throw new IllegalStateException("An online game can't be deleted; resign instead");
         game.setStatus(GameStatus.aborted);
         gameRepo.save(game);
+        gameStore.delete(gameId.toString());
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

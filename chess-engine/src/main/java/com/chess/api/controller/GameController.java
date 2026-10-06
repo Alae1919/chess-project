@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 @RestController
 @RequestMapping("/api/games")
@@ -55,10 +56,12 @@ public class GameController {
             @AuthenticationPrincipal UserDetails userDetails) {
         UUID userId = userService.getUserIdByUsername(userDetails.getUsername());
         String username = userDetails.getUsername();
+        // "random" is settled here, once, so the engine and the database agree on the side
+        var request = req.withColorResolved(() -> ThreadLocalRandom.current().nextBoolean());
         // 1. Start in the engine (in-memory, fast)
-        var engineResp = engineService.createGame(toEngineRequest(req));
+        var engineResp = engineService.createGame(toEngineRequest(request));
         // 2. Persist to DB
-        persistService.persistNewGame(engineResp.gameId(), req, userId, username);
+        persistService.persistNewGame(engineResp.gameId(), request, userId, username);
         // 3. Return full game DTO (engine state + DB metadata)
         return persistService.toFullGameDto(engineResp.gameId(), engineResp);
     }
