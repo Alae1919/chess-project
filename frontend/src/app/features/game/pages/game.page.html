@@ -99,7 +99,7 @@
         <div class="action-section">
           <p class="action-section__label">Actions</p>
           <div class="action-grid">
-            <button class="action-btn" (click)="undo()"><span class="action-btn__ico">↩</span>Annuler</button>
+            <button class="action-btn" *ngIf="canUndo(vm.game)" (click)="undo()"><span class="action-btn__ico">↩</span>Annuler</button>
             <button class="action-btn" (click)="flipBoard()"><span class="action-btn__ico">⇅</span>Retourner</button>
             <button class="action-btn" (click)="save()"><span class="action-btn__ico">⎙</span>Sauvegarder</button>
             <button class="action-btn" (click)="offerDraw()"><span class="action-btn__ico">½</span>Nulle</button>
@@ -218,7 +218,7 @@
 
       <!-- ── MOBILE ACTION BAR (hidden on desktop) ────────────────── -->
       <div class="mobile-action-bar">
-        <button class="mobile-action-btn" (click)="undo()" title="Annuler">↩</button>
+        <button class="mobile-action-btn" *ngIf="vm.game && canUndo(vm.game)" (click)="undo()" title="Annuler">↩</button>
         <button class="mobile-action-btn" (click)="flipBoard()" title="Retourner">⇅</button>
         <button class="mobile-action-btn" *ngIf="(boardView$ | async)?.mode === '3d'" (click)="toggleView()" [title]="topView ? 'Vue 3D' : 'Vue du dessus'">{{ topView ? '◈' : '⬒' }}</button>
         <button class="mobile-action-btn" (click)="save()" title="Sauvegarder">⎙</button>

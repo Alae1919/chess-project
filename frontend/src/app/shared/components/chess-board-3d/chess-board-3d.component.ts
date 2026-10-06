@@ -7,6 +7,7 @@ import {
   selectCurrentGame,
   selectCurrentTurn,
   selectLegalMoves,
+  selectMovableColor,
   selectSelectedSquare,
 } from '../../../store/game/game.selectors';
 import { GameActions } from '../../../store/game/game.actions';
@@ -110,6 +111,8 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
         selected: this.store.select(selectSelectedSquare),
         legalMoves: this.store.select(selectLegalMoves),
         currentTurn: this.store.select(selectCurrentTurn),
+        // the side the viewer may move right now: not the opponent's, not the AI's
+        movable: this.store.select(selectMovableColor),
         game: this.store.select(selectCurrentGame),
       }).subscribe((vm) => {
         this.vm = vm;
@@ -190,7 +193,7 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
         );
         return;
       }
-      if (piece && piece.color === vm.currentTurn) {
+      if (piece && piece.color === vm.movable) {
         this.store.dispatch(GameActions.selectSquare({ square: sq }));
         return;
       }
@@ -198,7 +201,7 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
       return;
     }
 
-    if (piece && piece.color === vm.currentTurn) {
+    if (piece && piece.color === vm.movable) {
       this.store.dispatch(GameActions.selectSquare({ square: sq }));
     }
   }

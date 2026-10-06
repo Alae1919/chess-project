@@ -10,6 +10,7 @@ import {
   selectLegalMoves,
   selectCurrentTurn,
   selectCurrentGame,
+  selectMovableColor,
 } from '../../../store/game/game.selectors';
 import { GameActions } from '../../../store/game/game.actions';
 import { Piece, PieceColor, PieceType, Square, Style2D } from '../../../core/models';
@@ -87,6 +88,8 @@ export class ChessBoardComponent implements OnInit {
     selected: this.store.select(selectSelectedSquare),
     legalMoves: this.store.select(selectLegalMoves),
     currentTurn: this.store.select(selectCurrentTurn),
+    // the side the viewer may move right now: not the opponent's, not the AI's
+    movable: this.store.select(selectMovableColor),
     game: this.store.select(selectCurrentGame),
   });
 
@@ -114,7 +117,7 @@ export class ChessBoardComponent implements OnInit {
         return;
       }
       // Clicked on another own piece → reselect
-      if (piece && piece.color === vm.currentTurn) {
+      if (piece && piece.color === vm.movable) {
         this.store.dispatch(GameActions.selectSquare({ square: sq }));
         return;
       }
@@ -123,7 +126,7 @@ export class ChessBoardComponent implements OnInit {
     }
 
     // First click: select if own piece
-    if (piece && piece.color === vm.currentTurn) {
+    if (piece && piece.color === vm.movable) {
       this.store.dispatch(GameActions.selectSquare({ square: sq }));
     }
   }

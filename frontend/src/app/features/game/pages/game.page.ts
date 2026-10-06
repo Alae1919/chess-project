@@ -8,7 +8,7 @@ import { CommonModule, AsyncPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms'; // <-- ADDED THIS
 import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngrx/store';
-import { combineLatest, distinctUntilChanged, map, Subscription, take } from 'rxjs'; // <-- Subscription added
+import { combineLatest, distinctUntilChanged, filter, map, Subscription, take } from 'rxjs'; // <-- Subscription added
 import { ChessBoardComponent } from '../../../shared/components/chess-board/chess-board.component';
 import { ChessBoard3DComponent } from '../../../shared/components/chess-board-3d/chess-board-3d.component';
 import { BoardStylePickerComponent } from '../../../shared/components/board-style-picker/board-style-picker.component';
@@ -26,7 +26,7 @@ import { Game, Move } from '../../../core/models';
 import { BoardPrefsService } from '../../../core/services/board-prefs.service';
 import { GameActions } from '../../../store/game/game.actions';
 import { selectUser } from '../../../store/account/account.reducer'; // <-- ADDED THIS
-import { isTerminalStatus } from '../../../core/utils/game-status.utils';
+import { isPlayableStatus, isTerminalStatus } from '../../../core/utils/game-status.utils';
 import {
   selectCurrentGame,
   selectWhitePlayer,
@@ -51,7 +51,19 @@ const VIEW_KEY = 'rex_board_view';
   styleUrls: ['./game.page.scss'],
 })
 export class GamePage implements OnInit, OnDestroy {
-  @Input() id?: string;   // route param via withComponentInputBinding
+  /**
+   * The game's id, a route param bound to this input. The router reuses this component when
+   * only the id changes (a rematch, an accepted invitation), so a change has to load the new
+   * game here: ngOnInit runs only once.
+   */
+  @Input() set id(value: string | undefined) {
+    if (value === this._id) return;
+    this._id = value;
+    if (this.started && value) this.open(value);
+  }
+  get id(): string | undefined { return this._id; }
+  private _id?: string;
+  private started = false;
 
   private store = inject(Store);
   private router = inject(Router);
@@ -104,9 +116,10 @@ export class GamePage implements OnInit, OnDestroy {
     const mobile = window.innerWidth <= 768;
     this.leftOpen  = !mobile;
     this.rightOpen = !mobile;
+    this.started = true;
 
     if (this.id) {
-      this.store.dispatch(GameActions.loadGame({ gameId: this.id }));
+      this.open(this.id);
     } else {
       // /game without id: resume the current game if there is one, otherwise nothing to show
       this.sub.add(
@@ -127,6 +140,35 @@ export class GamePage implements OnInit, OnDestroy {
         this.currentUserId = user?.id;
       })
     );
+    // Black at the top is the other player's view: show each player their own side. Decided when
+    // a game (or the profile that tells us who "me" is) first appears, so it never overrides
+    // a board the player has turned themselves.
+    this.sub.add(
+      combineLatest([this.store.select(selectCurrentGame), this.store.select(selectUser)]).pipe(
+        filter(([game]) => !!game),
+        distinctUntilChanged(([g1, u1], [g2, u2]) => g1!.id === g2!.id && u1?.id === u2?.id),
+      ).subscribe(([game, user]) => {
+        if (game!.id !== this.orientedFor) { this.orientedFor = game!.id; this.flippedByPlayer = false; }
+        if (!this.flippedByPlayer) this.boardFlipped = playerColorOf(game!, user?.id) === 'black';
+      })
+    );
+  }
+
+  /** Starts showing a game: a fresh view, then the game itself. */
+  private open(id: string): void {
+    this.settingsOpen = false;
+    this.boardFlipped = false;
+    this.flippedByPlayer = false;
+    this.store.dispatch(GameActions.loadGame({ gameId: id }));
+  }
+
+  /** The game whose orientation was last chosen, and whether the player turned the board since. */
+  private orientedFor: string | null = null;
+  private flippedByPlayer = false;
+
+  /** Online games have no undo (the server refuses it), and a finished game can't be reopened. */
+  canUndo(game: Game): boolean {
+    return game.mode !== 'online' && isPlayableStatus(game.status);
   }
 
   @HostListener('window:resize')
@@ -148,7 +190,7 @@ export class GamePage implements OnInit, OnDestroy {
     try { return localStorage.getItem(VIEW_KEY) === 'top'; } catch { return false; }
   }
 
-  flipBoard():       void { this.boardFlipped  = !this.boardFlipped; }
+  flipBoard():       void { this.boardFlipped  = !this.boardFlipped; this.flippedByPlayer = true; }
   toggleLeft():       void { this.leftOpen      = !this.leftOpen; }
   toggleRight():      void { this.rightOpen     = !this.rightOpen; }
   toggleMobileChat(): void { this.mobileChatOpen = !this.mobileChatOpen; }
