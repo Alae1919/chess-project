@@ -24,10 +24,10 @@ repetition detection and an opening book. Move generation is checked against two
 
 * **perft**: the number of positions reachable in N moves from well-known test positions, which must match the
   published counts exactly;
-* **python-chess**: 10,000 random positions, where the set of legal moves and the hash must equal python-chess's
-  (`training/engine_fixtures.py` writes the reference files).
+* **python-chess**: 400 positions from random play, where the set of legal moves must equal python-chess's, and
+  400 where the hash must (`training/engine_fixtures.py` writes the reference files).
 
-It searches about 600,000 positions per second on one core, with the old object-based board at roughly 20,000.
+It searches about 600,000 positions per second on one core; the object-based board it replaced managed 10,000 to 30,000.
 
 ## The search
 
@@ -36,7 +36,7 @@ and using the last round to order moves. The usual techniques make it far more s
 a transposition table (positions reached by different move orders are searched once), null-move pruning, late
 move reductions, futility pruning, killer and history move ordering, static exchange evaluation for captures, and a
 quiescence search that plays out captures before it trusts a score. Mate scores are never pruned or reduced, so
-the shortest mate is found (a test checks hundreds of positions with a known mate in N against python-chess).
+the shortest mate is found (a test checks 36 positions with a mate in 1 to 4 that python-chess found by brute force).
 
 ## The evaluation
 
@@ -129,7 +129,7 @@ ordering with an order of magnitude attached.
 ## Reproducing and checking
 
 ```
-# train (see training/README.md): about 40 minutes on a GTX 1660 Ti
+# train (see training/README.md): about 30 minutes on a GTX 1660 Ti
 python fetch.py 2016-01 && python extract.py data/raw/lichess_db_standard_rated_2016-01.pgn.zst
 python shuffle.py && python train.py --name v1 --epochs 12
 python export.py runs/v1/best.pt --out ../chess-engine/src/main/resources/nnue/default.nnue
