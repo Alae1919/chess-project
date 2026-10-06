@@ -334,13 +334,28 @@ input, select, textarea { font-family: var(--font); }
   }
 }
 
-/* Phones: a slimmer frame and coordinates, every pixel to the squares */
+/* Coordinates drawn in the corner squares: only on phones, where they replace the outer ones */
+.sq-coord { display: none; }
+
+/* Phones: no frame, the coordinates inside the squares, every pixel to the board */
 @media (max-width: 768px), (max-height: 500px) and (max-width: 1000px) and (orientation: landscape) {
-  .board-frame { padding: 5px; border-radius: 3px; }
-  .coord-ranks { padding: 7px 3px 7px 0; span { font-size: .7rem; } }
-  .coord-files { padding: 2px 7px 0; span { font-size: .7rem; } }
-  .board-wrap  { grid-template-columns: 12px auto; }
+  .board-wrap  { grid-template-columns: auto; }
+  .coord-ranks, .coord-files { display: none; }
+  .board-frame {
+    padding: 0; background: none; border-radius: 4px; overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(214, 169, 78, .38), 0 28px 60px rgba(0, 0, 0, .55);
+  }
+  .board-grid  { border: 0; }
   .sq:hover    { filter: none; }   /* no hover on touch: a tapped square stayed lit */
+
+  .sq-coord {
+    display: block; position: absolute; z-index: 1; pointer-events: none;
+    font: 600 calc(var(--sq) * .22)/1 var(--font); font-style: normal;
+    &--rank { top: 2px; left: 3px; }
+    &--file { right: 3px; bottom: 2px; }
+  }
+  .sq.light .sq-coord { color: var(--sq-dark); }
+  .sq.dark  .sq-coord { color: var(--sq-light); }
 }
 
 @media (max-width: 1024px) { :root { --sq: 52px; } }

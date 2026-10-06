@@ -205,6 +205,9 @@
 
 .btn-danger--confirm:disabled { opacity: 0.5; cursor: not-allowed; }
 
+/* the tabs only exist on phones */
+.phone-tabs { display: none; }
+
 /* Phones: a compact header, the four numbers in a 2×2 grid, the panels full width */
 @include mq.phone {
   .account { padding: 20px 20px 32px; min-height: 0; background: none; }
@@ -226,4 +229,8 @@
   }
 
   .panel { padding: 16px; border-radius: 16px; }
+
+  .phone-tabs { display: grid; margin-bottom: 14px; }
+  .tab-off { display: none; }
+  .two-col { margin-bottom: 0; }
 }

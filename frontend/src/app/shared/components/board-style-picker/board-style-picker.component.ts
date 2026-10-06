@@ -13,7 +13,33 @@ import { BOARD_MODES, STYLES_2D, STYLES_3D } from '../../board/board-styles';
   standalone: true,
   imports: [AsyncPipe, NgFor, NgIf],
   template: `
-    <div class="bsp" *ngIf="prefsService.prefs$ | async as prefs">
+    <!-- Phones, in the game sheet: a 2D/3D switch and the swatches of the active mode -->
+    <div class="cmp" *ngIf="compact ? (prefsService.prefs$ | async) : null as prefs">
+      <div class="cmp__row">
+        <div class="cmp__modes" role="radiogroup" aria-label="Mode du plateau">
+          <button *ngFor="let m of modes" type="button" role="radio" class="cmp__mode"
+                  [class.cmp__mode--on]="prefs.mode === m.id" [attr.aria-checked]="prefs.mode === m.id"
+                  [disabled]="m.id === '3d' && !prefsService.webgl" (click)="prefsService.setMode(m.id)">{{ m.label }}</button>
+        </div>
+        <div class="cmp__swatches" role="radiogroup" aria-label="Style du plateau">
+          <ng-container *ngIf="prefs.mode === '3d'; else flat">
+            <button *ngFor="let s of styles3d" type="button" role="radio" class="cmp__swatch"
+                    [class.cmp__swatch--on]="prefs.style3d === s.id" [attr.aria-checked]="prefs.style3d === s.id"
+                    [attr.aria-label]="s.label" [style.--light]="s.swatch[0]" [style.--dark]="s.swatch[1]"
+                    (click)="prefsService.setStyle3d(s.id)"></button>
+          </ng-container>
+          <ng-template #flat>
+            <button *ngFor="let s of styles2d" type="button" role="radio" class="cmp__swatch"
+                    [class.cmp__swatch--on]="prefs.style2d === s.id" [attr.aria-checked]="prefs.style2d === s.id"
+                    [attr.aria-label]="s.label" [style.--light]="s.swatch[0]" [style.--dark]="s.swatch[1]"
+                    (click)="prefsService.setStyle2d(s.id)"></button>
+          </ng-template>
+        </div>
+      </div>
+      <p class="cmp__label">Style : {{ styleLabel(prefs) }}</p>
+    </div>
+
+    <div class="bsp" *ngIf="!compact ? (prefsService.prefs$ | async) : null as prefs">
       <div class="bsp__modes" role="radiogroup" aria-label="Mode du plateau">
         <button
           *ngFor="let m of modes"
@@ -108,6 +134,23 @@ import { BOARD_MODES, STYLES_2D, STYLES_3D } from '../../board/board-styles';
       transform: translate(-50%, -50%); background: var(--accent); box-shadow: 0 1px 3px rgba(0, 0, 0, .6);
     }
 
+    .cmp__row { display: flex; align-items: center; gap: 10px; }
+    .cmp__modes { flex: none; display: flex; padding: 3px; background: rgba(255, 255, 255, .04); border: 1px solid var(--border); border-radius: 12px; }
+    .cmp__mode {
+      width: 48px; height: 40px; border: 0; border-radius: 9px; background: transparent; cursor: pointer;
+      font: 500 14px var(--font); color: var(--textd);
+    }
+    .cmp__mode:disabled { opacity: .4; cursor: not-allowed; }
+    .cmp__mode--on { background: var(--gold-grad); color: #140f08; }
+    .cmp__swatches { flex: 1; display: flex; justify-content: flex-end; gap: 10px; }
+    .cmp__swatch {
+      width: 48px; height: 48px; padding: 0; border: 0; border-radius: 12px; cursor: pointer;
+      background: conic-gradient(var(--light) 0 25%, var(--dark) 0 50%, var(--light) 0 75%, var(--dark) 0);
+      box-shadow: 0 0 0 1px rgba(201, 164, 92, .25); transition: box-shadow .2s;
+    }
+    .cmp__swatch--on { box-shadow: 0 0 0 2px #120e0a, 0 0 0 4px var(--gold); }
+    .cmp__label { margin: 8px 0 0; text-align: right; font-size: 12px; color: var(--textc); }
+
     /* phones: still three across, a little tighter */
     @media (max-width: 420px) {
       .bsp__style { padding: 10px 4px 8px; border-radius: 12px; }
@@ -121,6 +164,15 @@ export class BoardStylePickerComponent {
 
   /** Show the 3D and the 2D styles together (account page) instead of only the active mode's */
   @Input() both = false;
+  /** The phone's game sheet: a switch and swatches, no descriptions */
+  @Input() compact = false;
+
+  /** "Luxe", "Marbre & Or": the style the swatches show as chosen */
+  styleLabel(prefs: { mode: string; style2d: string; style3d: string }): string {
+    const list: ReadonlyArray<{ id: string; label: string }> = prefs.mode === '3d' ? STYLES_3D : STYLES_2D;
+    const id = prefs.mode === '3d' ? prefs.style3d : prefs.style2d;
+    return list.find((s) => s.id === id)?.label ?? '';
+  }
 
   readonly modes = BOARD_MODES;
   readonly styles3d = STYLES_3D;

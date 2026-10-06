@@ -128,6 +128,8 @@ export class GamePage implements OnInit, OnDestroy, AfterViewChecked {
 
   /** Canvas shape of the 3D board (see boardAspectFor) */
   boardAspect   = boardAspectFor();
+  /** The compact layout is in use (read when the board is created) */
+  readonly compact = isCompactViewport();
   boardFlipped  = false;
   /** Straight-down view of the 3D board; remembered between games */
   topView       = this.readViewPreference();
@@ -259,6 +261,11 @@ export class GamePage implements OnInit, OnDestroy, AfterViewChecked {
     return this.boardFlipped ? vm.black : vm.white;
   }
 
+  /** The strip of the person holding the phone: "Vous" (never in a local game, where both are) */
+  isMe(player: GamePlayer, game: Game): boolean {
+    return game.mode !== 'local' && !!this.currentUserId && player.userId === this.currentUserId;
+  }
+
   modeLabel(game: Game): string {
     const labels: Record<string, string> = { ai: "Contre l'IA", local: 'Partie locale', online: 'En ligne' };
     return labels[game.mode] ?? 'Partie';
@@ -282,6 +289,11 @@ export class GamePage implements OnInit, OnDestroy, AfterViewChecked {
     const them = mine === 'white' ? vm.black : mine === 'black' ? vm.white : vm.black;
     if (!them) return '';
     return them.isAi ? `vs IA · ${aiLevelLabel(them.aiDifficulty)}` : `vs ${them.username}`;
+  }
+
+  /** "IA · Maître", "marco": the opponent without the "vs" */
+  opponentName(vm: { game: Game | null; white: GamePlayer | null; black: GamePlayer | null }): string {
+    return this.opponentLabel(vm).replace(/^vs /, '');
   }
 
   /** Resigning on a phone takes a press held for a second: a tap in the wrong place costs nothing */

@@ -174,7 +174,7 @@
         <div class="board-stage" [class.board-stage--flat]="bv.mode === '2d'" [style.--board-aspect]="boardAspect">
           <app-chess-board-3d
             *ngIf="bv.mode === '3d'; else flatBoard"
-            [interactive]="true" [aspect]="boardAspect" [flipped]="boardFlipped"
+            [interactive]="true" [aspect]="boardAspect" [tight]="compact" [flipped]="boardFlipped"
             [look]="bv.prefs.style3d" [topView]="topView" (topViewChange)="setTopView($event)" />
           <ng-template #flatBoard>
             <app-chess-board [flipped]="boardFlipped" [boardStyle]="bv.prefs.style2d" />
@@ -216,6 +216,7 @@
         [summary]="resultSummary(vm.game)!"
         [online]="vm.game.mode === 'online'"
         [rematch]="rematchState(sentInvitation$ | async)"
+        [moves]="vm.moves.length" [clock]="timeControlLabel(vm.game)" [opponent]="opponentName(vm)"
         (rematchClick)="rematch(vm.game)"
         (newGame)="newGame()"
         (lobby)="toLobby()"
@@ -225,7 +226,7 @@
            Upright, the pieces of .m-side are laid out around the board (display: contents
            + order); on its side they stack in a column to the right of the board. -->
       <div class="m-side">
-        <app-player-strip class="mp mp--top" *ngIf="topPlayer(vm) as p" [player]="p" [thinking]="vm.aiThinking"
+        <app-player-strip class="mp mp--top" *ngIf="topPlayer(vm) as p" [player]="p" [thinking]="vm.aiThinking" [me]="isMe(p, vm.game)"
                           [active]="vm.game.currentTurn === p.color && !isTerminal(vm.game.status)"></app-player-strip>
 
         <div class="m-eval" *ngIf="vm.analysis && vm.evaluation" role="meter" aria-label="Évaluation"
@@ -236,7 +237,7 @@
           </span>
         </div>
 
-        <app-player-strip class="mp mp--bottom" *ngIf="bottomPlayer(vm) as p" [player]="p" [thinking]="vm.aiThinking"
+        <app-player-strip class="mp mp--bottom" *ngIf="bottomPlayer(vm) as p" [player]="p" [thinking]="vm.aiThinking" [me]="isMe(p, vm.game)"
                           [active]="vm.game.currentTurn === p.color && !isTerminal(vm.game.status)"></app-player-strip>
 
         <p class="m-hint" *ngIf="vm.hint" role="status">
@@ -333,7 +334,7 @@
           </div>
 
           <p class="sheet__label">Plateau</p>
-          <app-board-style-picker />
+          <app-board-style-picker [compact]="true" />
 
           <button type="button" class="hold" *ngIf="!isTerminal(vm.game.status)" [class.hold--active]="resignHolding"
                   (pointerdown)="startResignHold($event)" (pointerup)="cancelResignHold()" (pointerleave)="cancelResignHold()"

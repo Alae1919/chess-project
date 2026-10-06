@@ -4,7 +4,7 @@
   <!-- ── HERO ─────────────────────────────────────────────────────── -->
   <section class="hero">
     <div class="hero__copy">
-      <div class="hero__eyebrow"><span class="hero__rule"></span>REXCHESS — La référence des échecs</div>
+      <div class="hero__eyebrow"><span class="hero__rule"></span><span class="d-only">REXCHESS — La référence des échecs</span><span class="m-only">Échecs · IA neuronale</span></div>
       <h1 class="hero__title">
         <span class="hero__t1">Maîtrisez</span>
         <span class="hero__t2">les échecs</span>
@@ -14,7 +14,8 @@
       </p>
       <div class="hero__ctas">
         <a class="btn-p hero__cta" routerLink="/home">Jouer maintenant →</a>
-        <a class="btn-g hero__cta" href="#features" (click)="$event.preventDefault(); scrollTo('features')">En savoir plus</a>
+        <a class="btn-g hero__cta d-only" href="#features" (click)="$event.preventDefault(); scrollTo('features')">En savoir plus</a>
+        <a class="btn-g hero__cta m-only" routerLink="/register">Créer un compte</a>
       </div>
       <div class="hero__stats">
         <div *ngFor="let s of stats">

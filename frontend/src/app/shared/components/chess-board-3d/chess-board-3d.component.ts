@@ -54,6 +54,8 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
   @Output() topViewChange = new EventEmitter<boolean>();
   /** Canvas width / height. Wider than 1 gives a tilted board more room to fill. */
   @Input() aspect = 1;
+  /** Phones: fill the width, with little room to turn the board sideways (read once, at creation) */
+  @Input() tight = false;
 
   @ViewChild('canvas', { static: true }) private canvasRef!: ElementRef<HTMLCanvasElement>;
 
@@ -78,6 +80,7 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
         this.scene = new LuxeBoardScene(canvas, {
           interactive: this.interactive,
           look: this.look,
+          tight: this.tight,
           onSquareClick: (sq) => this.zone.run(() => this.onSquareClick(sq)),
           onTopViewChange: (top) => this.zone.run(() => {
             this.reportedTopView = top;

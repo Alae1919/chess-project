@@ -312,6 +312,16 @@ describe('GamePage', () => {
       expect(dispatch).toHaveBeenCalledWith(GameActions.resign());
     }));
 
+    it('says "Vous" only for the signed-in player, and never in a local game', () => {
+      open('game-1');
+      page.currentUserId = 'me';
+      const online = makeGame({ mode: 'online', playerWhite: human('white', 'me'), playerBlack: human('black', 'them') });
+
+      expect(page.isMe(online.playerWhite, online)).toBeTrue();
+      expect(page.isMe(online.playerBlack, online)).toBeFalse();
+      expect(page.isMe(online.playerWhite, { ...online, mode: 'local' })).toBeFalse();
+    });
+
     it('opens one sheet at a time, and Escape closes it', () => {
       page.openSheet('more');
       page.openSheet('notation');

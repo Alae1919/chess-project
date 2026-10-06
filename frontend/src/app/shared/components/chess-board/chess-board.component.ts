@@ -36,7 +36,7 @@ const SOLID_PIECES: Record<PieceType, string> = {
         <div class="board-frame">
           <div class="board-grid">
             <div
-              *ngFor="let sq of displaySquares"
+              *ngFor="let sq of displaySquares; let i = index"
               class="sq"
               [class.light]="isLightSquare(sq)"
               [class.dark]="!isLightSquare(sq)"
@@ -46,6 +46,8 @@ const SOLID_PIECES: Record<PieceType, string> = {
               [class.in-check]="isKingInCheck(sq, vm)"
               (click)="onSquareClick(sq, vm)"
             >
+              <span class="sq-coord sq-coord--rank" *ngIf="i % 8 === 0" aria-hidden="true">{{ displayRanks[i / 8] }}</span>
+              <span class="sq-coord sq-coord--file" *ngIf="i >= 56" aria-hidden="true">{{ displayFiles[i - 56] }}</span>
               <span *ngIf="getPiece(sq, vm.board) as piece" class="piece" [class.piece--white]="piece.color === 'white'" [class.piece--black]="piece.color === 'black'">
                 {{ getPieceUnicode(piece) }}
               </span>

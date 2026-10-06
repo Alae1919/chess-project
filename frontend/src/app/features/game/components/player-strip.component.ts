@@ -2,7 +2,7 @@
 import { Component, Input } from '@angular/core';
 import { NgFor, NgIf } from '@angular/common';
 import { GamePlayer, Piece, PieceColor } from '../../../core/models';
-import { aiLevelLabel } from '../../../core/utils/ai-levels';
+import { aiLevelElo, aiLevelLabel } from '../../../core/utils/ai-levels';
 import { formatClock, isLowTime } from '../../../core/utils/clock.utils';
 
 const SYMBOLS: Record<PieceColor, Record<string, string>> = {
@@ -21,13 +21,13 @@ const SYMBOLS: Record<PieceColor, Record<string, string>> = {
         {{ player.isAi ? 'IA' : player.username.slice(0, 2).toUpperCase() }}
       </div>
       <div class="info">
-        <span class="name">{{ player.isAi ? 'IA · ' + level : player.username }}</span>
+        <span class="name">{{ player.isAi ? 'IA · ' + level : me ? 'Vous' : player.username }}</span>
         <span class="sub">
           <ng-container *ngIf="player.isAi && thinking; else idle">
             <span class="dots" aria-hidden="true"><span></span><span></span><span></span></span> réfléchit
           </ng-container>
           <ng-template #idle>
-            <span *ngIf="player.isAi">Niveau {{ player.aiDifficulty }}/6</span>
+            <span *ngIf="player.isAi && elo">≈ {{ elo }}</span>
             <span *ngIf="!player.isAi && player.elo">{{ player.elo }}</span>
           </ng-template>
           <span class="captures" *ngIf="captures.length" aria-label="Pièces prises">
@@ -94,7 +94,10 @@ export class PlayerStripComponent {
   @Input() active = false;
   /** The AI is working out its move */
   @Input() thinking = false;
+  /** This is the person holding the phone */
+  @Input() me = false;
 
+  get elo(): number | null { return aiLevelElo(this.player.aiDifficulty); }
   get level(): string { return aiLevelLabel(this.player.aiDifficulty); }
   /** The server leaves the list out when nothing has been taken */
   get captures(): Piece[] { return this.player.capturedPieces ?? []; }

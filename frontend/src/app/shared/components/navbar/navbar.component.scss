@@ -57,6 +57,9 @@
     &__notif { width: 44px; height: 44px; background: none; border: 0; }
     &__avatar { width: 36px; height: 36px; }
     &__cta { padding: 8px 14px; font-size: 11px; letter-spacing: .1em; }
+    /* the sign-up button lives on the landing page and the login page; the bar keeps one link */
+    &__cta.btn-p { display: none; }
+    &__cta.btn-g { border: 0; background: none; box-shadow: none; color: var(--gold); padding-right: 0; }
   }
 }
 

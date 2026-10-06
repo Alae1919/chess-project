@@ -24,7 +24,19 @@ describe('PlayerStripComponent', () => {
     const el = show({ isAi: true, aiDifficulty: 5, capturedPieces: [] });
 
     expect(el.textContent).toContain('IA · Maître');
-    expect(el.textContent).toContain('Niveau 5/6');
+    expect(el.textContent).toContain('≈ 2550');
+  });
+
+  it('calls the person holding the phone "Vous", and everyone else by name', () => {
+    fixture = TestBed.createComponent(PlayerStripComponent);
+    fixture.componentRef.setInput('player', { username: 'alice', color: 'white', timeRemainingMs: 1000, capturedPieces: [] });
+    fixture.componentRef.setInput('me', true);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.name').textContent).toContain('Vous');
+
+    fixture.componentRef.setInput('me', false);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.name').textContent).toContain('alice');
   });
 
   it('runs the clock on the player to move, and warns under 30 seconds', () => {

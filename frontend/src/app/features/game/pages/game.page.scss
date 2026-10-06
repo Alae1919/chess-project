@@ -417,7 +417,7 @@ $m-chrome: 330px;
   /* 2D: whole squares, the frame slimmed down (see styles.scss) */
   .board-stage--flat {
     width: auto;
-    --sq: clamp(30px, min((100vw - 34px) / 8, (100dvh - #{$m-chrome} - 40px) / 8), 60px);
+    --sq: clamp(30px, min((100vw - 6px) / 8, (100dvh - #{$m-chrome} - 20px) / 8), 60px);
   }
 
   .status-bar { margin: 6px auto 0; }
@@ -525,7 +525,7 @@ $m-chrome: 330px;
     padding: 6px max(12px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   }
   .board-stage { grid-column: 1; grid-row: 1 / span 4; width: calc(100dvh - 44px - 20px - env(safe-area-inset-bottom)); }
-  .board-stage--flat { width: auto; --sq: calc((100dvh - 44px - 60px - env(safe-area-inset-bottom)) / 8); }
+  .board-stage--flat { width: auto; --sq: calc((100dvh - 44px - 18px - env(safe-area-inset-bottom)) / 8); }
   app-draw-offer-banner, app-game-notice-banner, .status-bar { grid-column: 2; }
 
   .m-side { display: flex; flex-direction: column; gap: 6px; grid-column: 2; grid-row: 1; min-height: 0; }

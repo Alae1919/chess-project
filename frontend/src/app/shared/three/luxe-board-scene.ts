@@ -34,10 +34,12 @@ export interface SceneOptions {
   onSquareClick?: (sq: Square) => void;
   /** Fired when a drag ends: true when the board was left more than halfway towards the top-down view. */
   onTopViewChange?: (top: boolean) => void;
+  /** Phones: the board may barely turn sideways, so the camera can come closer and fill the screen */
+  tight?: boolean;
 }
 
 /** How far the board may turn sideways (rad) — the camera is framed so the whole frame stays visible within it. */
-const YAW_LIMIT = { interactive: 0.3, still: 0.1 };
+const YAW_LIMIT = { interactive: 0.3, still: 0.1, tight: 0.06 };
 /** Vertical drag distance (px) that takes the view from the 3D angle all the way to straight down. */
 const TOP_DRAG_PX = 180;
 
@@ -431,12 +433,18 @@ export class LuxeBoardScene {
     this.boardParts.push(sprite);
   }
 
+  /** How far the board may turn sideways (rad) */
+  private get yawLimit(): number {
+    if (this.opts.tight) return YAW_LIMIT.tight;
+    return this.opts.interactive ? YAW_LIMIT.interactive : YAW_LIMIT.still;
+  }
+
   /** Back the camera off until the whole frame stays on screen, for both the tilted and the top-down view. */
   private fitCamera(): void {
     const dir = new THREE.Vector3(0, 9.6, 9.4).normalize();
     const target = PERSP_TARGET;
     const E = 4.97; // frame half-width, bevel included
-    const yawMax = this.opts.interactive ? YAW_LIMIT.interactive : YAW_LIMIT.still;
+    const yawMax = this.yawLimit;
     const pitches = this.opts.interactive
       ? [BASE_PITCH]
       : [BASE_PITCH - 0.03, BASE_PITCH + 0.03];
@@ -460,7 +468,8 @@ export class LuxeBoardScene {
     };
 
     this.camera.up.set(0, 1, 0);
-    let d = 6;
+    // phones start closer, so the board can fill the width
+    let d = this.opts.tight ? 3 : 6;
     for (; d < 40; d += 0.1) {
       this.camera.position.copy(target).addScaledVector(dir, d);
       this.camera.lookAt(target);
@@ -648,7 +657,7 @@ export class LuxeBoardScene {
         this.drag.moved = true;
         this.drag.x = e.clientX;
         this.drag.y = e.clientY;
-        this.dragYaw = Math.max(-YAW_LIMIT.interactive, Math.min(YAW_LIMIT.interactive, this.dragYaw + dx * 0.008));
+        this.dragYaw = Math.max(-this.yawLimit, Math.min(this.yawLimit, this.dragYaw + dx * 0.008));
         // dragging down raises the camera; all the way down looks straight at the board
         this.topTarget = Math.max(0, Math.min(1, this.topTarget + dy / TOP_DRAG_PX));
         this.canvas.style.cursor = 'grabbing';

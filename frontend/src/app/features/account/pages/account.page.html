@@ -45,10 +45,16 @@
   </div>
 
   <!-- ── History + Achievements ──────────────────────────────────── -->
+  <!-- Phones: the three sections as tabs -->
+  <div class="seg phone-tabs" role="tablist" aria-label="Sections du profil">
+    <button type="button" role="tab" class="seg__btn" *ngFor="let t of phoneTabs"
+            [class.seg__btn--on]="phoneTab === t.id" [attr.aria-selected]="phoneTab === t.id" (click)="phoneTab = t.id">{{ t.label }}</button>
+  </div>
+
   <div class="two-col">
 
     <!-- Match history -->
-    <div class="panel">
+    <div class="panel" [class.tab-off]="phoneTab !== 'history'">
       <p class="panel__title">Historique récent</p>
       <div class="history-list">
         <div class="history-row" *ngFor="let match of vm.history">
@@ -58,7 +64,7 @@
             [class.history-row__result--loss]="match.result === 'loss'"
             [class.history-row__result--draw]="match.result === 'draw'"
           >
-            {{ match.result === 'win' ? 'V' : match.result === 'loss' ? 'D' : 'N' }}
+            {{ match.result === 'win' ? 'V' : match.result === 'loss' ? 'D' : '½' }}
           </div>
           <div class="history-row__info">
             <div class="history-row__opp">
@@ -86,7 +92,7 @@
     </div>
 
     <!-- Achievements -->
-    <div class="panel">
+    <div class="panel" [class.tab-off]="phoneTab !== 'achievements'">
       <p class="panel__title">Succès — {{ unlockedCount(vm.achievements) }} / {{ vm.achievements.length }}</p>
       <div class="achievements-grid">
         <div
@@ -109,7 +115,7 @@
   </div>
 
   <!-- ── Settings + Subscription + Danger ───────────────────────── -->
-  <div class="three-col">
+  <div class="three-col" [class.tab-off]="phoneTab !== 'prefs'">
 
     <!-- Preferences -->
     <div class="panel">

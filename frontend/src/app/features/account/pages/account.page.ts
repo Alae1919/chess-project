@@ -30,6 +30,14 @@ import { BoardStylePickerComponent } from '../../../shared/components/board-styl
   styleUrls: ['./account.page.scss'],
 })
 export class AccountPage implements OnInit {
+  /** On phones the history, the achievements and the settings take turns */
+  phoneTab: 'history' | 'achievements' | 'prefs' = 'history';
+  readonly phoneTabs = [
+    { id: 'history', label: 'Historique' },
+    { id: 'achievements', label: 'Succès' },
+    { id: 'prefs', label: 'Réglages' },
+  ] as const;
+
   private store = inject(Store);
   private auth = inject(AuthService);
 
