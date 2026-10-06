@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -31,24 +32,22 @@ class UserControllerTest {
 
     @Autowired MockMvc mvc;
     @Autowired UserRepository users;
+    @Autowired JdbcTemplate jdbc;
 
     @BeforeEach
     void ensureUserWithDefaultPreferences() {
-        var existing = users.findByUsername("uc_test_user");
-        if (existing.isPresent()) {
-            // start every test from the default look
-            var prefs = users.findByIdWithPreferences(existing.get().getId()).orElseThrow().getPreferences();
-            prefs.setBoardTheme(UserPreferencesEntity.BoardTheme.classic_wood);
-            prefs.setPieceStyle(UserPreferencesEntity.PieceStyle.standard);
-            users.save(existing.get());
-            return;
+        if (users.findByUsername("uc_test_user").isEmpty()) {
+            var u = new UserEntity();
+            u.setUsername("uc_test_user");
+            u.setEmail("uc_test_user@example.com");
+            u.setPasswordHash("unused");
+            u.setPreferences(UserPreferencesEntity.defaultsFor(u));
+            users.save(u);
         }
-        var u = new UserEntity();
-        u.setUsername("uc_test_user");
-        u.setEmail("uc_test_user@example.com");
-        u.setPasswordHash("unused");
-        u.setPreferences(UserPreferencesEntity.defaultsFor(u));
-        users.save(u);
+        // The database keeps its rows between runs, so every test starts from the default look
+        jdbc.update("update user_preferences set board_theme = cast('classic_wood' as board_theme), "
+                  + "piece_style = cast('standard' as piece_style) "
+                  + "where user_id = (select id from users where username = 'uc_test_user')");
     }
 
     @Test
