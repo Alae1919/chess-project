@@ -44,7 +44,8 @@ export class AccountService {
     });
   }
 
-  deleteAccount(): Observable<void> {
-    return this.http.delete<void>(`${environment.apiUrl}/users/me`);
+  /** The server asks for the password again before it deletes anything. */
+  deleteAccount(password: string): Observable<void> {
+    return this.http.delete<void>(`${environment.apiUrl}/users/me`, { body: { password } });
   }
 }

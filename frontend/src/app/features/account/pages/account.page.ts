@@ -6,9 +6,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { Component, inject, OnInit } from '@angular/core';
 import { CommonModule, AsyncPipe } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Store } from '@ngrx/store';
 import { combineLatest } from 'rxjs';
-import { GameActions } from '../../../store/game/game.actions';
 import { AccountActions } from '../../../store/account/account.actions';
 import {
   selectUser,
@@ -16,6 +16,7 @@ import {
   selectMatchHistory,
   selectAchievements,
   selectUserPreferences,
+  selectAccountError,
 } from '../../../store/account/account.reducer';
 import { Achievement, UserPreferences } from '../../../core/models/index';
 import { AuthService } from '../../../core/services/auth.service';
@@ -24,7 +25,7 @@ import { BoardStylePickerComponent } from '../../../shared/components/board-styl
 @Component({
   selector: 'app-account-page',
   standalone: true, 
-  imports: [CommonModule, AsyncPipe, BoardStylePickerComponent],
+  imports: [CommonModule, AsyncPipe, FormsModule, BoardStylePickerComponent],
   templateUrl: './account.page.html',
   styleUrls: ['./account.page.scss'],
 })
@@ -50,15 +51,23 @@ export class AccountPage implements OnInit {
     this.store.dispatch(AccountActions.updatePreferences({ prefs: { [key]: value } }));
   }
 
+  /** The store is wiped when the session ends, so nothing else needs resetting here */
   logout(): void {
-    this.store.dispatch(GameActions.resetGame());
     this.auth.logout();
   }
 
+  /** The password field of the delete form is open */
+  confirmingDelete = false;
+  deletePassword = '';
+  readonly deleteError$ = this.store.select(selectAccountError);
+
+  startDelete(): void { this.confirmingDelete = true; this.deletePassword = ''; }
+  cancelDelete(): void { this.confirmingDelete = false; this.deletePassword = ''; }
+
+  /** Deleting needs the password again, so a stolen login can't remove the account */
   deleteAccount(): void {
-    if (confirm('Supprimer définitivement votre compte ? Cette action est irréversible.')) {
-      this.store.dispatch(AccountActions.deleteAccount());
-    }
+    if (!this.deletePassword) return;
+    this.store.dispatch(AccountActions.deleteAccount({ password: this.deletePassword }));
   }
 
   winRateLabel(stats: any): string {

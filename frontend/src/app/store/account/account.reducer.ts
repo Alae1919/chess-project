@@ -51,6 +51,10 @@ export const accountReducer = createReducer(
     ...state, achievements,
   })),
 
+  on(AccountActions.deleteAccount, (state) => ({ ...state, error: null })),
+
+  on(AccountActions.deleteAccountFailure, (state, { error }) => ({ ...state, error })),
+
   on(AccountActions.deleteAccountSuccess, () => initialAccountState),
 );
 
@@ -63,3 +67,4 @@ export const selectUserPreferences  = createSelector(selectUser, (u) => u?.prefe
 export const selectMatchHistory     = createSelector(selectAccountFeature, (s) => s.matchHistory);
 export const selectAchievements     = createSelector(selectAccountFeature, (s) => s.achievements);
 export const selectAccountLoading   = createSelector(selectAccountFeature, (s) => s.isLoading);
+export const selectAccountError     = createSelector(selectAccountFeature, (s) => s.error);

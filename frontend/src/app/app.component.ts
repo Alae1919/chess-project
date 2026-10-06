@@ -5,6 +5,7 @@ import { filter } from 'rxjs';
 import { NavbarComponent } from './shared/components/navbar/navbar.component';
 import { AuthService } from './core/services/auth.service';
 import { AccountActions } from './store/account/account.actions';
+import { SessionActions } from './store/session/session.actions';
 import { LobbyWebSocketService } from './core/services/lobby-websocket.service';
 import { WebSocketService } from './core/services/websocket.service';
 import { InvitationToastComponent } from './features/online/components/invitation-toast.component';
@@ -53,6 +54,8 @@ export class AppComponent implements OnInit {
       } else {
         this.lobbyWsService.disconnect();
         this.gameWsService.disconnect();
+        // and nothing of the last person stays on screen: the navbar, a game, invitations
+        this.store.dispatch(SessionActions.ended());
       }
     });
   }

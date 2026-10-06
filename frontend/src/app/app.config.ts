@@ -1,5 +1,5 @@
 // src/app/app.config.ts
-import { ApplicationConfig, importProvidersFrom } from '@angular/core';
+import { ApplicationConfig, isDevMode } from '@angular/core';
 import { provideRouter, withComponentInputBinding, withViewTransitions } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { provideAnimations } from '@angular/platform-browser/animations';
@@ -16,18 +16,19 @@ import { lobbyReducer } from './store/lobby/lobby.reducer';
 import { GameEffects } from './store/game/game.effects';
 import { AccountEffects } from './store/account/account.effects';
 import { LobbyEffects } from './store/lobby/lobby.effects';
+import { resetOnSessionEnd } from './store/session/session.meta-reducer';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideRouter(routes, withComponentInputBinding(), withViewTransitions()),
     provideHttpClient(withInterceptors([authInterceptor, errorInterceptor])),
     provideAnimations(),
-    provideStore({
-      game: gameReducer,
-      account: accountReducer,
-      lobby: lobbyReducer,
-    }),
+    provideStore(
+      { game: gameReducer, account: accountReducer, lobby: lobbyReducer },
+      { metaReducers: [resetOnSessionEnd] },
+    ),
     provideEffects([GameEffects, AccountEffects, LobbyEffects]),
-    provideStoreDevtools({ maxAge: 25, logOnly: false }),
+    // The devtools expose and can rewrite the whole store (tokens' owner, games): development only
+    ...(isDevMode() ? [provideStoreDevtools({ maxAge: 25, logOnly: false })] : []),
   ],
 };

@@ -22,7 +22,8 @@ export const AccountActions = createActionGroup({
     'Change Password Success': emptyProps(),
     'Change Password Failure': props<{ error: string }>(),
 
-    'Delete Account': emptyProps(),
+    'Delete Account': props<{ password: string }>(),   // asked for again: a stolen login must not be enough
     'Delete Account Success': emptyProps(),
+    'Delete Account Failure': props<{ error: string }>(),
   },
 });

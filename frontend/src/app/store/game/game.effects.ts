@@ -13,11 +13,7 @@ import { Game, PieceColor } from '../../core/models';
 import { ChatService } from '../../core/services/chat.service';
 import { WebSocketService } from '../../core/services/websocket.service';
 import { Router } from '@angular/router';
-
-/** The server's explanation for a failed request, else the generic error text. */
-function errorMessage(error: any): string {
-  return error?.error?.detail ?? error?.message ?? 'Request failed';
-}
+import { errorMessage } from '../../core/utils/error-message';
 
 /** The server refused because the AI is already working out this game's move. */
 function isAiBusy(error: any): boolean {

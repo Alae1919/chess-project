@@ -218,8 +218,22 @@
           <div class="danger-row__label">Supprimer le compte</div>
           <div class="danger-row__hint">Action irréversible</div>
         </div>
-        <button class="btn-danger" (click)="deleteAccount()">Supprimer</button>
+        <button class="btn-danger" *ngIf="!confirmingDelete" (click)="startDelete()">Supprimer</button>
       </div>
+      <form class="delete-form" *ngIf="confirmingDelete" (ngSubmit)="deleteAccount()">
+        <label class="delete-form__label" for="delete-password">
+          Confirmez avec votre mot de passe. Votre compte et vos statistiques seront supprimés définitivement.
+        </label>
+        <input id="delete-password" name="password" type="password" autocomplete="current-password"
+               class="delete-form__input" [(ngModel)]="deletePassword" required />
+        <p class="delete-form__error" role="alert" *ngIf="deleteError$ | async as error">{{ error }}</p>
+        <div class="delete-form__actions">
+          <button type="button" class="btn-danger" (click)="cancelDelete()">Annuler</button>
+          <button type="submit" class="btn-danger btn-danger--confirm" [disabled]="!deletePassword">
+            Supprimer définitivement
+          </button>
+        </div>
+      </form>
     </div>
 
   </div>

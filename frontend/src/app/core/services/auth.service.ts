@@ -68,7 +68,17 @@ export class AuthService {
     return this.refresh$;
   }
 
+  /**
+   * Ends the session. The refresh token is revoked on the server too, so a copy of it (on
+   * another device, or taken from this one) stops working. Signing out here doesn't wait for
+   * that: the server being unreachable must not keep someone signed in.
+   */
   logout(): void {
+    const refresh = localStorage.getItem(this.REFRESH_KEY);
+    if (refresh) {
+      this.http.post(`${environment.apiUrl}/auth/logout`, { refreshToken: refresh })
+        .subscribe({ error: () => { /* signed out here regardless */ } });
+    }
     localStorage.removeItem(this.TOKEN_KEY);
     localStorage.removeItem(this.REFRESH_KEY);
     localStorage.removeItem(this.EXPIRES_KEY);

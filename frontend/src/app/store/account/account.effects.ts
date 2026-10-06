@@ -9,6 +9,7 @@ import { AccountService } from '../../core/services/account.service';
 import { AccountActions } from './account.actions';
 import { AuthService } from '../../core/services/auth.service';
 import { Router } from '@angular/router';
+import { errorMessage } from '../../core/utils/error-message';
 
 
 @Injectable()
@@ -71,10 +72,10 @@ export class AccountEffects {
   deleteAccount$ = createEffect(() =>
     this.actions$.pipe(
       ofType(AccountActions.deleteAccount),
-      switchMap(() =>
-        this.accountService.deleteAccount().pipe(
+      switchMap(({ password }) =>
+        this.accountService.deleteAccount(password).pipe(
           map(() => AccountActions.deleteAccountSuccess()),
-          catchError(() => of(AccountActions.loadProfile()))
+          catchError((error) => of(AccountActions.deleteAccountFailure({ error: errorMessage(error) })))
         )
       )
     )
