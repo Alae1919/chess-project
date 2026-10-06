@@ -23,6 +23,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.HttpMethod;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -30,6 +31,7 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.MvcResult;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -66,6 +68,7 @@ class GameControllerTest {
     @Autowired GamePersistenceService persistService;
     @Autowired GameStore gameStore;
     @Autowired ClockWatcher clockWatcher;
+    @Autowired JdbcTemplate jdbc;
 
     private UUID playerId;
     private UUID opponentId;
@@ -1116,6 +1119,71 @@ class GameControllerTest {
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.type").value(
                     "https://chess-engine/errors/illegal-move"));
+        }
+    }
+
+    // ================================================================
+    // Games that start from a custom position
+    // ================================================================
+
+    @Nested
+    @DisplayName("A game that starts from a custom position")
+    class CustomPositionGames {
+
+        private static final String START = "4k3/8/8/8/8/8/8/R3K3 w - - 0 1";
+
+        private String createFromFen() throws Exception {
+            Map<String, Object> body = new LinkedHashMap<>(gameBody("NONE"));
+            body.put("fen", START);
+            MvcResult created = mvc.perform(post("/api/games")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(body)))
+                .andExpect(status().isCreated())
+                .andReturn();
+            return json.readTree(created.getResponse().getContentAsString()).get("id").asText();
+        }
+
+        private void move(String id, String uci) throws Exception {
+            mvc.perform(post("/api/games/" + id + "/moves")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(json.writeValueAsString(Map.of("move", uci))))
+                .andExpect(status().isOk());
+        }
+
+        private List<Integer> storedMoveNumbers(String id) {
+            return jdbc.queryForList(
+                "select move_number from game_moves where game_id = cast(? as uuid) order by id",
+                Integer.class, id);
+        }
+
+        @Test
+        @DisplayName("a reloaded game keeps its move list and numbers new moves after it")
+        void reloadedGameKeepsItsMoves() throws Exception {
+            String id = createFromFen();
+            move(id, "a1a2");
+            move(id, "e8d8");
+
+            gameStore.delete(id); // what a backend restart does
+
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.moveHistory", contains("a1a2", "e8d8")));
+            move(id, "a2a3");
+            assertEquals(List.of(1, 2, 3), storedMoveNumbers(id));
+        }
+
+        @Test
+        @DisplayName("a game stored before the start position was recorded still gets distinct move numbers")
+        void gameWithoutRecordedStartKeepsNumberingMoves() throws Exception {
+            String id = createFromFen();
+            move(id, "a1a2");
+            // like a row written before the starting position was stored
+            jdbc.update("update games set starting_fen = null where id = cast(? as uuid)", id);
+
+            gameStore.delete(id);
+            move(id, "e8d8"); // restores the bare position, then plays on
+
+            assertEquals(List.of(1, 2), storedMoveNumbers(id));
         }
     }
 }

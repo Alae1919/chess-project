@@ -129,8 +129,10 @@ public class GamePersistenceService {
         entity.setWhiteTimeRemainingMs(tc.initialMs());
         entity.setBlackTimeRemainingMs(tc.initialMs());
 
-        if (req.fen() != null && !req.fen().isBlank())
+        if (req.fen() != null && !req.fen().isBlank()) {
             entity.setCurrentFen(req.fen());
+            entity.setStartingFen(req.fen());
+        }
 
         gameRepo.save(entity);
 
@@ -150,13 +152,14 @@ public class GamePersistenceService {
      *
      * @param uciMove     UCI string as returned by Move.toUci(), e.g. "e2e4" or "e7e8q"
      * @param newFen      Full FEN string after the move was applied
-     * @param moveNumber  1-based half-move count (moveHistory.size() after the move)
      * @param colorPlayed "white" or "black" — the side that just moved
      */
     @Transactional
-    public void persistMove(UUID dbGameId, String uciMove, String newFen,
-                            int moveNumber, String colorPlayed) {
+    public void persistMove(UUID dbGameId, String uciMove, String newFen, String colorPlayed) {
         var game = gameRepo.findById(dbGameId).orElseThrow();
+        // 1-based half-move count, taken from what is stored: a session rebuilt from a bare
+        // position has forgotten the earlier moves
+        int moveNumber = game.getMoves().size() + 1;
 
         String norm = uciMove.toLowerCase();
         int fromFile = norm.charAt(0) - 'a', fromRank = norm.charAt(1) - '1';

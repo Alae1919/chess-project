@@ -105,8 +105,7 @@ public class GameApplicationService {
         session.applyMove(move);
 
         GameStateResponse r = toResponse(session);
-        persistenceService.persistMove(UUID.fromString(gameId), uciMove,
-                r.fen(), r.moveHistory().size(), colorPlayed);
+        persistenceService.persistMove(UUID.fromString(gameId), uciMove, r.fen(), colorPlayed);
         finaliseIfTerminal(gameId, r.status(), r.activeColor());
         return r;
     }
@@ -133,8 +132,7 @@ public class GameApplicationService {
 
         GameStateResponse r = toResponse(session);
         if (r.lastMove() != null)
-            persistenceService.persistMove(UUID.fromString(gameId), r.lastMove(),
-                    r.fen(), r.moveHistory().size(), colorPlayed);
+            persistenceService.persistMove(UUID.fromString(gameId), r.lastMove(), r.fen(), colorPlayed);
         finaliseIfTerminal(gameId, r.status(), r.activeColor());
         return r;
     }
@@ -309,7 +307,8 @@ public class GameApplicationService {
         }
 
         // Replaying the stored moves brings back the move list and the repetition
-        // history; a game from a custom FEN can't be replayed and loads as a bare position
+        // history; a game whose start was never recorded can't be replayed from a custom
+        // FEN and loads as a bare position
         GameSession session = replayStoredMoves(gameId, dbGame, aiColor, aiDifficulty);
         if (session == null) session = new GameSession(gameId, board, aiColor, aiDifficulty);
         session.initClock(dbGame.getWhiteTimeRemainingMs(), dbGame.getBlackTimeRemainingMs(),
@@ -321,13 +320,16 @@ public class GameApplicationService {
     }
 
     /**
-     * A session rebuilt by playing the stored moves from the standard start, or null
-     * when they don't lead to the stored position (a game that began from a custom FEN).
+     * A session rebuilt by playing the stored moves from the position the game began
+     * from, or null when they don't lead to the stored position.
      */
     private static GameSession replayStoredMoves(String gameId, GameEntity dbGame,
                                                   Color aiColor, int aiDifficulty) {
         if (dbGame.getMoves().isEmpty()) return null;
-        var session = new GameSession(gameId, BoardFactory.startingPosition(), aiColor, aiDifficulty);
+        Board start = dbGame.getStartingFen() == null
+                ? BoardFactory.startingPosition()
+                : FenParser.parse(dbGame.getStartingFen());
+        var session = new GameSession(gameId, start, aiColor, aiDifficulty);
         try {
             for (var stored : dbGame.getMoves()) {
                 String uci = stored.getAlgebraicNotation(); // stored as plain UCI

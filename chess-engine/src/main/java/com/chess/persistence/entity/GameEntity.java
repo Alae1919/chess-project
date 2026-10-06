@@ -75,6 +75,10 @@ public class GameEntity {
     @Column(name = "current_fen", nullable = false)
     private String currentFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
+    /** The position the game began from; null means the standard start. */
+    @Column(name = "starting_fen")
+    private String startingFen;
+
     @Column(name = "half_move_clock", nullable = false)
     private int halfMoveClock = 0;
 
@@ -166,6 +170,8 @@ public class GameEntity {
     public void setBlackAiDifficulty(Integer v)  { this.blackAiDifficulty = v; }
     public String getCurrentFen()                { return currentFen; }
     public void setCurrentFen(String v)          { this.currentFen = v; }
+    public String getStartingFen()               { return startingFen; }
+    public void setStartingFen(String v)         { this.startingFen = v; }
     public int getHalfMoveClock()                { return halfMoveClock; }
     public void setHalfMoveClock(int v)          { this.halfMoveClock = v; }
     public int getFullMoveNumber()               { return fullMoveNumber; }
