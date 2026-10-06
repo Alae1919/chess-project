@@ -89,6 +89,11 @@
           </div>
         </div>
 
+        <!-- The engine's suggestion, until the next move -->
+        <div class="hint-note" *ngIf="vm.hint" role="status">
+          <span>Indice</span> <strong>{{ hintText(vm.hint) }}</strong>
+        </div>
+
         <!-- AI thinking -->
         <div class="ai-thinking" *ngIf="vm.aiThinking">
           <div class="ai-thinking__dots"><span></span><span></span><span></span></div>
@@ -101,6 +106,14 @@
           <div class="action-grid">
             <button class="action-btn" *ngIf="canUndo(vm.game)" (click)="undo()"><span class="action-btn__ico">↩</span>Annuler</button>
             <button class="action-btn" (click)="flipBoard()"><span class="action-btn__ico">⇅</span>Retourner</button>
+            <button class="action-btn" *ngIf="canAnalyse(vm.game)" (click)="toggleAnalysis()" [attr.aria-pressed]="vm.analysis"
+                    [class.action-btn--on]="vm.analysis">
+              <span class="action-btn__ico">◐</span>Analyse
+            </button>
+            <button class="action-btn" *ngIf="vm.game.mode !== 'online'" (click)="requestHint()"
+                    [disabled]="!canHint(vm.game, vm.aiThinking || vm.loading)">
+              <span class="action-btn__ico">✦</span>Indice
+            </button>
             <button class="action-btn" (click)="save()"><span class="action-btn__ico">⎙</span>Sauvegarder</button>
             <button class="action-btn" (click)="offerDraw()"><span class="action-btn__ico">½</span>Nulle</button>
             <button class="action-btn action-btn--full" *ngIf="(boardView$ | async)?.mode === '3d'" (click)="toggleView()"

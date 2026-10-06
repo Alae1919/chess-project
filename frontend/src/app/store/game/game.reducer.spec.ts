@@ -264,4 +264,59 @@ describe('gameReducer', () => {
       expect(next.notice).toBeNull();
     });
   });
+
+  describe('analysis and hints', () => {
+    const evaluation = { score: 35, depth: 9, bestMove: 'e2e4' };
+
+    it('is off to begin with, and the toggle turns it on and off', () => {
+      expect(withGame().analysis).toBeFalse();
+
+      const on = gameReducer(withGame(), GameActions.toggleAnalysis());
+      expect(on.analysis).toBeTrue();
+
+      expect(gameReducer(on, GameActions.toggleAnalysis()).analysis).toBeFalse();
+    });
+
+    it('takes the evaluation bar away when it is turned off', () => {
+      const showing = withGame({ analysis: true, evaluation });
+
+      expect(gameReducer(showing, GameActions.toggleAnalysis()).evaluation).toBeNull();
+    });
+
+    it('keeps the last evaluation while it is turned on', () => {
+      const next = gameReducer(withGame({ analysis: false, evaluation }), GameActions.toggleAnalysis());
+
+      expect(next.evaluation).toEqual(evaluation);
+    });
+
+    it('stops analysing when the server refuses it (a live online game), but not on other failures', () => {
+      const showing = withGame({ analysis: true, evaluation });
+
+      const refused = gameReducer(showing, GameActions.evaluationFailed({ forbidden: true }));
+      expect(refused.analysis).toBeFalse();
+      expect(refused.evaluation).toBeNull();
+
+      expect(gameReducer(showing, GameActions.evaluationFailed({ forbidden: false }))).toBe(showing);
+    });
+
+    it('remembers the suggested move until a move is played, by either side, or taken back', () => {
+      const hinted = gameReducer(withGame(), GameActions.hintReady({ move: 'g1f3' }));
+      expect(hinted.hint).toBe('g1f3');
+
+      const game = makeGame();
+      expect(gameReducer(hinted, GameActions.submitMoveSuccess({ game })).hint).toBeNull();
+      expect(gameReducer(hinted, GameActions.receiveMove({ game })).hint).toBeNull();
+      expect(gameReducer(hinted, GameActions.aIMoveSuccess({ game })).hint).toBeNull();
+      expect(gameReducer(hinted, GameActions.undoMoveSuccess({ game })).hint).toBeNull();
+    });
+
+    it('does not carry the analysis or a hint over to another game', () => {
+      const state = withGame({ analysis: true, hint: 'e2e4', evaluation });
+
+      const next = gameReducer(state, GameActions.loadGame({ gameId: 'other' }));
+
+      expect(next.analysis).toBeFalse();
+      expect(next.hint).toBeNull();
+    });
+  });
 });

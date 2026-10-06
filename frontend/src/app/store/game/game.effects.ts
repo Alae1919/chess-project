@@ -7,9 +7,9 @@ import { catchError, concatMap, exhaustMap, filter, map, switchMap, tap, withLat
 import { GameActions } from './game.actions';
 import { isPlayableStatus } from '../../core/utils/game-status.utils';
 import { needsPromotionChoice } from '../../core/utils/promotion.utils';
-import { selectCurrentGame, selectSelectedSquare } from './game.selectors';
+import { selectAnalysis, selectBoard, selectCurrentGame, selectMovableColor, selectSelectedSquare } from './game.selectors';
 import { GameService } from '../../core/services/game.service';
-import { Game, PieceColor } from '../../core/models';
+import { Game, PieceColor, Square } from '../../core/models';
 import { ChatService } from '../../core/services/chat.service';
 import { WebSocketService } from '../../core/services/websocket.service';
 import { Router } from '@angular/router';
@@ -28,6 +28,13 @@ function pliesToUndo(game: Game): number {
   const aiColor = game.playerWhite?.isAi ? 'white' : game.playerBlack?.isAi ? 'black' : null;
   const playersTurnAgainstAi = game.mode === 'ai' && aiColor !== null && game.currentTurn !== aiColor;
   return playersTurnAgainstAi && game.moves.length >= 2 ? 2 : 1;
+}
+
+/** "e2e4" -> the square e2, in the board's rows (row 0 is rank 8) and columns (column 0 is file a). */
+export function squareOf(uci: string): Square | null {
+  const col = uci.charCodeAt(0) - 'a'.charCodeAt(0);
+  const rank = Number(uci[1]);
+  return col >= 0 && col < 8 && rank >= 1 && rank <= 8 ? { row: 8 - rank, col } : null;
 }
 
 @Injectable()
@@ -125,6 +132,72 @@ export class GameEffects {
           catchError(() => EMPTY) // the game works without it; the chat just starts empty
         )
       )
+    )
+  );
+
+  // ── Analysis: the engine's opinion of the position, kept up to date while the player wants it ──
+
+  askForEvaluationOnToggle$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(GameActions.toggleAnalysis),
+      withLatestFrom(this.store.select(selectAnalysis)),
+      filter(([, on]) => on),
+      map(() => GameActions.loadEvaluation())
+    )
+  );
+
+  refreshEvaluationAfterMove$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(GameActions.loadGameSuccess, GameActions.submitMoveSuccess, GameActions.receiveMove,
+             GameActions.aIMoveSuccess, GameActions.undoMoveSuccess),
+      withLatestFrom(this.store.select(selectAnalysis)),
+      filter(([, on]) => on),
+      map(() => GameActions.loadEvaluation())
+    )
+  );
+
+  loadEvaluation$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(GameActions.loadEvaluation),
+      withLatestFrom(this.store.select(selectCurrentGame)),
+      filter(([, game]) => !!game),
+      // switchMap: only the newest position's answer matters
+      switchMap(([, game]) =>
+        this.gameService.evaluate(game!.id).pipe(
+          map((evaluation) => GameActions.updateEvaluation({ evaluation })),
+          catchError((error) => of(GameActions.evaluationFailed({ forbidden: error?.status === 403 })))
+        )
+      )
+    )
+  );
+
+  requestHint$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(GameActions.requestHint),
+      withLatestFrom(this.store.select(selectCurrentGame)),
+      filter(([, game]) => !!game),
+      switchMap(([, game]) =>
+        this.gameService.evaluate(game!.id).pipe(
+          map((evaluation) => evaluation.bestMove
+            ? GameActions.hintReady({ move: evaluation.bestMove })
+            : GameActions.requestFailed({ error: 'Aucun coup à suggérer.' })),
+          catchError((error) => of(GameActions.requestFailed({ error: errorMessage(error) })))
+        )
+      )
+    )
+  );
+
+  // Pick up the piece the engine would move, so either board shows where it can go
+  showHint$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(GameActions.hintReady),
+      withLatestFrom(this.store.select(selectMovableColor), this.store.select(selectBoard)),
+      map(([{ move }, movable, board]) => {
+        const from = squareOf(move);
+        const piece = from ? (board as any)?.squares?.[from.row]?.[from.col] : null;
+        return from && piece && piece.color === movable ? GameActions.selectSquare({ square: from }) : null;
+      }),
+      filter((action): action is ReturnType<typeof GameActions.selectSquare> => action !== null)
     )
   );
 

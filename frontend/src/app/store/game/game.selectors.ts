@@ -14,6 +14,8 @@ export const selectSavedGames        = createSelector(selectGameFeature, (s) => 
 export const selectSelectedSquare    = createSelector(selectGameFeature, (s) => s.selectedSquare);
 export const selectLegalMoves        = createSelector(selectGameFeature, (s) => s.legalMoves);
 export const selectEvaluation        = createSelector(selectGameFeature, (s) => s.evaluation);
+export const selectAnalysis          = createSelector(selectGameFeature, (s) => s.analysis);
+export const selectHint              = createSelector(selectGameFeature, (s) => s.hint);
 export const selectChatMessages      = createSelector(selectGameFeature, (s) => s.chatMessages);
 export const selectOpponentAway      = createSelector(selectGameFeature, (s) => s.opponentAway);
 export const selectNotice            = createSelector(selectGameFeature, (s) => s.notice);

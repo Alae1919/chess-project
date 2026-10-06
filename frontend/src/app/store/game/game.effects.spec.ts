@@ -10,8 +10,8 @@ import { WebSocketService } from '../../core/services/websocket.service';
 import { Game } from '../../core/models';
 import { makeChatMessage, makeGame } from '../../testing/game-fixtures';
 import { GameActions } from './game.actions';
-import { GameEffects } from './game.effects';
-import { selectCurrentGame } from './game.selectors';
+import { GameEffects, squareOf } from './game.effects';
+import { selectAnalysis, selectBoard, selectCurrentGame, selectMovableColor } from './game.selectors';
 
 describe('GameEffects', () => {
   let actions$: Subject<Action>;
@@ -26,13 +26,13 @@ describe('GameEffects', () => {
     reconnected$ = new Subject<void>();
     socketService = Object.assign(jasmine.createSpyObj('WebSocketService', ['connect', 'disconnect']), { reconnected$ });
     gameService = jasmine.createSpyObj<GameService>('GameService',
-      ['resign', 'getAiMove', 'offerDraw', 'acceptDraw', 'declineDraw', 'undoMove', 'submitMove', 'createGame', 'getGame']);
+      ['resign', 'getAiMove', 'offerDraw', 'acceptDraw', 'declineDraw', 'undoMove', 'submitMove', 'createGame', 'getGame', 'evaluate']);
     chatService = jasmine.createSpyObj<ChatService>('ChatService', ['sendMessage', 'getMessages']);
     TestBed.configureTestingModule({
       providers: [
         GameEffects,
         provideMockActions(() => actions$),
-        provideMockStore({ selectors: [{ selector: selectCurrentGame, value: makeGame() }] }),
+        provideMockStore({ selectors: [{ selector: selectCurrentGame, value: makeGame() }, { selector: selectAnalysis, value: false }] }),
         provideRouter([]),
         { provide: GameService, useValue: gameService },
         { provide: ChatService, useValue: chatService },
@@ -352,6 +352,140 @@ describe('GameEffects', () => {
       actions$.next(GameActions.loadGameSuccess({ game: makeGame() }));
 
       expect(out).toEqual([]);   // the game itself still works; chat just starts empty
+    });
+  });
+
+  describe('analysis', () => {
+    const evaluation = { score: 120, depth: 8, bestMove: 'g1f3' };
+    const setAnalysis = (on: boolean) => {
+      const store = TestBed.inject(MockStore);
+      store.overrideSelector(selectAnalysis, on);
+      store.refreshState();
+    };
+
+    it('asks for the evaluation when the analysis is turned on, not when it is turned off', () => {
+      const out = collect(effects.askForEvaluationOnToggle$);
+
+      setAnalysis(true);
+      actions$.next(GameActions.toggleAnalysis());
+      setAnalysis(false);
+      actions$.next(GameActions.toggleAnalysis());
+
+      expect(out).toEqual([GameActions.loadEvaluation()]);
+    });
+
+    it("asks again after every move, the AI's and the opponent's included, while the analysis is on", () => {
+      const out = collect(effects.refreshEvaluationAfterMove$);
+      const game = makeGame();
+      setAnalysis(true);
+
+      actions$.next(GameActions.submitMoveSuccess({ game }));
+      actions$.next(GameActions.aIMoveSuccess({ game }));
+      actions$.next(GameActions.receiveMove({ game }));
+      actions$.next(GameActions.undoMoveSuccess({ game }));
+      actions$.next(GameActions.loadGameSuccess({ game }));
+
+      expect(out.length).toBe(5);
+      expect(out.every((a) => a.type === GameActions.loadEvaluation.type)).toBeTrue();
+    });
+
+    it('does not ask when the analysis is off', () => {
+      const out = collect(effects.refreshEvaluationAfterMove$);
+      setAnalysis(false);
+
+      actions$.next(GameActions.submitMoveSuccess({ game: makeGame() }));
+
+      expect(out).toEqual([]);
+    });
+
+    it('shows what the server answers', () => {
+      gameService.evaluate.and.returnValue(of(evaluation));
+      const out = collect(effects.loadEvaluation$);
+
+      actions$.next(GameActions.loadEvaluation());
+
+      expect(gameService.evaluate).toHaveBeenCalledWith('game-1');
+      expect(out).toEqual([GameActions.updateEvaluation({ evaluation })]);
+    });
+
+    it('says so when the server forbids it, and stays quiet about other failures', () => {
+      const out = collect(effects.loadEvaluation$);
+
+      gameService.evaluate.and.returnValue(throwError(() => ({ status: 403 })));
+      actions$.next(GameActions.loadEvaluation());
+      gameService.evaluate.and.returnValue(throwError(() => ({ status: 503 })));
+      actions$.next(GameActions.loadEvaluation());
+
+      expect(out).toEqual([
+        GameActions.evaluationFailed({ forbidden: true }),
+        GameActions.evaluationFailed({ forbidden: false }),
+      ]);
+    });
+
+    it("turns a requested hint into the engine's best move", () => {
+      gameService.evaluate.and.returnValue(of(evaluation));
+      const out = collect(effects.requestHint$);
+
+      actions$.next(GameActions.requestHint());
+
+      expect(out).toEqual([GameActions.hintReady({ move: 'g1f3' })]);
+    });
+
+    it('tells the player when there is no move to suggest, or the request fails', () => {
+      const out = collect(effects.requestHint$);
+
+      gameService.evaluate.and.returnValue(of({ score: 0, depth: 1 }));
+      actions$.next(GameActions.requestHint());
+      gameService.evaluate.and.returnValue(throwError(() => ({ status: 403, error: { detail: 'No engine now' } })));
+      actions$.next(GameActions.requestHint());
+
+      expect(out.length).toBe(2);
+      expect(out.every((a) => a.type === GameActions.requestFailed.type)).toBeTrue();
+      expect((out[1] as any).error).toBe('No engine now');
+    });
+
+    describe('showing the hint', () => {
+      const boardWith = (row: number, col: number, color: 'white' | 'black') => {
+        const squares = Array.from({ length: 8 }, () => Array(8).fill(null));
+        squares[row][col] = { type: 'knight', color };
+        return { squares } as any;
+      };
+
+      it("picks up the piece the engine would move, when it is the player's", () => {
+        const store = TestBed.inject(MockStore);
+        store.overrideSelector(selectMovableColor, 'white');
+        store.overrideSelector(selectBoard, boardWith(7, 6, 'white'));   // g1
+        const out = collect(effects.showHint$);
+
+        actions$.next(GameActions.hintReady({ move: 'g1f3' }));
+
+        expect(out).toEqual([GameActions.selectSquare({ square: { row: 7, col: 6 } })]);
+      });
+
+      it("does not touch a piece the player can't move", () => {
+        const store = TestBed.inject(MockStore);
+        store.overrideSelector(selectMovableColor, null);
+        store.overrideSelector(selectBoard, boardWith(7, 6, 'white'));
+        const out = collect(effects.showHint$);
+
+        actions$.next(GameActions.hintReady({ move: 'g1f3' }));
+
+        expect(out).toEqual([]);
+      });
+    });
+
+    describe('squareOf', () => {
+      it("turns coordinates into the board's rows and columns, row 0 being rank 8", () => {
+        expect(squareOf('a8')).toEqual({ row: 0, col: 0 });
+        expect(squareOf('h1')).toEqual({ row: 7, col: 7 });
+        expect(squareOf('e2e4')).toEqual({ row: 6, col: 4 });
+      });
+
+      it('refuses anything that is not a square', () => {
+        expect(squareOf('')).toBeNull();
+        expect(squareOf('z9')).toBeNull();
+        expect(squareOf('e0')).toBeNull();
+      });
     });
   });
 });

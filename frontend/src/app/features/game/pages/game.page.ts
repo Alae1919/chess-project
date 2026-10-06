@@ -32,7 +32,9 @@ import {
   selectWhitePlayer,
   selectBlackPlayer,
   selectMoveHistory,
+  selectAnalysis,
   selectEvaluation,
+  selectHint,
   selectChatMessages,
   selectIsAiThinking,
   selectIsLoading,
@@ -78,6 +80,8 @@ export class GamePage implements OnInit, OnDestroy {
     black:        this.store.select(selectBlackPlayer),
     moves:        this.store.select(selectMoveHistory),
     evaluation:   this.store.select(selectEvaluation),
+    analysis:     this.store.select(selectAnalysis),
+    hint:         this.store.select(selectHint),
     chat:         this.store.select(selectChatMessages),
     aiThinking:   this.store.select(selectIsAiThinking),
     loading:      this.store.select(selectIsLoading),
@@ -167,6 +171,26 @@ export class GamePage implements OnInit, OnDestroy {
   private flippedByPlayer = false;
 
   /** Online games have no undo (the server refuses it), and a finished game can't be reopened. */
+  /** The engine's opinion is off limits during a live online game; afterwards it is fair analysis. */
+  canAnalyse(game: Game): boolean {
+    return game.mode !== 'online' || !isPlayableStatus(game.status);
+  }
+
+  /** A hint is for the player to move in a live game against the AI or on their own. */
+  canHint(game: Game, busy: boolean): boolean {
+    return game.mode !== 'online' && isPlayableStatus(game.status) && !busy;
+  }
+
+  toggleAnalysis(): void { this.store.dispatch(GameActions.toggleAnalysis()); }
+  requestHint(): void { this.store.dispatch(GameActions.requestHint()); }
+
+  /** "e2e4" -> "e2 → e4"; a promotion "e7e8q" -> "e7 → e8 (=D)" */
+  hintText(uci: string): string {
+    const promotion: Record<string, string> = { q: 'Dame', r: 'Tour', b: 'Fou', n: 'Cavalier' };
+    const suffix = uci.length > 4 ? ` (${promotion[uci[4]] ?? uci[4]})` : '';
+    return `${uci.slice(0, 2)} → ${uci.slice(2, 4)}${suffix}`;
+  }
+
   canUndo(game: Game): boolean {
     return game.mode !== 'online' && isPlayableStatus(game.status);
   }

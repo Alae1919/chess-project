@@ -50,6 +50,12 @@ export const GameActions = createActionGroup({
 
     // Evaluation
     'Update Evaluation': props<{ evaluation: PositionEvaluation }>(),
+    'Toggle Analysis': emptyProps(),
+    'Load Evaluation': emptyProps(),
+    // `forbidden`: the server won't analyse this game (a live online game), so stop asking
+    'Evaluation Failed': props<{ forbidden: boolean }>(),
+    'Request Hint': emptyProps(),
+    'Hint Ready': props<{ move: string }>(),
 
     // Saved games
     'Load Saved Games': emptyProps(),

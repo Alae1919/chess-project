@@ -1,7 +1,7 @@
 import { Game, User } from '../../core/models';
 import { makeGame } from '../../testing/game-fixtures';
 import { initialGameState, GameState } from './game.state';
-import { selectMovableColor } from './game.selectors';
+import { selectAnalysis, selectHint, selectMovableColor } from './game.selectors';
 
 describe('selectMovableColor', () => {
   const ai = (color: 'white' | 'black') =>
@@ -57,5 +57,14 @@ describe('selectMovableColor', () => {
     const game = makeGame({ mode: 'ai', playerWhite: human('white', 'me'), playerBlack: ai('black'), currentTurn: 'white' });
 
     expect(movable(game, { isAiThinking: true })).toBeNull();
+  });
+});
+
+describe('analysis selectors', () => {
+  it('read the analysis switch and the hint from the game state', () => {
+    const state = { game: { ...initialGameState, analysis: true, hint: 'e2e4' } } as any;
+
+    expect(selectAnalysis(state)).toBeTrue();
+    expect(selectHint(state)).toBe('e2e4');
   });
 });

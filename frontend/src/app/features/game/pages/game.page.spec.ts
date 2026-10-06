@@ -211,4 +211,47 @@ describe('GamePage', () => {
       expect(navigate).toHaveBeenCalledTimes(3);
     });
   });
+
+  describe('analysis and hints', () => {
+    it('offers analysis everywhere except a live online game', () => {
+      expect(page.canAnalyse(makeGame({ mode: 'ai', status: 'active' }))).toBeTrue();
+      expect(page.canAnalyse(makeGame({ mode: 'local', status: 'active' }))).toBeTrue();
+      expect(page.canAnalyse(makeGame({ mode: 'online', status: 'active' }))).toBeFalse();
+      expect(page.canAnalyse(makeGame({ mode: 'online', status: 'checkmate' }))).toBeTrue();
+    });
+
+    it('offers a hint only in a live game that is not online, and not while something is in progress', () => {
+      expect(page.canHint(makeGame({ mode: 'ai', status: 'active' }), false)).toBeTrue();
+      expect(page.canHint(makeGame({ mode: 'ai', status: 'active' }), true)).toBeFalse();
+      expect(page.canHint(makeGame({ mode: 'online', status: 'active' }), false)).toBeFalse();
+      expect(page.canHint(makeGame({ mode: 'local', status: 'checkmate' }), false)).toBeFalse();
+    });
+
+    it('turns the toggle and the button into actions', () => {
+      page.toggleAnalysis();
+      page.requestHint();
+
+      expect(dispatch).toHaveBeenCalledWith(GameActions.toggleAnalysis());
+      expect(dispatch).toHaveBeenCalledWith(GameActions.requestHint());
+    });
+
+    it('writes a hint as a move a player can read', () => {
+      expect(page.hintText('e2e4')).toBe('e2 → e4');
+      expect(page.hintText('e7e8q')).toBe('e7 → e8 (Dame)');
+      expect(page.hintText('a2a1n')).toBe('a2 → a1 (Cavalier)');
+    });
+
+    it('shows the hint and the Analyse and Indice buttons for a game against the AI', () => {
+      open('game-1');
+      page.leftOpen = true;   // the side panel starts closed in a window as narrow as the test browser's
+      const game = makeGame({ mode: 'ai', playerWhite: human('white', 'me'), playerBlack: bot('black') });
+      store.setState({ ...state(game), game: { ...initialGameState, currentGame: game, hint: 'g1f3', analysis: true } });
+      fixture.detectChanges();
+
+      const text = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(text).toContain('g1 → f3');
+      expect(text).toContain('Analyse');
+      expect(text).toContain('Indice');
+    });
+  });
 });

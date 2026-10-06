@@ -54,7 +54,7 @@ export const gameReducer = createReducer(
   on(GameActions.submitMoveSuccess, GameActions.receiveMove,
     (state, { game }) => ({
       ...state, currentGame: game, isLoading: false, isAiThinking: false,
-      selectedSquare: null, legalMoves: [],
+      selectedSquare: null, legalMoves: [], hint: null,
     })
   ),
 
@@ -68,7 +68,7 @@ export const gameReducer = createReducer(
   })),
 
   on(GameActions.aIMoveSuccess, (state, { game }) => ({
-    ...state, currentGame: game, isAiThinking: false,
+    ...state, currentGame: game, isAiThinking: false, hint: null,
   })),
 
   on(GameActions.aIMoveFailure, (state, { error }) => ({
@@ -86,12 +86,23 @@ export const gameReducer = createReducer(
   on(GameActions.undoMove, (state) => ({ ...state, selectedSquare: null, legalMoves: [] })),
 
   on(GameActions.undoMoveSuccess, (state, { game }) => ({
-    ...state, currentGame: game, selectedSquare: null, legalMoves: [], isAiThinking: false,
+    ...state, currentGame: game, selectedSquare: null, legalMoves: [], isAiThinking: false, hint: null,
   })),
 
   on(GameActions.updateEvaluation, (state, { evaluation }) => ({
     ...state, evaluation,
   })),
+
+  // Turning the analysis off also takes the bar away
+  on(GameActions.toggleAnalysis, (state) => ({
+    ...state, analysis: !state.analysis, evaluation: state.analysis ? null : state.evaluation,
+  })),
+
+  on(GameActions.evaluationFailed, (state, { forbidden }) =>
+    forbidden ? { ...state, analysis: false, evaluation: null } : state
+  ),
+
+  on(GameActions.hintReady, (state, { move }) => ({ ...state, hint: move })),
 
   on(GameActions.loadSavedGamesSuccess, (state, { savedGames }) => ({
     ...state, savedGames,
