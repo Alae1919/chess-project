@@ -59,6 +59,7 @@ public class MatchmakingQueueEntity {
     public long getTimeControlIncrementMs()        { return timeControlIncrementMs; }
     public void setTimeControlIncrementMs(long v)  { this.timeControlIncrementMs = v; }
     public Instant getJoinedAt()                   { return joinedAt; }
+    public void setJoinedAt(Instant v)             { this.joinedAt = v; }
     public boolean isMatched()                     { return matched; }
     public void setMatched(boolean matched)        { this.matched = matched; }
 }

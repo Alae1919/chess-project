@@ -90,6 +90,27 @@ public class MatchmakingService {
         return queueRepo.findByUserIdAndMatchedFalse(userId).map(this::toStatus);
     }
 
+    // ── Clean-up ──────────────────────────────────────────────────────────────
+
+    /** A player queued for less than this may still be opening their lobby connection. */
+    private static final Duration CONNECT_GRACE = Duration.ofSeconds(60);
+
+    /**
+     * Removes queue rows whose player is gone. Closing the lobby socket normally does it, but
+     * a server restart closes no socket, and the rows would otherwise stay for good.
+     */
+    @Scheduled(fixedDelay = 30_000)
+    @Transactional
+    public void purgeAbandonedEntries() {
+        Instant cutoff = Instant.now().minus(CONNECT_GRACE);
+        for (var entry : queueRepo.findByMatchedFalse()) {
+            if (entry.getJoinedAt().isBefore(cutoff) && !inLobby(entry)) {
+                queueRepo.deleteByUserId(entry.getUserId());
+                log.debug("Removed {} from the matchmaking queue: no longer in the lobby", entry.getUsername());
+            }
+        }
+    }
+
     // ── Scheduled pairing ─────────────────────────────────────────────────────
 
     @Scheduled(fixedDelay = 1000)
@@ -103,8 +124,16 @@ public class MatchmakingService {
         }
     }
 
+    /** A queue row is only good while its player is in the lobby: a row can outlive its player. */
+    private boolean inLobby(MatchmakingQueueEntity entry) {
+        return lobbySessionManager.isConnected(entry.getUserId().toString());
+    }
+
     private void pairForTimeControl(TimeControlKind tc) {
-        List<MatchmakingQueueEntity> candidates = queueRepo.findUnmatchedByTimeControl(tc);
+        // Only players who can be told about the game: after a restart, or a missed close
+        // event, the queue may hold players who are long gone
+        List<MatchmakingQueueEntity> candidates = queueRepo.findUnmatchedByTimeControl(tc).stream()
+                .filter(this::inLobby).toList();
         if (candidates.size() < 2) return;
 
         Set<UUID> processed = new HashSet<>();

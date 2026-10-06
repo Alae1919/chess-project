@@ -18,6 +18,8 @@ public interface MatchmakingQueueRepository extends JpaRepository<MatchmakingQue
 
     void deleteByUserId(UUID userId);
 
+    List<MatchmakingQueueEntity> findByMatchedFalse();
+
     @Query("SELECT e FROM MatchmakingQueueEntity e WHERE e.matched = false " +
            "AND e.timeControlType = :tc ORDER BY e.joinedAt ASC")
     List<MatchmakingQueueEntity> findUnmatchedByTimeControl(@Param("tc") TimeControlKind tc);

@@ -13,6 +13,7 @@ import org.mockito.InOrder;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,6 +40,7 @@ class MatchmakingServiceTest {
         tx          = mock(TransactionTemplate.class);
         // run the callback straight away, as a real transaction would
         when(tx.execute(any())).thenAnswer(call -> ((TransactionCallback<Object>) call.getArgument(0)).doInTransaction(null));
+        when(lobby.isConnected(any())).thenReturn(true); // by default everyone queued is in the lobby
         when(engine.createGame(any())).thenReturn(new GameStateResponse(
             "game-1", "fen", "WHITE", "ONGOING", null, List.of(), List.of(), List.of()));
         service = new MatchmakingService(queue, mock(UserRepository.class), engine, persistence, lobby, tx);
@@ -115,5 +117,38 @@ class MatchmakingServiceTest {
         service.runMatchmakingCycle();
 
         verify(lobby, never()).sendToUser(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("a player who is no longer in the lobby is not paired")
+    void absentPlayersAreSkipped() {
+        var gone = queued("ann", 1200, 300_000, 0);
+        queueUp(gone, queued("bob", 1200, 300_000, 0));
+        when(lobby.isConnected(gone.getUserId().toString())).thenReturn(false);
+
+        service.runMatchmakingCycle();
+
+        verify(persistence, never()).persistNewOnlineGame(any(), any(), any(), any(), any(), any(), any(), any(),
+            anyLong(), anyLong());
+        verify(lobby, never()).sendToUser(any(), eq("MATCH_FOUND"), any());
+    }
+
+    @Test
+    @DisplayName("queue rows of players who vanished are removed, but not those still waiting")
+    void purgeRemovesOnlyAbsentStaleEntries() {
+        var gone  = queued("ann", 1200, 300_000, 0);   // old, not in the lobby
+        var fresh = queued("bob", 1200, 300_000, 0);   // just joined: may still be connecting
+        var here  = queued("cy", 1200, 300_000, 0);    // old but connected
+        gone.setJoinedAt(Instant.now().minusSeconds(120));
+        here.setJoinedAt(Instant.now().minusSeconds(120));
+        when(queue.findByMatchedFalse()).thenReturn(List.of(gone, fresh, here));
+        when(lobby.isConnected(gone.getUserId().toString())).thenReturn(false);
+        when(lobby.isConnected(fresh.getUserId().toString())).thenReturn(false);
+
+        service.purgeAbandonedEntries();
+
+        verify(queue).deleteByUserId(gone.getUserId());
+        verify(queue, never()).deleteByUserId(fresh.getUserId());
+        verify(queue, never()).deleteByUserId(here.getUserId());
     }
 }
