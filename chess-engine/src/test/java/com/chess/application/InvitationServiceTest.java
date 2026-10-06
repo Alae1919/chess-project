@@ -86,6 +86,8 @@ class InvitationServiceTest {
     private UUID acceptAndGetWhite(GameInvitationEntity invitation) {
         var id = invitation.getId();
         when(invitations.findByIdAndInviteeId(id, inviteeId)).thenReturn(Optional.of(invitation));
+        // the database lets this answer change the row: nobody got there first
+        when(invitations.accept(eq(id), eq(inviteeId), any(), any(), any())).thenReturn(1);
 
         service.respondToInvitation(inviteeId, id, "accept");
 

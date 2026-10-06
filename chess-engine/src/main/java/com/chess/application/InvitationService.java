@@ -15,6 +15,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.Instant;
 import java.util.List;
@@ -88,7 +90,7 @@ public class InvitationService {
             invitation.getCreatedAt(),
             invitation.getExpiresAt()
         );
-        lobbySessionManager.sendToUser(invitee.getId().toString(), "INVITE_RECEIVED", payload);
+        tellAfterCommit(invitee.getId().toString(), "INVITE_RECEIVED", payload);
 
         log.info("Invitation {} sent from {} to {}", invitation.getId(),
                   inviter.getUsername(), invitee.getUsername());
@@ -114,12 +116,17 @@ public class InvitationService {
         if ("decline".equalsIgnoreCase(response)) {
             invitation.setStatus(InvitationStatus.declined);
             invitationRepo.save(invitation);
-            lobbySessionManager.sendToUser(invitation.getInviterId().toString(),
+            tellAfterCommit(invitation.getInviterId().toString(),
                 "INVITE_DECLINED", toResponse(invitation));
             return toResponse(invitation);
         }
 
         if ("accept".equalsIgnoreCase(response)) {
+            // Claim it first: a second answer to the same invitation (a double click, two tabs)
+            // must not also start a game
+            if (invitationRepo.accept(invitationId, inviteeId, Instant.now(),
+                                      InvitationStatus.accepted, InvitationStatus.pending) == 0)
+                throw new IllegalStateException("Invitation is no longer pending");
             invitation.setStatus(InvitationStatus.accepted);
 
             // The inviter's choice (a rematch swaps colours), else a coin toss
@@ -167,8 +174,8 @@ public class InvitationService {
                 invitation.getTimeControlType().name(),
                 invitation.getTimeControlInitialMs(), invitation.getTimeControlIncrementMs()
             );
-            lobbySessionManager.sendToUser(invitation.getInviterId().toString(), "MATCH_FOUND", payloadInviter);
-            lobbySessionManager.sendToUser(inviteeId.toString(), "MATCH_FOUND", payloadInvitee);
+            tellAfterCommit(invitation.getInviterId().toString(), "MATCH_FOUND", payloadInviter);
+            tellAfterCommit(inviteeId.toString(), "MATCH_FOUND", payloadInvitee);
 
             log.info("Invitation {} accepted — game {} created", invitationId, gameId);
 
@@ -189,7 +196,7 @@ public class InvitationService {
             throw new IllegalStateException("Invitation is no longer pending");
         invitation.setStatus(InvitationStatus.cancelled);
         invitationRepo.save(invitation);
-        lobbySessionManager.sendToUser(invitation.getInviteeId().toString(),
+        tellAfterCommit(invitation.getInviteeId().toString(),
             "INVITE_CANCELLED", toResponse(invitation));
     }
 
@@ -214,13 +221,29 @@ public class InvitationService {
             invitation.setStatus(InvitationStatus.expired);
             invitationRepo.save(invitation);
             var response = toResponse(invitation);
-            lobbySessionManager.sendToUser(invitation.getInviterId().toString(), "INVITE_EXPIRED", response);
-            lobbySessionManager.sendToUser(invitation.getInviteeId().toString(), "INVITE_EXPIRED", response);
+            tellAfterCommit(invitation.getInviterId().toString(), "INVITE_EXPIRED", response);
+            tellAfterCommit(invitation.getInviteeId().toString(), "INVITE_EXPIRED", response);
         }
         if (!stale.isEmpty()) log.debug("Expired {} stale invitation(s)", stale.size());
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
+
+    /**
+     * Tells a player something once the transaction has committed. Sent earlier, a player
+     * could act on news the database doesn't hold yet: open the game and find nothing.
+     */
+    private void tellAfterCommit(String userId, String type, Object payload) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() {
+                    lobbySessionManager.sendToUser(userId, type, payload);
+                }
+            });
+        } else {
+            lobbySessionManager.sendToUser(userId, type, payload);
+        }
+    }
 
     private InvitationDto.InvitationResponse toResponse(GameInvitationEntity e) {
         return new InvitationDto.InvitationResponse(
