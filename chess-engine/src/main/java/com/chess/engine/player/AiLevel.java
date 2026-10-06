@@ -1,5 +1,11 @@
 package com.chess.engine.player;
 
+import com.chess.engine.core.search.SearchLimits;
+import com.chess.engine.core.search.SearchResult;
+
+import java.util.List;
+import java.util.random.RandomGenerator;
+
 /**
  * How hard the AI plays at each of the six difficulty levels.
  *
@@ -23,6 +29,44 @@ package com.chess.engine.player;
 public record AiLevel(int level, int maxDepth, long maxNodes, long moveTimeMs, int multiPv, int temperatureCp, int hashMegabytes) {
 
     public static final int EASIEST = 1, HARDEST = 6, DEFAULT = 4;
+
+    /**
+     * What to search for this level, in a game with the given clock for the side to move
+     * ({@code remainingMs} of 0 means no clock). On a clock the AI never thinks longer than the
+     * game can spare, whatever the level.
+     */
+    public SearchLimits limits(long remainingMs, long incrementMs) {
+        long moveTime = moveTimeMs;
+        if (remainingMs > 0) {
+            long spare = Math.max(20, Math.min(remainingMs / 30 + incrementMs * 3 / 4, remainingMs / 4));
+            moveTime = moveTime > 0 ? Math.min(moveTime, spare) : spare;
+        }
+        return new SearchLimits(maxDepth, maxNodes, moveTime, 0, 0, 0, 0, 0, multiPv);
+    }
+
+    /**
+     * The strongest levels take the best move. The others pick among the candidates in
+     * proportion to exp(-gap / temperature), so a move a little worse than the best is quite
+     * likely and one that loses material outright almost never is. A forced mate is always played.
+     */
+    public int choose(SearchResult result, RandomGenerator random) {
+        List<SearchResult.Line> lines = result.lines();
+        if (lines.size() < 2 || temperatureCp <= 0 || result.isMate()) return result.bestMove();
+
+        int best = lines.get(0).score();
+        double[] weight = new double[lines.size()];
+        double total = 0;
+        for (int i = 0; i < lines.size(); i++) {
+            weight[i] = Math.exp(-(best - lines.get(i).score()) / (double) temperatureCp);
+            total += weight[i];
+        }
+        double ticket = random.nextDouble() * total;
+        for (int i = 0; i < weight.length; i++) {
+            ticket -= weight[i];
+            if (ticket <= 0) return lines.get(i).move();
+        }
+        return lines.get(0).move();
+    }
 
     public static AiLevel of(int level) {
         return switch (Math.max(EASIEST, Math.min(HARDEST, level))) {

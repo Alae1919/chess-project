@@ -78,53 +78,15 @@ public final class AiPlayer implements Player {
 
         Searcher s = searcher;
         if (s == null) searcher = s = new Searcher(new ClassicalEvaluator(), level.hashMegabytes());
-        SearchResult result = s.search(pos, limitsFor(pos.sideToMove(), whiteMs, blackMs, incrementMs));
-        return toDomain(board, choose(result));
+        long remaining = pos.sideToMove() == Position.WHITE ? whiteMs : blackMs;
+        SearchResult result = s.search(pos, level.limits(remaining, incrementMs));
+        return toDomain(board, level.choose(result, random));
     }
 
     /** Asks a search in progress to finish at once; its move is then the best found so far. */
     public void stop() {
         Searcher s = searcher;
         if (s != null) s.stop();
-    }
-
-    // ---- limits ----------------------------------------------------------------------------------
-
-    private SearchLimits limitsFor(int sideToMove, long whiteMs, long blackMs, long incrementMs) {
-        long moveTime = level.moveTimeMs();
-        long remaining = sideToMove == Position.WHITE ? whiteMs : blackMs;
-        if (remaining > 0) {
-            // On a clock, never think for longer than the game can spare, whatever the level
-            long spare = Math.max(20, Math.min(remaining / 30 + incrementMs * 3 / 4, remaining / 4));
-            moveTime = moveTime > 0 ? Math.min(moveTime, spare) : spare;
-        }
-        return new SearchLimits(level.maxDepth(), level.maxNodes(), moveTime, 0, 0, 0, 0, 0, level.multiPv());
-    }
-
-    // ---- choosing among the candidates -----------------------------------------------------------
-
-    /**
-     * The strongest levels take the best move. The others pick among the candidates in
-     * proportion to exp(-gap / temperature), so a move a little worse than the best is quite
-     * likely and one that loses material outright almost never is.
-     */
-    private int choose(SearchResult result) {
-        List<SearchResult.Line> lines = result.lines();
-        if (lines.size() < 2 || level.temperatureCp() <= 0 || result.isMate()) return result.bestMove();
-
-        int best = lines.get(0).score();
-        double[] weight = new double[lines.size()];
-        double total = 0;
-        for (int i = 0; i < lines.size(); i++) {
-            weight[i] = Math.exp(-(best - lines.get(i).score()) / (double) level.temperatureCp());
-            total += weight[i];
-        }
-        double ticket = random.nextDouble() * total;
-        for (int i = 0; i < weight.length; i++) {
-            ticket -= weight[i];
-            if (ticket <= 0) return lines.get(i).move();
-        }
-        return lines.get(0).move();
     }
 
     // ---- conversions -----------------------------------------------------------------------------
