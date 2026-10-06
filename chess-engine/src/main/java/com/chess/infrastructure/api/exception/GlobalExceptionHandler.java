@@ -55,6 +55,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem(HttpStatus.CONFLICT, "not-your-turn", "Not Your Turn", ex);
     }
 
+    @ExceptionHandler(AiBusyException.class)
+    ProblemDetail handleAiBusy(AiBusyException ex) {
+        return problem(HttpStatus.CONFLICT, "ai-busy", "AI Is Thinking", ex);
+    }
+
     @ExceptionHandler(DrawDeclinedException.class)
     ProblemDetail handleDrawDeclined(DrawDeclinedException ex) {
         return problem(HttpStatus.CONFLICT, "draw-declined", "Draw Declined", ex);

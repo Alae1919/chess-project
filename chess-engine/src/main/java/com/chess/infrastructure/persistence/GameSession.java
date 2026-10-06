@@ -18,6 +18,8 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Mutable session object held in the GameStore.
@@ -51,6 +53,8 @@ public final class GameSession {
     private long   blackTimeRemainingMs;
     private long   incrementMs;          // added to the mover's clock after each move
     private Instant turnStartAt;         // when the side to move's clock started; null = not running
+    private final ReentrantLock turnLock = new ReentrantLock();
+    private final AtomicBoolean aiThinking = new AtomicBoolean();
 
     public GameSession(String id, Board initialBoard,
                        Color aiColor, int aiDepth) {
@@ -72,6 +76,20 @@ public final class GameSession {
         this.state        = GameStateChecker.evaluate(board, board.activeColor());
         countPosition(board);
     }
+
+    // ---- Serialising requests -----------------------------------------
+
+    /**
+     * Held while a request reads the game, decides, and changes it (and saves the change),
+     * so two requests for one game never act on the same position. Held for milliseconds:
+     * an AI search runs outside it.
+     */
+    public ReentrantLock turnLock() { return turnLock; }
+
+    /** Claims the right to run the AI's search; false if one is already running. */
+    public boolean tryBeginAiSearch() { return aiThinking.compareAndSet(false, true); }
+
+    public void endAiSearch() { aiThinking.set(false); }
 
     // ---- Mutation (called only from GameApplicationService) -----------
 

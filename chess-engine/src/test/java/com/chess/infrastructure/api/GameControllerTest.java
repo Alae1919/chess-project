@@ -27,15 +27,23 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -1184,6 +1192,75 @@ class GameControllerTest {
             move(id, "e8d8"); // restores the bare position, then plays on
 
             assertEquals(List.of(1, 2), storedMoveNumbers(id));
+        }
+    }
+
+    // ================================================================
+    // Requests that arrive at the same time
+    // ================================================================
+
+    @Nested
+    @DisplayName("Requests for one game that arrive together")
+    class ConcurrentRequests {
+
+        /** Runs the calls at the same moment, each as "user", and returns their HTTP statuses. */
+        private List<Integer> fireTogether(List<MockHttpServletRequestBuilder> requests) throws Exception {
+            ExecutorService pool = Executors.newFixedThreadPool(requests.size());
+            CountDownLatch go = new CountDownLatch(1);
+            try {
+                List<Future<Integer>> results = new ArrayList<>();
+                for (var request : requests) {
+                    results.add(pool.submit(() -> {
+                        go.await();
+                        return mvc.perform(request.with(user("user"))).andReturn().getResponse().getStatus();
+                    }));
+                }
+                go.countDown();
+                List<Integer> statuses = new ArrayList<>();
+                for (var result : results) statuses.add(result.get(60, TimeUnit.SECONDS));
+                return statuses;
+            } finally {
+                pool.shutdownNow();
+            }
+        }
+
+        private MockHttpServletRequestBuilder postMove(String id, String uci) throws Exception {
+            return post("/api/games/" + id + "/moves")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("move", uci)));
+        }
+
+        @Test
+        @DisplayName("two AI-move requests play one move, and the game stays consistent")
+        void twoAiMoveRequestsPlayOneMove() throws Exception {
+            String id = createGame("BLACK");           // the AI plays Black
+            mvc.perform(postMove(id, "e2e4")).andExpect(status().isOk());
+
+            List<Integer> statuses = fireTogether(List.of(
+                post("/api/games/" + id + "/ai-move"),
+                post("/api/games/" + id + "/ai-move")));
+
+            assertEquals(1, statuses.stream().filter(s -> s == 200).count(), "statuses " + statuses);
+            assertEquals(1, statuses.stream().filter(s -> s == 409).count(), "statuses " + statuses);
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(jsonPath("$.moveHistory", hasSize(2)))
+                .andExpect(jsonPath("$.currentTurn").value("white"));
+            assertEquals(List.of(1, 2), jdbc.queryForList(
+                "select move_number from game_moves where game_id = cast(? as uuid) order by id",
+                Integer.class, id));
+        }
+
+        @RepeatedTest(10)
+        @DisplayName("two different moves for the same turn: one is played, the other refused")
+        void simultaneousMovesApplyOnlyOne() throws Exception {
+            String id = createGame("NONE");            // local game: the lock, not the seat, decides
+
+            List<Integer> statuses = fireTogether(List.of(postMove(id, "e2e4"), postMove(id, "d2d4")));
+
+            assertEquals(1, statuses.stream().filter(s -> s == 200).count(), "statuses " + statuses);
+            mvc.perform(get("/api/games/" + id))
+                .andExpect(jsonPath("$.moveHistory", hasSize(1)))
+                .andExpect(jsonPath("$.currentTurn").value("black"));
         }
     }
 }

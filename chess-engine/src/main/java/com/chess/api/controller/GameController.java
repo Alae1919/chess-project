@@ -102,7 +102,7 @@ public class GameController {
             if (!callerId.equals(expectedId))
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "It is not your turn");
         }
-        var r = engineService.submitMove(gameId, req.move());
+        var r = engineService.submitMove(gameId, req.move(), GameAccess.seatOf(dbGame, callerId));
         var game = persistService.toFullGameDto(gameId, r);
         wsManager.broadcast(gameId, game.result() != null ? "GAME_OVER" : "MOVE_MADE", game);
         return game;
@@ -201,7 +201,8 @@ public class GameController {
         String fen = engineService.getGame(gameId).fen();
         var board = FenParser.parse(fen);
         int score = evaluator.evaluate(board, board.activeColor());
-        var best = search.findBestMove(board, 4);
+        // the search keeps its table between calls, so only one request may use it at a time
+        var best = bestMove(board);
         return new EvaluationDto.PositionEvaluation(
                 score, 4,
                 best.map(Object::toString).orElse(null),
@@ -218,6 +219,11 @@ public class GameController {
         if (requirePlayer(gameId, userDetails).getMode() == GameMode.online)
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Online games can't be deleted");
         engineService.deleteGame(gameId);
+    }
+
+    private synchronized java.util.Optional<com.chess.domain.model.Move> bestMove(
+            com.chess.domain.board.Board board) {
+        return search.findBestMove(board, 4);
     }
 
     // ── Mapping helpers ───────────────────────────────────────────────────────

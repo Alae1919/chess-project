@@ -40,6 +40,7 @@ public class GameApplicationService {
     private final GameStore              store;
     private final GameRepository         gameRepository;
     private final GamePersistenceService persistenceService;
+    private final Object[] restoreLocks = newLocks(16);
 
     public GameApplicationService(GameStore store,
                                    GameRepository gameRepository,
@@ -47,6 +48,12 @@ public class GameApplicationService {
         this.store              = store;
         this.gameRepository     = gameRepository;
         this.persistenceService = persistenceService;
+    }
+
+    private static Object[] newLocks(int n) {
+        Object[] locks = new Object[n];
+        for (int i = 0; i < n; i++) locks[i] = new Object();
+        return locks;
     }
 
     // ----------------------------------------------------------------
@@ -88,26 +95,33 @@ public class GameApplicationService {
     // USE CASE 4 — Human submits a move
     // ----------------------------------------------------------------
 
-    public GameStateResponse submitMove(String gameId, String uciMove) {
+    /**
+     * @param seat the colour the caller plays, or null when they play both (a local game);
+     *             the move is refused unless it is that colour's turn
+     */
+    public GameStateResponse submitMove(String gameId, String uciMove, Color seat) {
         GameSession session = requireSession(gameId);
+        return underTurnLock(session, () -> {
+            if (session.isOver()) throw new GameOverException(gameId);
+            // Too late: the clock fell before this move arrived. The clock watcher ends the game.
+            if (session.flaggedSide() != null) throw new GameOverException(gameId);
 
-        if (session.isOver()) throw new GameOverException(gameId);
-        // Too late: the clock fell before this move arrived. The clock watcher ends the game.
-        if (session.flaggedSide() != null) throw new GameOverException(gameId);
+            Color active = session.board().activeColor();
+            if (session.aiColor() != null && session.aiColor() == active)
+                throw new NotYourTurnException(
+                        "It is the AI's turn (" + active + "). Call /ai-move instead.");
+            if (seat != null && seat != active)
+                throw new NotYourTurnException("It is not your turn.");
 
-        Color active = session.board().activeColor();
-        if (session.aiColor() != null && session.aiColor() == active)
-            throw new NotYourTurnException(
-                    "It is the AI's turn (" + active + "). Call /ai-move instead.");
+            String colorPlayed = active.name().toLowerCase();
+            Move move = parseMoveFromLegalList(session, uciMove);
+            session.applyMove(move);
 
-        String colorPlayed = active.name().toLowerCase();
-        Move move = parseMoveFromLegalList(session, uciMove);
-        session.applyMove(move);
-
-        GameStateResponse r = toResponse(session);
-        persistenceService.persistMove(UUID.fromString(gameId), uciMove, r.fen(), colorPlayed);
-        finaliseIfTerminal(gameId, r.status(), r.activeColor());
-        return r;
+            GameStateResponse r = toResponse(session);
+            persistenceService.persistMove(UUID.fromString(gameId), uciMove, r.fen(), colorPlayed);
+            finaliseIfTerminal(gameId, r.status(), r.activeColor());
+            return r;
+        });
     }
 
     // ----------------------------------------------------------------
@@ -116,25 +130,42 @@ public class GameApplicationService {
 
     public GameStateResponse playAiMove(String gameId) {
         GameSession session = requireSession(gameId);
+        // One search per game at a time: a second request would only race the first
+        if (!session.tryBeginAiSearch()) throw new AiBusyException(gameId);
+        try {
+            // Look at the position under the lock, but search without it, so a resignation
+            // or an undo is never held up behind the AI
+            Board position = underTurnLock(session, () -> {
+                if (session.isOver()) throw new GameOverException(gameId);
+                if (session.flaggedSide() != null) throw new GameOverException(gameId);
+                Color active = session.board().activeColor();
+                if (session.aiColor() == null || session.aiColor() != active)
+                    throw new NotYourTurnException(
+                            "It is the human's turn (" + active + "). Call /moves instead.");
+                return session.board();
+            });
 
-        if (session.isOver()) throw new GameOverException(gameId);
-        if (session.flaggedSide() != null) throw new GameOverException(gameId);
+            Move move = session.aiPlayer().chooseMove(position);
 
-        Color active = session.board().activeColor();
-        if (session.aiColor() == null || session.aiColor() != active)
-            throw new NotYourTurnException(
-                    "It is the human's turn (" + active + "). Call /moves instead.");
+            return underTurnLock(session, () -> {
+                if (session.isOver()) throw new GameOverException(gameId);
+                // Boards are immutable, so a different one means the game moved on (an undo,
+                // say) while the AI was thinking: its move no longer fits
+                if (session.board() != position)
+                    throw new IllegalStateException("The position changed while the AI was thinking");
 
-        String colorPlayed = active.name().toLowerCase();
-        Move move = session.aiPlayer().chooseMove(session.board());
+                String colorPlayed = position.activeColor().name().toLowerCase();
+                session.applyMove(move);
 
-        session.applyMove(move);
-
-        GameStateResponse r = toResponse(session);
-        if (r.lastMove() != null)
-            persistenceService.persistMove(UUID.fromString(gameId), r.lastMove(), r.fen(), colorPlayed);
-        finaliseIfTerminal(gameId, r.status(), r.activeColor());
-        return r;
+                GameStateResponse r = toResponse(session);
+                if (r.lastMove() != null)
+                    persistenceService.persistMove(UUID.fromString(gameId), r.lastMove(), r.fen(), colorPlayed);
+                finaliseIfTerminal(gameId, r.status(), r.activeColor());
+                return r;
+            });
+        } finally {
+            session.endAiSearch();
+        }
     }
 
     // ----------------------------------------------------------------
@@ -143,13 +174,15 @@ public class GameApplicationService {
 
     public GameStateResponse undoLastMove(String gameId) {
         GameSession session = requireSession(gameId);
-        // Undoing past the end would reopen a finished (and already scored) game
-        if (session.isOver()) throw new GameOverException(gameId);
-        session.undoLastMove();
-        GameStateResponse r = toResponse(session);
-        persistenceService.undoLastMove(UUID.fromString(gameId),
-                r.fen(), r.activeColor().toLowerCase());
-        return r;
+        return underTurnLock(session, () -> {
+            // Undoing past the end would reopen a finished (and already scored) game
+            if (session.isOver()) throw new GameOverException(gameId);
+            session.undoLastMove();
+            GameStateResponse r = toResponse(session);
+            persistenceService.undoLastMove(UUID.fromString(gameId),
+                    r.fen(), r.activeColor().toLowerCase());
+            return r;
+        });
     }
 
     // ----------------------------------------------------------------
@@ -172,11 +205,13 @@ public class GameApplicationService {
      */
     public GameStateResponse resign(String gameId, Color side) {
         GameSession session = requireSession(gameId);
-        if (session.isOver()) throw new GameOverException(gameId);
-        session.resign(side != null ? side : session.board().activeColor());
-        GameStateResponse r = toResponse(session);
-        finaliseIfTerminal(gameId, r.status(), r.activeColor());
-        return r;
+        return underTurnLock(session, () -> {
+            if (session.isOver()) throw new GameOverException(gameId);
+            session.resign(side != null ? side : session.board().activeColor());
+            GameStateResponse r = toResponse(session);
+            finaliseIfTerminal(gameId, r.status(), r.activeColor());
+            return r;
+        });
     }
 
     /**
@@ -186,32 +221,38 @@ public class GameApplicationService {
      */
     public GameStateResponse offerDraw(String gameId, Color side) {
         GameSession session = requireSession(gameId);
-        if (session.isOver()) throw new GameOverException(gameId);
-        if (session.aiColor() != null) {
-            throw new DrawDeclinedException("The AI declined the draw offer.");
-        }
-        if (side == null || session.drawOfferedBy() == side.opposite()) {
-            return agreeDraw(gameId, session);
-        }
-        session.offerDraw(side);
-        return toResponse(session);
+        return underTurnLock(session, () -> {
+            if (session.isOver()) throw new GameOverException(gameId);
+            if (session.aiColor() != null) {
+                throw new DrawDeclinedException("The AI declined the draw offer.");
+            }
+            if (side == null || session.drawOfferedBy() == side.opposite()) {
+                return agreeDraw(gameId, session);
+            }
+            session.offerDraw(side);
+            return toResponse(session);
+        });
     }
 
     /** {@code side} accepts the draw the opponent offered. */
     public GameStateResponse acceptDraw(String gameId, Color side) {
         GameSession session = requireSession(gameId);
-        if (session.isOver()) throw new GameOverException(gameId);
-        requireOfferFromOpponent(session, side);
-        return agreeDraw(gameId, session);
+        return underTurnLock(session, () -> {
+            if (session.isOver()) throw new GameOverException(gameId);
+            requireOfferFromOpponent(session, side);
+            return agreeDraw(gameId, session);
+        });
     }
 
     /** {@code side} turns down the draw the opponent offered. */
     public GameStateResponse declineDraw(String gameId, Color side) {
         GameSession session = requireSession(gameId);
-        if (session.isOver()) throw new GameOverException(gameId);
-        requireOfferFromOpponent(session, side);
-        session.clearDrawOffer();
-        return toResponse(session);
+        return underTurnLock(session, () -> {
+            if (session.isOver()) throw new GameOverException(gameId);
+            requireOfferFromOpponent(session, side);
+            session.clearDrawOffer();
+            return toResponse(session);
+        });
     }
 
     private static void requireOfferFromOpponent(GameSession session, Color side) {
@@ -233,11 +274,13 @@ public class GameApplicationService {
     /** {@code loser} left the game for good. Empty if the game was already over. */
     public Optional<GameStateResponse> abandon(String gameId, Color loser) {
         GameSession session = requireSession(gameId);
-        if (session.isOver()) return Optional.empty();
-        session.abandon(loser);
-        GameStateResponse r = toResponse(session);
-        finaliseIfTerminal(gameId, r.status(), r.activeColor());
-        return Optional.of(r);
+        return underTurnLock(session, () -> {
+            if (session.isOver()) return Optional.<GameStateResponse>empty();
+            session.abandon(loser);
+            GameStateResponse r = toResponse(session);
+            finaliseIfTerminal(gameId, r.status(), r.activeColor());
+            return Optional.of(r);
+        });
     }
 
     // ----------------------------------------------------------------
@@ -251,12 +294,17 @@ public class GameApplicationService {
     public List<GameStateResponse> expireFlaggedGames() {
         List<GameStateResponse> ended = new java.util.ArrayList<>();
         for (GameSession session : store.all()) {
-            Color flagged = session.flaggedSide();
-            if (flagged == null) continue;
-            session.flag(flagged);
-            GameStateResponse r = toResponse(session);
-            finaliseIfTerminal(session.id(), r.status(), r.activeColor());
-            ended.add(r);
+            if (session.flaggedSide() == null) continue; // cheap look first, without the lock
+            underTurnLock(session, () -> {
+                // a move may have beaten the clock while we waited for the lock
+                Color flagged = session.flaggedSide();
+                if (flagged == null) return null;
+                session.flag(flagged);
+                GameStateResponse r = toResponse(session);
+                finaliseIfTerminal(session.id(), r.status(), r.activeColor());
+                ended.add(r);
+                return null;
+            });
         }
         return ended;
     }
@@ -278,8 +326,23 @@ public class GameApplicationService {
     // ----------------------------------------------------------------
 
     private GameSession requireSession(String gameId) {
-        return store.findById(gameId)
-                .orElseGet(() -> restoreGameFromDatabase(gameId));
+        GameSession live = store.findById(gameId).orElse(null);
+        if (live != null) return live;
+        // One restore per game at a time: two requests must not each build a session,
+        // or one of them would go on playing a session the store no longer holds
+        synchronized (restoreLocks[Math.floorMod(gameId.hashCode(), restoreLocks.length)]) {
+            return store.findById(gameId).orElseGet(() -> restoreGameFromDatabase(gameId));
+        }
+    }
+
+    /** Runs {@code action} holding the game's turn lock, so requests for one game take turns. */
+    private static <T> T underTurnLock(GameSession session, java.util.function.Supplier<T> action) {
+        session.turnLock().lock();
+        try {
+            return action.get();
+        } finally {
+            session.turnLock().unlock();
+        }
     }
 
     private GameSession restoreGameFromDatabase(String gameId) {
