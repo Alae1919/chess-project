@@ -384,7 +384,7 @@ $topbar-h: 52px;
 /* ══ Compact layout: phones ═════════════════════════════════════════════
    Chrome around the board, upright: header 52 · two player strips 2×58 ·
    evaluation 14 · moves 46 · dock 76 (+ safe areas). The board takes the rest. */
-$m-chrome: 330px;
+$m-chrome: 290px;
 
 .mbar, .m-side { display: none; }
 
@@ -394,7 +394,7 @@ $m-chrome: 330px;
 
   .mbar {
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    height: calc(52px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 6px 0;
+    height: calc(48px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 6px 0;
 
     &__btn {
       width: 44px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
@@ -427,7 +427,7 @@ $m-chrome: 330px;
 
 /* ── Evaluation (only with analysis on) ── */
 .m-eval {
-  display: flex; align-items: center; gap: 10px; padding: 0 14px 8px;
+  display: flex; align-items: center; gap: 10px; padding: 0 14px 4px;
 
   &__bar {
     flex: 1; height: 6px; border-radius: 3px; overflow: hidden;
@@ -447,7 +447,7 @@ $m-chrome: 330px;
 
 /* ── Moves strip: the latest move kept in view; tap for the full notation ── */
 .m-moves {
-  display: flex; align-items: center; gap: 2px; height: 46px; width: 100%; padding: 0 14px;
+  display: flex; align-items: center; gap: 2px; height: 40px; width: 100%; padding: 0 14px;
   overflow-x: auto; white-space: nowrap; scrollbar-width: none;
   background: none; border: 0; cursor: pointer; text-align: left;
   font: 400 14px var(--font); font-variant-numeric: tabular-nums; color: var(--textd);
@@ -464,11 +464,11 @@ $m-chrome: 330px;
 /* ── Action dock, within reach of the thumb ── */
 .m-dock {
   display: flex; flex-shrink: 0;
-  padding: 6px 6px calc(10px + env(safe-area-inset-bottom));
+  padding: 4px 6px calc(6px + env(safe-area-inset-bottom));
   background: rgba(14, 11, 8, .86); border-top: 1px solid var(--border);
 
   &__btn {
-    flex: 1; min-height: 60px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    flex: 1; min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
     background: none; border: 0; cursor: pointer;
     font: 500 11px var(--font); letter-spacing: .04em; color: var(--textd);
     transition: color .2s;
@@ -478,7 +478,7 @@ $m-chrome: 330px;
   }
   &__btn--on { color: var(--gold2); }
   &__ico {
-    width: 48px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    width: 44px; height: 28px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
     transition: background .2s, transform .09s;
     &--text { font: 600 24px var(--serif); color: var(--gold); }
   }

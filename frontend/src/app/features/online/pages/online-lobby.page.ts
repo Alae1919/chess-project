@@ -132,22 +132,22 @@ export function elapsedSince(iso: string | undefined, now = Date.now()): string 
       display: flex; flex-direction: column;
     }
     .lobby__eyebrow { font: 500 11px var(--font); letter-spacing: .28em; text-transform: uppercase; color: var(--p); }
-    .lobby__title { margin-top: 6px; font: 400 48px/1 var(--serif); color: var(--text); }
+    .lobby__title { margin-top: 4px; font: 400 40px/1 var(--serif); color: var(--text); }
     .lobby__title em { font-style: italic; font-weight: 500; color: var(--gold); }
-    .lobby__sub { margin-top: 10px; font-size: 14px; line-height: 1.5; color: var(--textc); }
+    .lobby__sub { margin-top: 6px; font-size: 13px; line-height: 1.4; color: var(--textc); }
 
-    .seg { margin-top: 22px; }
+    .seg { margin-top: 14px; }
 
     .pane { flex: 1; display: flex; flex-direction: column; }
     .pane__foot { margin-top: 28px; }
     .label {
-      display: block; margin: 26px 0 10px;
+      display: block; margin: 18px 0 8px;
       font: 500 11px var(--font); letter-spacing: .22em; text-transform: uppercase; color: var(--textc);
     }
 
     .times { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
     .time {
-      height: 112px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+      height: 84px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
       background: rgba(255, 255, 255, .03); border: 1px solid var(--border); border-radius: 16px;
       color: var(--textd); cursor: pointer; transition: background .2s, border-color .2s, color .2s, box-shadow .2s, transform .09s;
     }
@@ -157,13 +157,13 @@ export function elapsedSince(iso: string | undefined, now = Date.now()): string 
       background: rgba(230, 194, 122, .14); border-color: var(--p); color: var(--gold2);
       box-shadow: 0 0 24px rgba(201, 164, 92, .2);
     }
-    .time__mins { font: 500 34px/1 var(--serif); }
+    .time__mins { font: 500 28px/1 var(--serif); }
     .time__name { font: 500 11px var(--font); letter-spacing: .18em; text-transform: uppercase; }
-    .times--compact .time { height: 64px; flex-direction: row; gap: 8px; }
+    .times--compact .time { height: 48px; flex-direction: row; gap: 8px; }
     .times--compact .time__mins { font-size: 22px; }
 
     .elo-row {
-      margin-top: 14px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between;
+      margin-top: 10px; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between;
       background: rgba(255, 255, 255, .03); border: 1px solid rgba(201, 164, 92, .12); border-radius: 14px;
       font-size: 14px; color: var(--textd);
     }
@@ -197,7 +197,7 @@ export function elapsedSince(iso: string | undefined, now = Date.now()): string 
     .search__cancel { margin-top: 26px; border-radius: 14px; height: 50px; }
 
     .picked {
-      margin-top: 10px; padding: 0 14px; height: 58px; display: flex; align-items: center; gap: 12px;
+      margin-top: 8px; padding: 0 14px; height: 50px; display: flex; align-items: center; gap: 12px;
       background: rgba(230, 194, 122, .1); border: 1px solid rgba(230, 194, 122, .6); border-radius: 14px;
     }
     .picked__avatar {
@@ -226,9 +226,17 @@ export function elapsedSince(iso: string | undefined, now = Date.now()): string 
 
     /* phones: the call to action sits at the bottom, by the thumb */
     @media (max-width: 768px) {
-      .lobby { max-width: none; padding: 28px 20px 20px; }
-      .lobby__title { font-size: 44px; }
-      .pane__foot { margin-top: auto; padding-top: 24px; }
+      .lobby { max-width: none; padding: 16px 20px 14px; }
+      .pane__foot { margin-top: auto; padding-top: 16px; }
+      .radar { width: 200px; height: 200px; }
+      .radar__core { width: 76px; height: 76px; font-size: 38px; }
+      .search__title { margin-top: 16px; font-size: 24px; }
+      .search__cancel { margin-top: 16px; height: 44px; }
+    }
+    @media (max-width: 768px) and (max-height: 740px) {
+      .lobby__sub { display: none; }
+      .time { height: 68px; }
+      .elo-row { display: none; }
     }
   `],
 })

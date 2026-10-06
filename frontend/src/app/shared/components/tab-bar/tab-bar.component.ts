@@ -63,8 +63,8 @@ export function tabFor(url: string): TabId | null {
       border-top: 1px solid var(--border);
     }
     .tab {
-      flex: 1; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-      font: 500 11px var(--font); letter-spacing: .06em; color: var(--textc);
+      flex: 1; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+      font: 500 11px var(--font); letter-spacing: .04em; color: var(--textc);
       -webkit-tap-highlight-color: transparent; transition: color .2s;
     }
     .tab:hover { color: var(--text); }
@@ -76,7 +76,7 @@ export function tabFor(url: string): TabId | null {
     .tab--on::before { transform: scaleX(1); }
     .tab:active svg { transform: scale(.9); }
     svg {
-      width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.6;
+      width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6;
       stroke-linecap: round; stroke-linejoin: round; transition: transform .09s;
     }
   `],

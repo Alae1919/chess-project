@@ -42,11 +42,11 @@ const SYMBOLS: Record<PieceColor, Record<string, string>> = {
     </div>
   `,
   styles: [`
-    :host { display: block; padding: 8px 14px; }
+    :host { display: block; padding: 5px 14px; }
     .strip { display: flex; align-items: center; gap: 12px; }
 
     .avatar {
-      width: 42px; height: 42px; flex-shrink: 0; border-radius: 12px;
+      width: 38px; height: 38px; flex-shrink: 0; border-radius: 11px;
       display: flex; align-items: center; justify-content: center;
       font: 600 14px var(--font); color: var(--gold);
       background: #1b1510; border: 1px solid rgba(201, 164, 92, .35); transition: box-shadow .3s;
@@ -71,9 +71,9 @@ const SYMBOLS: Record<PieceColor, Record<string, string>> = {
     .cap--white { color: var(--text); text-shadow: 0 0 1px #000; }
 
     .clock {
-      min-width: 86px; height: 42px; padding: 0 12px; flex-shrink: 0; border-radius: 11px;
+      min-width: 80px; height: 38px; padding: 0 10px; flex-shrink: 0; border-radius: 10px;
       display: flex; align-items: center; justify-content: flex-end; gap: 8px;
-      font: 400 24px var(--font); font-variant-numeric: tabular-nums; color: var(--textc);
+      font: 400 22px var(--font); font-variant-numeric: tabular-nums; color: var(--textc);
       background: rgba(255, 255, 255, .035); border: 1px solid rgba(201, 164, 92, .14);
       transition: background .3s, color .3s, box-shadow .3s;
     }

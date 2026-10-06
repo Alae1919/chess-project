@@ -98,7 +98,7 @@
 }
 
 /* ── Saved games ────────────────────────────────────────────────────────── */
-.saved-section { margin-bottom: 28px; }
+.saved-section { margin: 28px 0 0; }
 
 .section-label {
   font: 600 11px var(--font); letter-spacing: .14em; text-transform: uppercase;
@@ -207,36 +207,40 @@
 /* Phones: the list of modes; tapping one opens its options in a bottom sheet */
 @include mq.phone {
   /* no stacking context here: the sheet must rise above the tab bar */
-  .home { z-index: auto; display: block; min-height: 0; padding: 18px 20px 28px; }
+  .home { z-index: auto; display: block; min-height: 0; padding: 12px 20px 20px; }
   .home__floaty, .home__preview, .home__sub { display: none; }
-  .home__head { margin-bottom: 22px; }
-  .home__title { font-size: 42px; font-weight: 400; margin: 0; }
-  .eyebrow { letter-spacing: .28em; }
+  .home__head { margin-bottom: 14px; }
+  .home__title { font-size: 36px; font-weight: 400; margin: 0; }
+  .eyebrow { letter-spacing: .28em; margin-bottom: 4px; }
+  /* the saved games are the point of that tab: the headline gives way to them */
+  .home__head--saved .home__title { display: none; }
 
   .section-label--modes { display: block; letter-spacing: .22em; color: var(--textc); }
-  .section-label { margin-bottom: 12px; }
+  .section-label { margin-bottom: 8px; }
+  .resume { padding: 10px 12px; margin-bottom: 14px; border-radius: 16px; &__go { width: 36px; height: 36px; } }
 
+  .mode-list { gap: 8px; }
   .mode-card {
-    min-height: 74px; padding: 0 14px; gap: 14px; border-radius: 16px;
+    min-height: 62px; padding: 0 12px; gap: 12px; border-radius: 14px;
     &:hover { transform: none; }
     &:active { transform: scale(.98); transition-duration: .09s; }
     &::after { display: none; }
-    &__icon { font-size: 26px; border-radius: 12px; background: rgba(201, 164, 92, .1); border-color: rgba(201, 164, 92, .22); }
-    &__title { font: 500 16px var(--font); gap: 8px; }
-    &__desc { font-size: 13px; color: var(--textc); }
+    &__icon { width: 40px; height: 40px; font-size: 22px; border-radius: 11px; background: rgba(201, 164, 92, .1); border-color: rgba(201, 164, 92, .22); }
+    &__title { font: 500 15px var(--font); gap: 8px; }
+    &__desc { font-size: 12px; color: var(--textc); }
     &__arrow { color: #958873; font-size: 22px; }
     .tag { padding: 2px 7px; border-radius: 6px; font-size: 10px; letter-spacing: .12em; }
   }
 
-  .saved-item { min-height: 64px; border-radius: 14px; }
+  .saved-item { min-height: 54px; padding: 8px 14px; border-radius: 12px; }
 
   /* the options: hidden until a mode is picked, then a sheet over the page */
   .home__right { display: none; animation: none; }
   .home__right--open { display: block; }
   .home__right--open .options-panel {
     position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 96;
-    max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain;
-    padding: 10px 20px 0; border: 0; border-top: 1px solid rgba(201, 164, 92, .35); border-radius: 26px 26px 0 0;
+    max-height: calc(100dvh - 64px - env(safe-area-inset-top)); overflow-y: auto; overscroll-behavior: contain;
+    padding: 8px 20px 0; border: 0; border-top: 1px solid rgba(201, 164, 92, .35); border-radius: 26px 26px 0 0;
     background: var(--surface-sheet); box-shadow: 0 -20px 60px rgba(0, 0, 0, .6); backdrop-filter: none;
     animation: sheet-up .38s var(--ease-spring) both;
   }
@@ -245,27 +249,27 @@
     &__head { display: flex; margin-bottom: 4px; }
     &__title { display: none; }
     &__foot {
-      position: sticky; bottom: 0; margin: 0 -20px; padding: 14px 20px calc(18px + env(safe-area-inset-bottom));
+      position: sticky; bottom: 0; margin: 0 -20px; padding: 10px 20px calc(12px + env(safe-area-inset-bottom));
       background: linear-gradient(180deg, rgba(18, 14, 10, 0), #120e0a 22%);
     }
-    &__summary { font-size: 13px; }
+    &__summary { font-size: 12px; margin-bottom: 8px; }
   }
 
-  .opt-sec { margin-bottom: 20px; }
-  .opt-label { font-size: 11px; letter-spacing: .22em; color: var(--textc); margin-bottom: 10px; }
-  .btn-grid { gap: 8px; }
+  .opt-sec { margin-bottom: 12px; }
+  .opt-label { font-size: 11px; letter-spacing: .22em; color: var(--textc); margin-bottom: 7px; }
+  .btn-grid { gap: 6px; }
   .opt-btn {
-    min-height: 54px; border-radius: 12px; font-size: 14px; color: var(--textd);
+    min-height: 42px; padding: 4px 6px; border-radius: 11px; font-size: 14px; color: var(--textd);
     background: rgba(255, 255, 255, .03);
     &:active { transform: scale(.97); }
     &--sel { background: rgba(230, 194, 122, .14); color: var(--gold2); box-shadow: 0 0 18px rgba(201, 164, 92, .18); }
     &__elo { font-size: 11px; }
-    &__mins { font-size: 22px; }
+    &__mins { font-size: 18px; display: inline; margin-right: 6px; }
   }
-  .swatch { width: 16px; height: 16px; }
+  .swatch { width: 14px; height: 14px; }
 
   .toggle-list { gap: 0; margin-bottom: 0; }
-  .toggle-row { min-height: 52px; border-bottom: 1px solid rgba(201, 164, 92, .1); &__label { font: 400 15px var(--font); color: #e4dac8; } }
+  .toggle-row { min-height: 42px; border-bottom: 1px solid rgba(201, 164, 92, .1); &__label { font: 400 14px var(--font); color: #e4dac8; } &__hint { display: none; } }
   .toggle {
     width: 48px; height: 28px; border-radius: 14px;
     &::after { top: 2px; left: 2px; width: 22px; height: 22px; transition: transform .3s var(--ease-spring), background .25s; }
@@ -273,5 +277,21 @@
     &.on::after { transform: translateX(20px); background: #140f08; }
   }
 
-  .start-btn { height: 56px; border-radius: 14px; }
+  .start-btn { height: 48px; padding: 0; border-radius: 14px; font-size: 13px; }
+}
+
+/* short screens: tighter still */
+@include mq.short {
+  .home { padding-top: 8px; }
+  .home__title { font-size: 30px; }
+  .mode-card { min-height: 54px; }
+  .mode-card__icon { width: 36px; height: 36px; font-size: 20px; }
+  .mode-card__desc { display: none; }
+  .resume__sub { display: none; }
+  .opt-btn { min-height: 36px; }
+  .opt-btn__elo { display: none; }
+  .options-panel__summary { display: none; }
+  .opt-sec { margin-bottom: 8px; }
+  .toggle-row { min-height: 34px; }
+  .toggle { transform: scale(.9); }
 }

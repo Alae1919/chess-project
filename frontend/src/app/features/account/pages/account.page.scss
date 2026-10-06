@@ -210,27 +210,27 @@
 
 /* Phones: a compact header, the four numbers in a 2×2 grid, the panels full width */
 @include mq.phone {
-  .account { padding: 20px 20px 32px; min-height: 0; background: none; }
+  .account { padding: 12px 20px 20px; min-height: 0; background: none; }
 
   .profile-hero {
-    padding: 0; gap: 16px; margin-bottom: 20px; background: none; border: 0;
+    padding: 0; gap: 14px; margin-bottom: 12px; background: none; border: 0;
     &::after { display: none; }
-    &__avatar { width: 68px; height: 68px; font-size: 1.5rem; }
-    &__name { font-size: 30px; font-weight: 500; line-height: 1.05; }
-    &__handle { margin-bottom: 8px; color: var(--textc); }
+    &__avatar { width: 56px; height: 56px; font-size: 1.25rem; }
+    &__name { font-size: 26px; font-weight: 500; line-height: 1.05; }
+    &__handle { margin-bottom: 6px; color: var(--textc); font-size: .74rem; }
     .btn-ghost { display: none; }   /* not wired to anything yet */
   }
 
-  .stats-grid { gap: 10px; margin-bottom: 20px; }
+  .stats-grid { gap: 8px; margin-bottom: 12px; }
   .stat-card {
-    padding: 14px 16px; text-align: left; border-radius: 16px;
-    &__val { font-size: 34px; line-height: 1; }
-    &__lbl { margin-top: 6px; font-size: 11px; color: var(--textc); }
+    padding: 10px 14px; text-align: left; border-radius: 14px;
+    &__val { font-size: 28px; line-height: 1; }
+    &__lbl { margin-top: 4px; font-size: 10.5px; color: var(--textc); }
   }
 
   .panel { padding: 16px; border-radius: 16px; }
 
-  .phone-tabs { display: grid; margin-bottom: 14px; }
+  .phone-tabs { display: grid; margin-bottom: 10px; }
   .tab-off { display: none; }
   .two-col { margin-bottom: 0; }
 }

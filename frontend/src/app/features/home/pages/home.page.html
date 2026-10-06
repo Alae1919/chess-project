@@ -5,7 +5,7 @@
 
   <!-- ── LEFT: Mode selector ─────────────────────────────────────── -->
   <div class="home__left">
-    <div class="home__head">
+    <div class="home__head" [class.home__head--saved]="selectedMode === 'saved'">
       <p class="eyebrow">{{ greeting$ | async }}</p>
       <h1 class="home__title">Choisissez<br><em>votre adversaire</em></h1>
       <p class="home__sub">
@@ -15,7 +15,7 @@
 
     <!-- The game still going, one tap away -->
     <a class="resume glass" *ngIf="resume$ | async as r" [routerLink]="['/game', r.id]">
-      <app-mini-board [squares]="r.squares" [size]="72" />
+      <app-mini-board [squares]="r.squares" [size]="60" />
       <span class="resume__info">
         <span class="resume__kicker"><span class="resume__dot"></span>Partie en cours</span>
         <span class="resume__title">{{ r.title }}</span>
@@ -25,32 +25,6 @@
         <svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"/></svg>
       </span>
     </a>
-
-    <!-- Saved games list (shown when mode = saved) -->
-    <div class="saved-section" *ngIf="selectedMode === 'saved'">
-      <p class="section-label">Parties sauvegardées</p>
-      <div class="saved-list">
-        <button
-          type="button"
-          class="saved-item"
-          *ngFor="let sg of savedGames$ | async"
-          (click)="loadSaved(sg.gameId)"
-        >
-          <span class="saved-item__thumb">♟&#xFE0E;</span>
-          <span class="saved-item__info">
-            <span class="saved-item__name">vs {{ sg.opponentName }} — Tour {{ sg.turnNumber }}</span>
-            <span class="saved-item__meta">
-              {{ sg.savedAt | date:'short' }} · {{ sg.playerColor === 'white' ? 'Blancs' : 'Noirs' }}
-              <span *ngIf="sg.opening"> · {{ sg.opening }}</span>
-            </span>
-          </span>
-          <span class="saved-item__load">Charger ›</span>
-        </button>
-        <div class="saved-empty" *ngIf="(savedGames$ | async)?.length === 0">
-          Aucune partie sauvegardée.
-        </div>
-      </div>
-    </div>
 
     <p class="section-label section-label--modes">Modes de jeu</p>
 
@@ -107,6 +81,32 @@
         </span>
         <span class="mode-card__arrow">›</span>
       </button>
+    </div>
+
+    <!-- Saved games list (shown when mode = saved), below the modes -->
+    <div class="saved-section" *ngIf="selectedMode === 'saved'">
+      <p class="section-label">Parties sauvegardées</p>
+      <div class="saved-list">
+        <button
+          type="button"
+          class="saved-item"
+          *ngFor="let sg of savedGames$ | async"
+          (click)="loadSaved(sg.gameId)"
+        >
+          <span class="saved-item__thumb">♟&#xFE0E;</span>
+          <span class="saved-item__info">
+            <span class="saved-item__name">vs {{ sg.opponentName }} — Tour {{ sg.turnNumber }}</span>
+            <span class="saved-item__meta">
+              {{ sg.savedAt | date:'short' }} · {{ sg.playerColor === 'white' ? 'Blancs' : 'Noirs' }}
+              <span *ngIf="sg.opening"> · {{ sg.opening }}</span>
+            </span>
+          </span>
+          <span class="saved-item__load">Charger ›</span>
+        </button>
+        <div class="saved-empty" *ngIf="(savedGames$ | async)?.length === 0">
+          Aucune partie sauvegardée.
+        </div>
+      </div>
     </div>
 
     <!-- Decorative board -->

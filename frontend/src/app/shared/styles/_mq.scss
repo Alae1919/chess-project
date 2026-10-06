@@ -6,6 +6,11 @@
   @media (max-width: 768px) { @content; }
 }
 
+/* A phone held upright with little height to spare (browser bars included) */
+@mixin short {
+  @media (max-width: 768px) and (max-height: 740px) { @content; }
+}
+
 /* A phone on its side: too short for the stacked layout, the board goes left */
 @mixin phone-landscape {
   @media (max-height: 500px) and (max-width: 1000px) and (orientation: landscape) { @content; }
