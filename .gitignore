@@ -5,3 +5,8 @@
 
 # Local tool settings
 .claude/settings.local.json
+
+training/.venv/
+training/data/
+training/runs/
+training/__pycache__/
