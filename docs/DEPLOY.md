@@ -131,6 +131,32 @@ progress: players reconnect, and unfinished games are reloaded from the database
 **Roll back** a bad update: `git log` to find the last good commit, `git checkout <commit>`, and run the `up -d --build`
 line again.
 
+## Automatic deploys
+
+`.github/workflows/deploy.yml` runs the "Day to day" update by itself: when CI passes on `main`, it connects over SSH,
+fast-forwards the server to the commit CI tested and runs `up -d --build --wait`, which fails the run if a service
+does not become healthy. You can also start it from the Actions tab ("Run workflow").
+
+One-time setup:
+
+1. On your machine, make a key just for this: `ssh-keygen -t ed25519 -f deploy_key -N ""`. Append `deploy_key.pub`
+   to `~/.ssh/authorized_keys` on the server.
+2. Get the server's host key (so the runner cannot be sent to an impostor): `ssh-keyscan -t ed25519 <elastic-ip>`.
+3. In GitHub, Settings, Environments, create `production`, and add these secrets to it:
+
+   | Secret | Value |
+   |---|---|
+   | `EC2_HOST` | the Elastic IP or domain |
+   | `EC2_USER` | `ubuntu` |
+   | `EC2_SSH_KEY` | the content of `deploy_key` (the private one) |
+   | `EC2_KNOWN_HOSTS` | the output of `ssh-keyscan` from step 2 |
+
+4. Delete `deploy_key` from your machine. Optionally add yourself as a required reviewer on the `production`
+   environment to approve each deploy.
+
+The server's checkout must be on `main` with no local changes, or the fast-forward fails (and the run says so).
+Rolling back is still manual, as above.
+
 ## Backups
 
 The database lives in a Docker volume on the server's disk. If the instance is terminated, the games and accounts go
@@ -169,8 +195,6 @@ them to an S3 bucket by attaching an IAM role that may write to the bucket and a
 
 ## What this does not cover
 
-* **A deploy pipeline.** Updating is `git pull` and one command on the server. Automating that from GitHub Actions
-  (over SSH or AWS Systems Manager) is a reasonable next step once the manual way has worked once.
 * **A managed database.** RDS for PostgreSQL would take backups off your hands, at the price of a database that costs more
   than the server. The backend only needs its `SPRING_DATASOURCE_*` settings changed.
 * **Monitoring.** Beyond `docker compose ps`, consider an uptime check (Route 53 health checks, or any free

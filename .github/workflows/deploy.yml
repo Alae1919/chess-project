@@ -1,0 +1,56 @@
+name: Deploy
+
+# Runs after CI has passed on main, and can be started by hand from the Actions tab.
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+# Two deploys at once would fight over the same docker build: queue them instead.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    # a manual run always goes; an automatic one only when CI succeeded
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 25
+
+    steps:
+      - name: Set up SSH
+        env:
+          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      # The commit CI tested (not whatever main points at by now), fast-forward only so a
+      # server that drifted from main fails loudly instead of being overwritten.
+      # --wait returns once every service is healthy and fails otherwise.
+      - name: Update and restart
+        env:
+          HOST: ${{ secrets.EC2_HOST }}
+          USER_NAME: ${{ secrets.EC2_USER }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          ssh -i ~/.ssh/id_deploy "$USER_NAME@$HOST" bash -s "$SHA" <<'REMOTE'
+          set -euo pipefail
+          cd ~/chess-project
+          git fetch --quiet origin main
+          git merge --ff-only "$1"
+          docker compose -f docker-compose.prod.yml up -d --build --wait --wait-timeout 300
+          docker compose -f docker-compose.prod.yml ps
+          docker image prune -f >/dev/null
+          REMOTE
