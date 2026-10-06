@@ -2,7 +2,7 @@ import { Component, inject, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Store } from '@ngrx/store';
 import { interval, Subscription } from 'rxjs';
-import { selectPendingInvitations } from '../../../store/lobby/lobby.selectors';
+import { selectPendingInvitations, selectRespondingTo } from '../../../store/lobby/lobby.selectors';
 import { LobbyActions } from '../../../store/lobby/lobby.actions';
 import { GameInvitation } from '../../../core/models';
 
@@ -24,8 +24,8 @@ import { GameInvitation } from '../../../core/models';
           Expires in {{ getSecondsLeft(inv) }}s
         </div>
         <div class="toast-actions">
-          <button class="btn-accept" (click)="accept(inv)">Accept</button>
-          <button class="btn-decline" (click)="decline(inv)">Decline</button>
+          <button class="btn-accept" [disabled]="isResponding(inv)" (click)="accept(inv)">Accept</button>
+          <button class="btn-decline" [disabled]="isResponding(inv)" (click)="decline(inv)">Decline</button>
         </div>
       </div>
     </div>
@@ -58,6 +58,7 @@ import { GameInvitation } from '../../../core/models';
       transition: background 0.15s;
     }
     .btn-decline:hover { background: #1e2130; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
   `],
 })
 export class InvitationToastComponent implements OnInit, OnDestroy {
@@ -65,12 +66,17 @@ export class InvitationToastComponent implements OnInit, OnDestroy {
   private timerSub?: Subscription;
 
   invitations: GameInvitation[] = [];
+  /** Invitations whose answer is on its way: their buttons are off, so a double click can't answer twice */
+  private responding: string[] = [];
   now = Date.now();
+
+  isResponding(inv: GameInvitation): boolean { return this.responding.includes(inv.invitationId); }
 
   ngOnInit(): void {
     this.store.select(selectPendingInvitations).subscribe((inv) => {
       this.invitations = inv.filter((i) => new Date(i.expiresAt).getTime() > Date.now());
     });
+    this.store.select(selectRespondingTo).subscribe((ids) => (this.responding = ids));
     this.timerSub = interval(1000).subscribe(() => {
       this.now = Date.now();
       // Remove expired toasts from display

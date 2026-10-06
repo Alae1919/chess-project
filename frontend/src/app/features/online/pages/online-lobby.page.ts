@@ -1,7 +1,7 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, inject, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Store } from '@ngrx/store';
-import { combineLatest } from 'rxjs';
+import { combineLatest, Subscription } from 'rxjs';
 import { LobbyActions } from '../../../store/lobby/lobby.actions';
 import {
   selectIsSearching,
@@ -189,8 +189,10 @@ type TimeOption = { label: string; type: string; initialMs: number; incrementMs:
     .error { color: #f87171; font-size: 13px; margin-top: 12px; text-align: center; }
   `],
 })
-export class OnlineLobbyPage implements OnInit {
+export class OnlineLobbyPage implements OnInit, OnDestroy {
   private store = inject(Store);
+  private searching = false;
+  private sub = new Subscription();
 
   activeTab: Tab = 'random';
   selectedFriend: UserSummary | null = null;
@@ -210,7 +212,17 @@ export class OnlineLobbyPage implements OnInit {
   });
 
   ngOnInit(): void {
+    // An error from an earlier visit is not news
+    this.store.dispatch(LobbyActions.clearError());
     this.store.dispatch(LobbyActions.loadPendingInvitations());
+    this.sub.add(this.store.select(selectIsSearching).subscribe((s) => (this.searching = s)));
+  }
+
+  ngOnDestroy(): void {
+    // Someone who walked away is no longer waiting for a game: leaving them in the queue paired
+    // them with an opponent they would never see, and dragged them out of whatever they were doing
+    if (this.searching) this.store.dispatch(LobbyActions.leaveQueue());
+    this.sub.unsubscribe();
   }
 
   joinQueue(): void {

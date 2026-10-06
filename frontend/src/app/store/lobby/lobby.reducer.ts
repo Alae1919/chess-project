@@ -69,9 +69,25 @@ export const lobbyReducer = createReducer<LobbyState>(
     error,
   })),
 
-  on(LobbyActions.respondToInvitationSuccess, (state, { gameId }) => ({
+  // While an answer is out its buttons are off; it leaves the inbox only once the server agrees,
+  // and only that one: the others are still waiting
+  on(LobbyActions.respondToInvitation, (state, { invitationId }) => ({
     ...state,
-    pendingInvitations: [],
+    respondingTo: state.respondingTo.includes(invitationId)
+      ? state.respondingTo
+      : [...state.respondingTo, invitationId],
+  })),
+
+  on(LobbyActions.respondToInvitationSuccess, (state, { invitationId }) => ({
+    ...state,
+    pendingInvitations: state.pendingInvitations.filter((i) => i.invitationId !== invitationId),
+    respondingTo: state.respondingTo.filter((id) => id !== invitationId),
+  })),
+
+  on(LobbyActions.respondToInvitationFailure, (state, { invitationId, error }) => ({
+    ...state,
+    respondingTo: state.respondingTo.filter((id) => id !== invitationId),
+    error,
   })),
 
   on(LobbyActions.cancelInvitationSuccess, (state) => ({

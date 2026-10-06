@@ -9,3 +9,4 @@ export const selectMatchFound       = createSelector(selectLobbyState, (s) => s.
 export const selectPendingInvitations = createSelector(selectLobbyState, (s) => s.pendingInvitations);
 export const selectSentInvitation   = createSelector(selectLobbyState, (s) => s.sentInvitation);
 export const selectLobbyError       = createSelector(selectLobbyState, (s) => s.error);
+export const selectRespondingTo     = createSelector(selectLobbyState, (s) => s.respondingTo);

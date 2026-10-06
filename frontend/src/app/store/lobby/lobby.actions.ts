@@ -28,8 +28,9 @@ export const LobbyActions = createActionGroup({
     'Send Invitation Failure': props<{ error: string }>(),
 
     'Respond To Invitation': props<{ invitationId: string; response: 'accept' | 'decline' }>(),
-    'Respond To Invitation Success': props<{ gameId?: string }>(),
-    'Respond To Invitation Failure': props<{ error: string }>(),
+    // both name the invitation, so one answer can't be mistaken for another's
+    'Respond To Invitation Success': props<{ invitationId: string; gameId?: string }>(),
+    'Respond To Invitation Failure': props<{ invitationId: string; error: string }>(),
 
     'Cancel Invitation': props<{ invitationId: string }>(),
     'Cancel Invitation Success': emptyProps(),

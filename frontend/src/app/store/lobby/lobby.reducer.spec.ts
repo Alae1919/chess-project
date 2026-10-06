@@ -60,3 +60,47 @@ describe('lobbyReducer invitations', () => {
     expect(next.pendingInvitations.length).toBe(1);
   });
 });
+
+describe('lobbyReducer answering invitations', () => {
+  const inbox: LobbyState = {
+    ...initialLobbyState,
+    pendingInvitations: [invitation('a'), invitation('b')],
+  };
+
+  it('marks an invitation as being answered while the request is out', () => {
+    const next = lobbyReducer(inbox, LobbyActions.respondToInvitation({ invitationId: 'a', response: 'accept' }));
+
+    expect(next.respondingTo).toEqual(['a']);
+    expect(next.pendingInvitations.length).toBe(2);   // still there: the answer may fail
+  });
+
+  it('removes only the invitation that was answered', () => {
+    const asking = lobbyReducer(inbox, LobbyActions.respondToInvitation({ invitationId: 'a', response: 'decline' }));
+
+    const next = lobbyReducer(asking, LobbyActions.respondToInvitationSuccess({ invitationId: 'a' }));
+
+    expect(next.pendingInvitations.map((i) => i.invitationId)).toEqual(['b']);
+    expect(next.respondingTo).toEqual([]);
+  });
+
+  it('keeps the invitation and says why when the answer fails', () => {
+    const asking = lobbyReducer(inbox, LobbyActions.respondToInvitation({ invitationId: 'a', response: 'accept' }));
+
+    const next = lobbyReducer(asking, LobbyActions.respondToInvitationFailure({ invitationId: 'a', error: 'Invitation has expired' }));
+
+    expect(next.pendingInvitations.length).toBe(2);
+    expect(next.respondingTo).toEqual([]);
+    expect(next.error).toBe('Invitation has expired');
+  });
+
+  it('answers several invitations independently', () => {
+    let state = lobbyReducer(inbox, LobbyActions.respondToInvitation({ invitationId: 'a', response: 'accept' }));
+    state = lobbyReducer(state, LobbyActions.respondToInvitation({ invitationId: 'b', response: 'decline' }));
+    expect(state.respondingTo).toEqual(['a', 'b']);
+
+    state = lobbyReducer(state, LobbyActions.respondToInvitationSuccess({ invitationId: 'b' }));
+
+    expect(state.respondingTo).toEqual(['a']);
+  });
+});
+

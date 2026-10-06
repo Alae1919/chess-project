@@ -6,6 +6,8 @@ export interface LobbyState {
   sentInvitation: GameInvitation | null;
   isSearching: boolean;
   matchFound: MatchFoundPayload | null;
+  /** Invitations whose answer (accept or decline) is on its way to the server */
+  respondingTo: string[];
   error: string | null;
 }
 
@@ -15,5 +17,6 @@ export const initialLobbyState: LobbyState = {
   sentInvitation: null,
   isSearching: false,
   matchFound: null,
+  respondingTo: [],
   error: null,
 };

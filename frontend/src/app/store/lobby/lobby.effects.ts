@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { Router } from '@angular/router';
 import { of } from 'rxjs';
-import { catchError, filter, map, switchMap, tap } from 'rxjs/operators';
+import { catchError, filter, map, mergeMap, switchMap, tap } from 'rxjs/operators';
 
 import { LobbyActions } from './lobby.actions';
 import { MatchmakingService } from '../../core/services/matchmaking.service';
@@ -10,6 +10,7 @@ import { InvitationService } from '../../core/services/invitation.service';
 import { LobbyWebSocketService } from '../../core/services/lobby-websocket.service';
 import { GameInvitation, MatchFoundPayload } from '../../core/models';
 import { Game } from '../../core/models';
+import { errorMessage } from '../../core/utils/error-message';
 
 @Injectable()
 export class LobbyEffects {
@@ -27,7 +28,7 @@ export class LobbyEffects {
       switchMap(({ req }) =>
         this.matchmakingService.joinQueue(req).pipe(
           map((entry) => LobbyActions.joinQueueSuccess({ entry })),
-          catchError((err) => of(LobbyActions.joinQueueFailure({ error: err.message ?? 'Failed to join queue' })))
+          catchError((err) => of(LobbyActions.joinQueueFailure({ error: errorMessage(err) })))
         )
       )
     )
@@ -53,7 +54,7 @@ export class LobbyEffects {
       switchMap(({ req }) =>
         this.invitationService.sendInvitation(req).pipe(
           map((invitation) => LobbyActions.sendInvitationSuccess({ invitation })),
-          catchError((err) => of(LobbyActions.sendInvitationFailure({ error: err.message ?? 'Failed to send invitation' })))
+          catchError((err) => of(LobbyActions.sendInvitationFailure({ error: errorMessage(err) })))
         )
       )
     )
@@ -62,13 +63,14 @@ export class LobbyEffects {
   respondToInvitation$ = createEffect(() =>
     this.actions$.pipe(
       ofType(LobbyActions.respondToInvitation),
-      switchMap(({ invitationId, response }) =>
+      // mergeMap: answers to different invitations are independent, and switchMap would drop the first
+      mergeMap(({ invitationId, response }) =>
         this.invitationService.respondToInvitation(invitationId, response).pipe(
           map((result) => {
             const gameId = response === 'accept' ? (result as Game).id : undefined;
-            return LobbyActions.respondToInvitationSuccess({ gameId });
+            return LobbyActions.respondToInvitationSuccess({ invitationId, gameId });
           }),
-          catchError((err) => of(LobbyActions.respondToInvitationFailure({ error: err.message ?? 'Failed to respond' })))
+          catchError((err) => of(LobbyActions.respondToInvitationFailure({ invitationId, error: errorMessage(err) })))
         )
       )
     )
