@@ -1,0 +1,8 @@
+target
+.git
+.idea
+.vscode
+*.iml
+# scratch dumps that would otherwise end up inside the jar
+**/code_dump.txt
+generate_script.py

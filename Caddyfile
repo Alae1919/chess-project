@@ -1,0 +1,28 @@
+# HTTPS in front of the app (see docker-compose.prod.yml and docs/DEPLOY.md).
+#
+# SITE_ADDRESS (from .env) decides what Caddy does:
+#   chess.example.com   a real domain pointing at this server: Caddy gets and renews a
+#                       Let's Encrypt certificate by itself and redirects http to https
+#   localhost           https://localhost with a local, untrusted certificate (testing)
+#   :80                 plain http, no certificate (testing on a machine without a domain)
+{$SITE_ADDRESS} {
+	# Tell browsers to use https only. Not for local testing: HSTS applies to a whole host,
+	# whatever the port, and would turn http://localhost:4200 into https.
+	@public not host localhost 127.0.0.1
+	header @public Strict-Transport-Security "max-age=31536000"
+
+	# The game WebSockets carry the login token in the URL (?token=...): keep it out of the logs
+	log {
+		format filter {
+			wrap console
+			fields {
+				request>uri query {
+					delete token
+				}
+			}
+		}
+	}
+
+	# Game WebSockets are upgraded and streamed through as they are; nginx does the routing
+	reverse_proxy frontend:80
+}

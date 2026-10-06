@@ -1,12 +1,14 @@
-# Production stack. Secrets come from a .env file next to this one (git-ignored):
+# Production stack. Settings come from a .env file next to this one (git-ignored):
 #   cp .env.example .env   and fill in real values.
-# Only the frontend is published; nginx reaches the backend and the database
-# over the internal Docker network.
+# Only Caddy is published (80 and 443). It terminates HTTPS and hands requests to nginx,
+# which serves the app and reaches the backend and the database over the internal Docker
+# network. See docs/DEPLOY.md for the AWS walkthrough.
 
 services:
   db:
     image: postgres:15
     container_name: chess_db
+    restart: unless-stopped
     environment:
       POSTGRES_DB: chess_db
       POSTGRES_USER: chess_user
@@ -24,25 +26,59 @@ services:
       context: ./chess-engine
       dockerfile: Dockerfile
     container_name: chess_backend
+    restart: unless-stopped
     environment:
+      - SPRING_PROFILES_ACTIVE=prod
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/chess_db
       - SPRING_DATASOURCE_USERNAME=chess_user
       - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env (openssl rand -base64 48)}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:?Set ALLOWED_ORIGINS in .env (the site origin, e.g. https://chess.example.com)}
+      # The site's own origin; the backend refuses API calls and WebSockets from any other.
+      # Defaults to https://<SITE_ADDRESS>; set ALLOWED_ORIGINS to override (e.g. http://localhost).
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://${SITE_ADDRESS}}
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health/readiness | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 40s
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: chess_frontend
-    ports:
-      - "80:80"
+    restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: chess_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"     # Let's Encrypt validation, and the redirect to https
+      - "443:443"
+    environment:
+      - SITE_ADDRESS=${SITE_ADDRESS:?Set SITE_ADDRESS in .env (your domain, e.g. chess.example.com)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data        # the certificates: losing them means asking Let's Encrypt again
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
 
 volumes:
   postgres_data:
+  caddy_data:
+  caddy_config:
