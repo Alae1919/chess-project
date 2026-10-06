@@ -1,7 +1,7 @@
 import { Component, inject, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Store } from '@ngrx/store';
-import { combineLatest, Subscription } from 'rxjs';
+import { combineLatest, map, Subscription, timer } from 'rxjs';
 import { LobbyActions } from '../../../store/lobby/lobby.actions';
 import {
   selectIsSearching,
@@ -9,184 +9,227 @@ import {
   selectSentInvitation,
   selectLobbyError,
 } from '../../../store/lobby/lobby.selectors';
+import { selectUser } from '../../../store/account/account.reducer';
 import { UserSearchComponent } from '../components/user-search.component';
 import { UserSummary } from '../../../core/models';
 
 type Tab = 'random' | 'friend';
-type TimeOption = { label: string; type: string; initialMs: number; incrementMs: number };
+type TimeOption = { label: string; name: string; type: string; initialMs: number; incrementMs: number };
+
+/** "0:07", "12:30": how long since the given moment */
+export function elapsedSince(iso: string | undefined, now = Date.now()): string {
+  if (!iso) return '0:00';
+  const total = Math.max(0, Math.floor((now - new Date(iso).getTime()) / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
 
 @Component({
   selector: 'app-online-lobby-page',
   standalone: true,
   imports: [CommonModule, UserSearchComponent],
   template: `
-    <div class="lobby-page" *ngIf="vm$ | async as vm">
-      <!-- Tab switcher -->
-      <div class="tabs">
-        <button
-          class="tab"
-          [class.active]="activeTab === 'random'"
-          (click)="activeTab = 'random'"
-        >Play vs Random</button>
-        <button
-          class="tab"
-          [class.active]="activeTab === 'friend'"
-          (click)="activeTab = 'friend'"
-        >Play vs Friend</button>
+    <div class="lobby" *ngIf="vm$ | async as vm">
+      <header class="lobby__head">
+        <p class="lobby__eyebrow">Multijoueur</p>
+        <h1 class="lobby__title">En <em>ligne</em></h1>
+        <p class="lobby__sub">Classé ou amical — affrontez un adversaire en temps réel.</p>
+      </header>
+
+      <div class="seg" role="tablist" aria-label="Type de partie">
+        <button type="button" role="tab" class="seg__btn" [class.seg__btn--on]="activeTab === 'random'"
+                [attr.aria-selected]="activeTab === 'random'" (click)="activeTab = 'random'">Partie rapide</button>
+        <button type="button" role="tab" class="seg__btn" [class.seg__btn--on]="activeTab === 'friend'"
+                [attr.aria-selected]="activeTab === 'friend'" (click)="activeTab = 'friend'">Défier un ami</button>
       </div>
 
-      <!-- ── Random matchmaking panel ─────────────────────────────────────── -->
-      <div class="panel" *ngIf="activeTab === 'random'">
-        <h2 class="panel-title">Find an Opponent</h2>
-
-        <div class="time-options">
-          <button
-            *ngFor="let opt of timeOptions"
-            class="time-btn"
-            [class.selected]="selectedTime === opt"
-            (click)="selectedTime = opt"
-          >
-            <span class="time-type">{{ opt.type | titlecase }}</span>
-            <span class="time-label">{{ opt.label }}</span>
-          </button>
-        </div>
-
-        <div class="queue-status" *ngIf="vm.isSearching">
-          <div class="spinner"></div>
-          <p>Searching for an opponent…</p>
-          <p class="queue-hint" *ngIf="vm.queueEntry">
-            In queue since {{ formatTime(vm.queueEntry.joinedAt) }}
-          </p>
-        </div>
-
-        <div class="actions" *ngIf="!vm.isSearching">
-          <button class="btn-primary" (click)="joinQueue()">
-            Play Now
-          </button>
-        </div>
-
-        <div class="actions" *ngIf="vm.isSearching">
-          <button class="btn-cancel" (click)="leaveQueue()">
-            Cancel Search
-          </button>
-        </div>
-
-        <p class="error" *ngIf="vm.error">{{ vm.error }}</p>
-      </div>
-
-      <!-- ── Friend challenge panel ───────────────────────────────────────── -->
-      <div class="panel" *ngIf="activeTab === 'friend'">
-        <h2 class="panel-title">Challenge a Friend</h2>
-
-        <div class="friend-search-section">
-          <label class="field-label">Search player</label>
-          <app-user-search (userSelected)="selectFriend($event)" />
-          <div class="selected-friend" *ngIf="selectedFriend">
-            <span class="friend-name">{{ selectedFriend.username }}</span>
-            <span class="friend-elo">ELO {{ selectedFriend.elo }}</span>
+      <!-- ── Random matchmaking ─────────────────────────────────────────── -->
+      <section class="pane" *ngIf="activeTab === 'random'" role="tabpanel">
+        <ng-container *ngIf="!vm.isSearching; else searching">
+          <p class="label">Cadence</p>
+          <div class="times">
+            <button type="button" *ngFor="let opt of timeOptions" class="time"
+                    [class.time--on]="selectedTime === opt" [attr.aria-pressed]="selectedTime === opt"
+                    (click)="selectedTime = opt">
+              <span class="time__mins">{{ opt.label }}</span>
+              <span class="time__name">{{ opt.name }}</span>
+            </button>
           </div>
+
+          <div class="elo-row" *ngIf="vm.user as user">
+            <span>Votre Elo</span>
+            <strong>{{ user.elo }}</strong>
+          </div>
+
+          <div class="pane__foot">
+            <button type="button" class="cta-block" (click)="joinQueue()">Trouver un adversaire</button>
+          </div>
+        </ng-container>
+
+        <ng-template #searching>
+          <div class="search">
+            <div class="radar" aria-hidden="true">
+              <span class="radar__ring"></span>
+              <span class="radar__ring"></span>
+              <span class="radar__ring"></span>
+              <span class="radar__sweep"></span>
+              <span class="radar__inner"></span>
+              <span class="radar__core">♞</span>
+            </div>
+            <h2 class="search__title" role="status">Recherche d'un adversaire…</h2>
+            <p class="search__sub">{{ selectedTime.name }} {{ selectedTime.label }} · en file depuis {{ vm.waited }}</p>
+            <button type="button" class="btn-g search__cancel" (click)="leaveQueue()">Annuler la recherche</button>
+          </div>
+        </ng-template>
+
+        <p class="error" role="alert" *ngIf="vm.error">{{ vm.error }}</p>
+      </section>
+
+      <!-- ── Friend challenge ───────────────────────────────────────────── -->
+      <section class="pane" *ngIf="activeTab === 'friend'" role="tabpanel">
+        <label class="label" for="friend-search">Rechercher un joueur</label>
+        <app-user-search inputId="friend-search" (userSelected)="selectFriend($event)" />
+
+        <div class="picked" *ngIf="selectedFriend">
+          <span class="picked__avatar">{{ selectedFriend.username.slice(0, 2).toUpperCase() }}</span>
+          <span class="picked__info">
+            <span class="picked__name">{{ selectedFriend.username }}</span>
+            <span class="picked__elo">Elo {{ selectedFriend.elo }}</span>
+          </span>
+          <svg class="picked__check" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
         </div>
 
-        <div class="time-options">
-          <button
-            *ngFor="let opt of timeOptions"
-            class="time-btn"
-            [class.selected]="selectedTime === opt"
-            (click)="selectedTime = opt"
-          >
-            <span class="time-type">{{ opt.type | titlecase }}</span>
-            <span class="time-label">{{ opt.label }}</span>
+        <p class="label">Cadence</p>
+        <div class="times times--compact">
+          <button type="button" *ngFor="let opt of timeOptions" class="time"
+                  [class.time--on]="selectedTime === opt" [attr.aria-pressed]="selectedTime === opt"
+                  (click)="selectedTime = opt">
+            <span class="time__mins">{{ opt.label }}</span>
+            <span class="time__name">{{ opt.name }}</span>
           </button>
         </div>
 
-        <!-- Pending sent invitation -->
-        <div class="pending-invite" *ngIf="vm.sentInvitation">
-          <div class="spinner small"></div>
-          <p>Waiting for <strong>{{ vm.sentInvitation.inviteeUsername }}</strong> to respond…</p>
-          <button class="btn-cancel" (click)="cancelInvitation(vm.sentInvitation!.invitationId)">
-            Cancel
+        <div class="pending" *ngIf="vm.sentInvitation" role="status">
+          <span class="pending__pulse" aria-hidden="true"></span>
+          <p>En attente de <strong>{{ vm.sentInvitation.inviteeUsername }}</strong>…</p>
+          <button type="button" class="btn-g pending__cancel" (click)="cancelInvitation(vm.sentInvitation!.invitationId)">Annuler</button>
+        </div>
+
+        <div class="pane__foot" *ngIf="!vm.sentInvitation">
+          <button type="button" class="cta-block" [disabled]="!selectedFriend" (click)="sendInvitation()">
+            {{ selectedFriend ? 'Inviter ' + selectedFriend.username + ' · ' + selectedTime.label : 'Choisissez un joueur' }}
           </button>
         </div>
 
-        <div class="actions" *ngIf="!vm.sentInvitation">
-          <button
-            class="btn-primary"
-            [disabled]="!selectedFriend"
-            (click)="sendInvitation()"
-          >
-            Send Challenge
-          </button>
-        </div>
-
-        <p class="error" *ngIf="vm.error">{{ vm.error }}</p>
-      </div>
+        <p class="error" role="alert" *ngIf="vm.error">{{ vm.error }}</p>
+      </section>
     </div>
   `,
   styles: [`
-    .lobby-page {
-      max-width: 520px; margin: 60px auto; padding: 0 16px;
-      font-family: 'Inter', sans-serif;
+    :host { display: flex; flex-direction: column; flex: 1; }
+
+    .lobby {
+      flex: 1; width: 100%; max-width: 520px; margin: 0 auto; padding: 48px 20px 40px;
+      display: flex; flex-direction: column;
     }
-    .tabs {
-      display: flex; gap: 0; background: #1a1e2e;
-      border-radius: 10px; padding: 4px; margin-bottom: 24px;
+    .lobby__eyebrow { font: 500 11px var(--font); letter-spacing: .28em; text-transform: uppercase; color: var(--p); }
+    .lobby__title { margin-top: 6px; font: 400 48px/1 var(--serif); color: var(--text); }
+    .lobby__title em { font-style: italic; font-weight: 500; color: var(--gold); }
+    .lobby__sub { margin-top: 10px; font-size: 14px; line-height: 1.5; color: var(--textc); }
+
+    .seg { margin-top: 22px; }
+
+    .pane { flex: 1; display: flex; flex-direction: column; }
+    .pane__foot { margin-top: 28px; }
+    .label {
+      display: block; margin: 26px 0 10px;
+      font: 500 11px var(--font); letter-spacing: .22em; text-transform: uppercase; color: var(--textc);
     }
-    .tab {
-      flex: 1; padding: 10px; background: none; border: none;
-      border-radius: 8px; color: #8892a4; font-size: 14px; cursor: pointer;
-      transition: all 0.2s;
+
+    .times { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+    .time {
+      height: 112px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+      background: rgba(255, 255, 255, .03); border: 1px solid var(--border); border-radius: 16px;
+      color: var(--textd); cursor: pointer; transition: background .2s, border-color .2s, color .2s, box-shadow .2s, transform .09s;
     }
-    .tab.active { background: #252a3d; color: #e0e6f0; font-weight: 600; }
-    .panel {
-      background: #1e2130; border-radius: 14px; padding: 28px;
-      border: 1px solid #2a2f42;
+    .time:hover { border-color: var(--borderh); color: var(--text); }
+    .time:active { transform: scale(.97); }
+    .time--on, .time--on:hover {
+      background: rgba(230, 194, 122, .14); border-color: var(--p); color: var(--gold2);
+      box-shadow: 0 0 24px rgba(201, 164, 92, .2);
     }
-    .panel-title { color: #e0e6f0; font-size: 20px; font-weight: 700; margin: 0 0 20px; }
-    .time-options { display: flex; gap: 10px; margin-bottom: 24px; }
-    .time-btn {
-      flex: 1; padding: 12px 8px; background: #252a3d; border: 1px solid #2a2f42;
-      border-radius: 10px; cursor: pointer; color: #8892a4; transition: all 0.2s;
-      display: flex; flex-direction: column; align-items: center; gap: 4px;
+    .time__mins { font: 500 34px/1 var(--serif); }
+    .time__name { font: 500 11px var(--font); letter-spacing: .18em; text-transform: uppercase; }
+    .times--compact .time { height: 64px; flex-direction: row; gap: 8px; }
+    .times--compact .time__mins { font-size: 22px; }
+
+    .elo-row {
+      margin-top: 14px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between;
+      background: rgba(255, 255, 255, .03); border: 1px solid rgba(201, 164, 92, .12); border-radius: 14px;
+      font-size: 14px; color: var(--textd);
     }
-    .time-btn.selected { border-color: #4a6fa5; color: #6ab0ff; background: #1e2a3d; }
-    .time-type { font-size: 13px; font-weight: 600; }
-    .time-label { font-size: 11px; }
-    .queue-status { text-align: center; padding: 20px 0; color: #8892a4; }
-    .queue-hint { font-size: 12px; margin-top: 8px; }
-    .spinner {
-      width: 36px; height: 36px; border: 3px solid #2a2f42;
-      border-top-color: #4a6fa5; border-radius: 50%;
-      animation: spin 0.8s linear infinite; margin: 0 auto 12px;
+    .elo-row strong { font: 600 24px var(--serif); color: var(--gold); }
+
+    /* searching: a radar sweeping round a knight */
+    .search { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 0; text-align: center; }
+    .radar { position: relative; width: 250px; height: 250px; display: flex; align-items: center; justify-content: center; }
+    .radar__ring {
+      position: absolute; inset: 0; border-radius: 50%; border: 1px solid rgba(230, 194, 122, .55);
+      animation: radar-ping 2.4s cubic-bezier(.2, .6, .3, 1) infinite;
     }
-    .spinner.small { width: 20px; height: 20px; border-width: 2px; display: inline-block; margin: 0 8px 0 0; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .actions { display: flex; justify-content: center; margin-top: 8px; }
-    .btn-primary {
-      padding: 12px 40px; background: #4a6fa5; color: #fff; border: none;
-      border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer;
-      transition: background 0.2s;
+    .radar__ring:nth-child(2) { animation-delay: .8s; }
+    .radar__ring:nth-child(3) { animation-delay: 1.6s; }
+    .radar__sweep {
+      position: absolute; inset: 28px; border-radius: 50%; border: 1px solid rgba(201, 164, 92, .18);
+      background: conic-gradient(from 0deg, rgba(230, 194, 122, 0) 0deg, rgba(230, 194, 122, .24) 50deg, rgba(230, 194, 122, 0) 52deg);
+      animation: radar-spin 3.2s linear infinite;
     }
-    .btn-primary:hover:not(:disabled) { background: #5a82c0; }
-    .btn-primary:disabled { opacity: 0.5; cursor: default; }
-    .btn-cancel {
-      padding: 10px 28px; background: none; border: 1px solid #3a3f52;
-      color: #8892a4; border-radius: 10px; font-size: 14px; cursor: pointer;
-      transition: all 0.2s;
+    .radar__inner { position: absolute; inset: 70px; border-radius: 50%; border: 1px solid rgba(201, 164, 92, .14); }
+    .radar__core {
+      position: relative; width: 92px; height: 92px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font: 48px 'Segoe UI Symbol', 'Noto Sans Symbols 2', serif; color: #140f08;
+      background: var(--gold-grad); box-shadow: 0 0 50px rgba(230, 194, 122, .4);
     }
-    .btn-cancel:hover { background: #1a1e2e; color: #e0e6f0; }
-    .field-label { display: block; font-size: 13px; color: #8892a4; margin-bottom: 8px; }
-    .friend-search-section { margin-bottom: 20px; }
-    .selected-friend {
-      display: flex; align-items: center; gap: 10px; margin-top: 10px;
-      padding: 8px 12px; background: #252a3d; border-radius: 8px;
+    @keyframes radar-ping { 0% { transform: scale(.45); opacity: .85; } 100% { transform: scale(1.15); opacity: 0; } }
+    @keyframes radar-spin { to { transform: rotate(360deg); } }
+    .search__title { margin-top: 24px; font: 500 28px var(--serif); color: var(--text); }
+    .search__sub { margin-top: 6px; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--textc); }
+    .search__cancel { margin-top: 26px; border-radius: 14px; height: 50px; }
+
+    .picked {
+      margin-top: 10px; padding: 0 14px; height: 58px; display: flex; align-items: center; gap: 12px;
+      background: rgba(230, 194, 122, .1); border: 1px solid rgba(230, 194, 122, .6); border-radius: 14px;
     }
-    .friend-name { color: #6ab0ff; font-weight: 600; font-size: 14px; }
-    .friend-elo { color: #8892a4; font-size: 12px; }
-    .pending-invite {
-      display: flex; align-items: center; gap: 8px; color: #8892a4;
-      font-size: 14px; margin-bottom: 16px;
+    .picked__avatar {
+      width: 36px; height: 36px; flex-shrink: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font: 600 12px var(--font); color: var(--gold); background: #1f1812; border: 1px solid rgba(201, 164, 92, .3);
     }
-    .error { color: #f87171; font-size: 13px; margin-top: 12px; text-align: center; }
+    .picked__info { flex: 1; display: flex; flex-direction: column; }
+    .picked__name { font: 500 15px var(--font); color: var(--text); }
+    .picked__elo { font-size: 12px; color: var(--textc); }
+    .picked__check {
+      width: 22px; height: 22px; padding: 4px; border-radius: 50%; background: var(--gold);
+      fill: none; stroke: #140f08; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round;
+    }
+
+    .pending {
+      margin-top: 24px; padding: 14px 16px; display: flex; align-items: center; gap: 12px;
+      background: rgba(255, 255, 255, .03); border: 1px solid var(--border); border-radius: 14px;
+      font-size: 14px; color: var(--textd);
+    }
+    .pending p { flex: 1; }
+    .pending strong { color: var(--gold); font-weight: 500; }
+    .pending__pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 10px var(--gold); animation: glow-pulse 1.2s infinite; }
+    .pending__cancel { padding: 8px 16px; font-size: 12px; border-radius: 10px; }
+
+    .error { margin-top: 14px; text-align: center; font-size: 13px; color: #ec8a75; }
+
+    /* phones: the call to action sits at the bottom, by the thumb */
+    @media (max-width: 768px) {
+      .lobby { max-width: none; padding: 28px 20px 20px; }
+      .lobby__title { font-size: 44px; }
+      .pane__foot { margin-top: auto; padding-top: 24px; }
+    }
   `],
 })
 export class OnlineLobbyPage implements OnInit, OnDestroy {
@@ -198,9 +241,9 @@ export class OnlineLobbyPage implements OnInit, OnDestroy {
   selectedFriend: UserSummary | null = null;
 
   timeOptions: TimeOption[] = [
-    { label: '5 min',  type: 'blitz',     initialMs: 5  * 60_000, incrementMs: 0 },
-    { label: '10 min', type: 'rapid',     initialMs: 10 * 60_000, incrementMs: 0 },
-    { label: '30 min', type: 'classical', initialMs: 30 * 60_000, incrementMs: 0 },
+    { label: '5′',  name: 'Blitz',     type: 'blitz',     initialMs: 5  * 60_000, incrementMs: 0 },
+    { label: '10′', name: 'Rapide',    type: 'rapid',     initialMs: 10 * 60_000, incrementMs: 0 },
+    { label: '30′', name: 'Classique', type: 'classical', initialMs: 30 * 60_000, incrementMs: 0 },
   ];
   selectedTime = this.timeOptions[1];
 
@@ -209,7 +252,9 @@ export class OnlineLobbyPage implements OnInit, OnDestroy {
     queueEntry:  this.store.select(selectQueueEntry),
     sentInvitation: this.store.select(selectSentInvitation),
     error: this.store.select(selectLobbyError),
-  });
+    user: this.store.select(selectUser),
+    tick: timer(0, 1000),
+  }).pipe(map((vm) => ({ ...vm, waited: elapsedSince(vm.queueEntry?.joinedAt) })));
 
   ngOnInit(): void {
     // An error from an earlier visit is not news
@@ -257,9 +302,5 @@ export class OnlineLobbyPage implements OnInit, OnDestroy {
 
   cancelInvitation(id: string): void {
     this.store.dispatch(LobbyActions.cancelInvitation({ invitationId: id }));
-  }
-
-  formatTime(joinedAt: string): string {
-    return new Date(joinedAt).toLocaleTimeString();
   }
 }

@@ -9,7 +9,9 @@ import { ChessBoard3DComponent } from '../../../shared/components/chess-board-3d
 import { FloatyPiecesComponent } from '../../../shared/components/floaty-pieces/floaty-pieces.component';
 import { GameActions } from '../../../store/game/game.actions';
 import { initialGameState } from '../../../store/game/game.state';
-import { HomePage } from './home.page';
+import { User } from '../../../core/models';
+import { makeGame } from '../../../testing/game-fixtures';
+import { HomePage, resumeCard } from './home.page';
 
 describe('HomePage', () => {
   let fixture: ComponentFixture<HomePage>;
@@ -97,5 +99,55 @@ describe('HomePage', () => {
     const message = (fixture.nativeElement as HTMLElement).querySelector('[role="alert"]');
 
     expect(message?.textContent).toContain('must be blitz');
+  });
+
+  it('opens the saved games at their own address, the one the "Parties" tab links to', () => {
+    page.pickMode('saved');
+
+    expect(navigate).toHaveBeenCalledWith(['/home'], { queryParams: { mode: 'saved' } });
+  });
+
+  it('sums up the chosen settings above the start button', () => {
+    page.selectMode('ai');
+    page.selectDifficulty(5);
+    page.selectColor('black');
+    page.selectTime('rapid');
+
+    expect(page.summary).toBe('Maître (≈ 2550) · Noirs · Rapide 10′');
+  });
+});
+
+describe('resumeCard', () => {
+  const me = { id: 'me', username: 'me' } as User;
+  const bot = { username: 'AI', color: 'black' as const, timeRemainingMs: 0, capturedPieces: [], isAi: true, aiDifficulty: 5 as const };
+
+  it('offers to resume a game that is still going', () => {
+    const card = resumeCard(makeGame({ id: 'g1', playerBlack: bot, fullMoveNumber: 9 }), me);
+
+    expect(card).toEqual(jasmine.objectContaining({ id: 'g1', title: 'vs IA · Maître', sub: 'Tour 9 · à vous de jouer' }));
+  });
+
+  it('says when it is the opponent who is to move', () => {
+    const card = resumeCard(makeGame({ playerBlack: bot, currentTurn: 'black' }), me);
+
+    expect(card?.sub).toContain("à l'adversaire");
+  });
+
+  it('names the online opponent, and says whose turn it is in a local game', () => {
+    const online = makeGame({
+      mode: 'online',
+      playerWhite: { username: 'me', color: 'white', timeRemainingMs: 0, capturedPieces: [], userId: 'me' },
+      playerBlack: { username: 'marco', color: 'black', timeRemainingMs: 0, capturedPieces: [], userId: 'marco' },
+    });
+    expect(resumeCard(online, me)?.title).toBe('vs marco');
+
+    const local = resumeCard(makeGame({ mode: 'local', currentTurn: 'black' }), me);
+    expect(local?.title).toBe('Partie locale');
+    expect(local?.sub).toContain('aux Noirs');
+  });
+
+  it('has nothing to offer without a game, or once it is over', () => {
+    expect(resumeCard(null, me)).toBeNull();
+    expect(resumeCard(makeGame({ status: 'checkmate' }), me)).toBeNull();
   });
 });

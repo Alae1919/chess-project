@@ -108,7 +108,12 @@ import { BOARD_MODES, STYLES_2D, STYLES_3D } from '../../board/board-styles';
       transform: translate(-50%, -50%); background: var(--accent); box-shadow: 0 1px 3px rgba(0, 0, 0, .6);
     }
 
-    @media (max-width: 420px) { .bsp__styles { grid-template-columns: 1fr; } .bsp__style { flex-direction: row; justify-content: flex-start; padding: 8px 10px; } }
+    /* phones: still three across, a little tighter */
+    @media (max-width: 420px) {
+      .bsp__style { padding: 10px 4px 8px; border-radius: 12px; }
+      .bsp__mode { border-radius: 12px; }
+      .bsp__swatch { width: 36px; height: 36px; border-radius: 6px; }
+    }
   `],
 })
 export class BoardStylePickerComponent {

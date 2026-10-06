@@ -1,3 +1,5 @@
+@use '../../../shared/styles/mq';
+
 /* src/app/features/account/pages/account.page.scss */
 
 .account {
@@ -202,3 +204,26 @@
 }
 
 .btn-danger--confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Phones: a compact header, the four numbers in a 2×2 grid, the panels full width */
+@include mq.phone {
+  .account { padding: 20px 20px 32px; min-height: 0; background: none; }
+
+  .profile-hero {
+    padding: 0; gap: 16px; margin-bottom: 20px; background: none; border: 0;
+    &::after { display: none; }
+    &__avatar { width: 68px; height: 68px; font-size: 1.5rem; }
+    &__name { font-size: 30px; font-weight: 500; line-height: 1.05; }
+    &__handle { margin-bottom: 8px; color: var(--textc); }
+    .btn-ghost { display: none; }   /* not wired to anything yet */
+  }
+
+  .stats-grid { gap: 10px; margin-bottom: 20px; }
+  .stat-card {
+    padding: 14px 16px; text-align: left; border-radius: 16px;
+    &__val { font-size: 34px; line-height: 1; }
+    &__lbl { margin-top: 6px; font-size: 11px; color: var(--textc); }
+  }
+
+  .panel { padding: 16px; border-radius: 16px; }
+}

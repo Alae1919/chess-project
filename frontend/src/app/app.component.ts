@@ -10,21 +10,27 @@ import { LobbyWebSocketService } from './core/services/lobby-websocket.service';
 import { WebSocketService } from './core/services/websocket.service';
 import { InvitationToastComponent } from './features/online/components/invitation-toast.component';
 import { makeMarble } from './shared/three/marble';
+import { TabBarComponent, tabFor } from './shared/components/tab-bar/tab-bar.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, NavbarComponent, InvitationToastComponent],
+  imports: [RouterOutlet, NavbarComponent, InvitationToastComponent, TabBarComponent],
   template: `
     @if (showNavbar) { <app-navbar /> }
-    <main class="app-main">
+    <main class="app-main" [class.app-main--tabbed]="showTabBar">
       <router-outlet />
     </main>
+    @if (showTabBar) { <app-tab-bar /> }
     <app-invitation-toast />
   `,
   styles: [`
-    :host    { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    :host    { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
     .app-main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+    /* room under the content for the phone's bottom tab bar */
+    @media (max-width: 768px) {
+      .app-main--tabbed { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
+    }
   `],
 })
 export class AppComponent implements OnInit {
@@ -36,11 +42,16 @@ export class AppComponent implements OnInit {
 
   /** The game arena has its own top bar */
   showNavbar = !location.pathname.startsWith('/game');
+  /** The phone's bottom tab bar, on the pages it leads to */
+  showTabBar = tabFor(location.pathname + location.search) !== null;
 
   constructor() {
     this.router.events
       .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd))
-      .subscribe((e) => (this.showNavbar = !e.urlAfterRedirects.startsWith('/game')));
+      .subscribe((e) => {
+        this.showNavbar = !e.urlAfterRedirects.startsWith('/game');
+        this.showTabBar = tabFor(e.urlAfterRedirects) !== null;
+      });
   }
 
   ngOnInit(): void {

@@ -3,12 +3,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // src/app/features/game/pages/game.page.ts
 // ─────────────────────────────────────────────────────────────────────────────
-import { Component, HostListener, inject, OnInit, OnDestroy, Input } from '@angular/core';
+import { AfterViewChecked, Component, ElementRef, HostListener, inject, OnInit, OnDestroy, Input, ViewChild } from '@angular/core';
 import { CommonModule, AsyncPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms'; // <-- ADDED THIS
 import { Router, RouterLink } from '@angular/router';
 import { Store } from '@ngrx/store';
-import { combineLatest, distinctUntilChanged, filter, map, Subscription, take } from 'rxjs'; // <-- Subscription added
+import { combineLatest, distinctUntilChanged, filter, map, pairwise, Subscription, take } from 'rxjs'; // <-- Subscription added
 import { ChessBoardComponent } from '../../../shared/components/chess-board/chess-board.component';
 import { ChessBoard3DComponent } from '../../../shared/components/chess-board-3d/chess-board-3d.component';
 import { BoardStylePickerComponent } from '../../../shared/components/board-style-picker/board-style-picker.component';
@@ -22,7 +22,12 @@ import { WebSocketService } from '../../../core/services/websocket.service';
 import { DrawOfferBannerComponent } from '../../../shared/components/draw-offer-banner/draw-offer-banner.component';
 import { PromotionPickerComponent } from '../../../shared/components/promotion-picker/promotion-picker.component';
 import { PromotionPiece } from '../../../core/utils/promotion.utils';
-import { Game, Move } from '../../../core/models';
+import { Game, GamePlayer, Move } from '../../../core/models';
+import { SheetDragDirective } from '../../../shared/directives/sheet-drag.directive';
+import { isCompactViewport, vibrate } from '../../../core/utils/viewport';
+import { aiLevelLabel } from '../../../core/utils/ai-levels';
+import { formatClock, isLowTime } from '../../../core/utils/clock.utils';
+import { PlayerStripComponent } from '../components/player-strip.component';
 import { BoardPrefsService } from '../../../core/services/board-prefs.service';
 import { GameActions } from '../../../store/game/game.actions';
 import { selectUser } from '../../../store/account/account.reducer'; // <-- ADDED THIS
@@ -45,14 +50,30 @@ import {
 
 const VIEW_KEY = 'rex_board_view';
 
+/** The bottom sheets of the phone layout */
+export type GameSheet = 'more' | 'notation' | 'chat';
+
+/** How long the resign button must be held on a phone */
+export const RESIGN_HOLD_MS = 1000;
+
+/**
+ * Canvas shape of the 3D board. The tilted board is wider than it is tall, so a wide canvas
+ * wastes the least: 1.5 on a desktop, a little wider than square on an upright phone, square
+ * on a phone on its side, where the height is what runs out.
+ */
+export function boardAspectFor(): number {
+  if (!isCompactViewport()) return 1.5;
+  return window.innerWidth < window.innerHeight ? 1.25 : 1;
+}
+
 @Component({
   selector: 'app-game-page',
   standalone: true,
-  imports: [CommonModule, AsyncPipe, RouterLink, ChessBoardComponent, ChessBoard3DComponent, BoardStylePickerComponent, PromotionPickerComponent, DrawOfferBannerComponent, GameNoticeBannerComponent, GameOverDialogComponent, FormsModule],
+  imports: [CommonModule, AsyncPipe, RouterLink, ChessBoardComponent, ChessBoard3DComponent, BoardStylePickerComponent, PromotionPickerComponent, DrawOfferBannerComponent, GameNoticeBannerComponent, GameOverDialogComponent, FormsModule, SheetDragDirective, PlayerStripComponent],
   templateUrl: './game.page.html',
   styleUrls: ['./game.page.scss'],
 })
-export class GamePage implements OnInit, OnDestroy {
+export class GamePage implements OnInit, OnDestroy, AfterViewChecked {
   /**
    * The game's id, a route param bound to this input. The router reuses this component when
    * only the id changes (a rematch, an accepted invitation), so a change has to load the new
@@ -105,8 +126,8 @@ export class GamePage implements OnInit, OnDestroy {
   readonly boardView$ = this.boardPrefs.view$;
   settingsOpen = false;
 
-  /** Canvas shape of the 3D board: wide on desktop, square on phones */
-  boardAspect   = window.innerWidth <= 768 ? 1 : 1.5;
+  /** Canvas shape of the 3D board (see boardAspectFor) */
+  boardAspect   = boardAspectFor();
   boardFlipped  = false;
   /** Straight-down view of the 3D board; remembered between games */
   topView       = this.readViewPreference();
@@ -114,10 +135,18 @@ export class GamePage implements OnInit, OnDestroy {
   chatInput     = '';
   leftOpen      = true;
   rightOpen     = true;
-  mobileChatOpen = false;
+
+  /** The open bottom sheet on a phone, if any */
+  sheet: GameSheet | null = null;
+  /** The resign button is being held down */
+  resignHolding = false;
+  private resignTimer?: ReturnType<typeof setTimeout>;
+
+  @ViewChild('movesStrip') private movesStrip?: ElementRef<HTMLElement>;
+  private movesStripSize = 0;
 
   ngOnInit(): void {
-    const mobile = window.innerWidth <= 768;
+    const mobile = isCompactViewport();
     this.leftOpen  = !mobile;
     this.rightOpen = !mobile;
     this.started = true;
@@ -137,6 +166,18 @@ export class GamePage implements OnInit, OnDestroy {
       this.store.select(selectCurrentGame).pipe(map((g) => g?.id), distinctUntilChanged()).subscribe(() => {
         this.dismissedFor = null;
         this.rematchRequested = false;
+      })
+    );
+    // A light buzz for every move on a phone, a double one for check
+    this.sub.add(
+      this.store.select(selectCurrentGame).pipe(
+        filter((g): g is Game => !!g),
+        map((g) => ({ id: g.id, moves: g.moves.length, check: g.status === 'check' || g.status === 'checkmate' })),
+        pairwise(),
+      ).subscribe(([before, after]) => {
+        if (before.id === after.id && after.moves > before.moves && isCompactViewport()) {
+          vibrate(after.check ? [12, 60, 12] : 10);
+        }
       })
     );
     this.sub.add(
@@ -161,6 +202,7 @@ export class GamePage implements OnInit, OnDestroy {
   /** Starts showing a game: a fresh view, then the game itself. */
   private open(id: string): void {
     this.settingsOpen = false;
+    this.closeSheet();
     this.boardFlipped = false;
     this.flippedByPlayer = false;
     this.store.dispatch(GameActions.loadGame({ gameId: id }));
@@ -196,12 +238,86 @@ export class GamePage implements OnInit, OnDestroy {
   }
 
   @HostListener('window:resize')
-  onResize(): void { this.boardAspect = window.innerWidth <= 768 ? 1 : 1.5; }
+  onResize(): void { this.boardAspect = boardAspectFor(); }
 
   toggleSettings(): void { this.settingsOpen = !this.settingsOpen; }
 
   @HostListener('document:keydown.escape')
-  closeSettings(): void { this.settingsOpen = false; }
+  closeSettings(): void { this.settingsOpen = false; this.closeSheet(); }
+
+  // ── Phone layout ──────────────────────────────────────────────────────────
+  openSheet(sheet: GameSheet): void { this.settingsOpen = false; this.sheet = sheet; }
+
+  closeSheet(): void { this.sheet = null; this.cancelResignHold(); }
+
+  /** Upright, the board shows its far side's player above it and its near side's below */
+  topPlayer(vm: { white: GamePlayer | null; black: GamePlayer | null }): GamePlayer | null {
+    return this.boardFlipped ? vm.white : vm.black;
+  }
+
+  bottomPlayer(vm: { white: GamePlayer | null; black: GamePlayer | null }): GamePlayer | null {
+    return this.boardFlipped ? vm.black : vm.white;
+  }
+
+  modeLabel(game: Game): string {
+    const labels: Record<string, string> = { ai: "Contre l'IA", local: 'Partie locale', online: 'En ligne' };
+    return labels[game.mode] ?? 'Partie';
+  }
+
+  /** "Rapide 10′" */
+  timeControlLabel(game: Game): string {
+    const names: Record<string, string> = { blitz: 'Blitz', rapid: 'Rapide', classical: 'Classique' };
+    const tc = game.timeControl;
+    if (!tc) return '';
+    const minutes = Math.round(tc.initialMs / 60_000);
+    return `${names[tc.type] ?? tc.type} ${minutes}′`;
+  }
+
+  /** Who this game is against, as the sheets title it */
+  opponentLabel(vm: { game: Game | null; white: GamePlayer | null; black: GamePlayer | null }): string {
+    const game = vm.game;
+    if (!game) return '';
+    if (game.mode === 'local') return 'Partie locale';
+    const mine = this.myColor(game);
+    const them = mine === 'white' ? vm.black : mine === 'black' ? vm.white : vm.black;
+    if (!them) return '';
+    return them.isAi ? `vs IA · ${aiLevelLabel(them.aiDifficulty)}` : `vs ${them.username}`;
+  }
+
+  /** Resigning on a phone takes a press held for a second: a tap in the wrong place costs nothing */
+  startResignHold(event: PointerEvent): void {
+    if (event.button !== 0) return;
+    this.cancelResignHold();
+    this.resignHolding = true;
+    this.resignTimer = setTimeout(() => {
+      this.resignHolding = false;
+      vibrate([15, 40, 15]);
+      this.store.dispatch(GameActions.resign());
+      this.closeSheet();
+    }, RESIGN_HOLD_MS);
+  }
+
+  cancelResignHold(): void {
+    clearTimeout(this.resignTimer);
+    this.resignHolding = false;
+  }
+
+  /** A keyboard can't hold a button down: Enter or Space asks instead */
+  resignByKeyboard(event: MouseEvent): void {
+    if (event.detail === 0) this.resign();
+  }
+
+  /** Keep the latest move in view in the moves strip */
+  ngAfterViewChecked(): void {
+    const el = this.movesStrip?.nativeElement;
+    if (!el) return;
+    const size = el.scrollWidth + el.scrollHeight;
+    if (size !== this.movesStripSize) {
+      this.movesStripSize = size;
+      el.scrollLeft = el.scrollWidth;
+      el.scrollTop = el.scrollHeight;
+    }
+  }
 
   toggleView(): void { this.setTopView(!this.topView); }
 
@@ -217,7 +333,6 @@ export class GamePage implements OnInit, OnDestroy {
   flipBoard():       void { this.boardFlipped  = !this.boardFlipped; this.flippedByPlayer = true; }
   toggleLeft():       void { this.leftOpen      = !this.leftOpen; }
   toggleRight():      void { this.rightOpen     = !this.rightOpen; }
-  toggleMobileChat(): void { this.mobileChatOpen = !this.mobileChatOpen; }
 
   ngOnDestroy(): void {
     // The game stays in the store so the navbar can offer to resume it; it is
@@ -225,6 +340,7 @@ export class GamePage implements OnInit, OnDestroy {
     // must not keep the player "connected" to a game they have walked away from.
     this.gameSocket.disconnect();
     this.sub.unsubscribe();
+    clearTimeout(this.resignTimer);
   }
 
   save(): void     { this.store.dispatch(GameActions.saveGame()); }
@@ -296,17 +412,10 @@ export class GamePage implements OnInit, OnDestroy {
   }
 
   /** Convert ms to MM:SS */
-  formatTime(ms: number): string {
-    const total = Math.max(0, Math.floor(ms / 1000));
-    const m = Math.floor(total / 60);
-    const s = total % 60;
-    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  }
+  formatTime(ms: number): string { return formatClock(ms); }
 
   /** Under 30 s on the clock */
-  isLowTime(ms?: number): boolean {
-    return ms !== undefined && ms > 0 && ms < 30_000;
-  }
+  isLowTime(ms?: number): boolean { return isLowTime(ms); }
 
   /** Evaluation bar share for White (0–100%) */
   evalPercent(score: number): number {

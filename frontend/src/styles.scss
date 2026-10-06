@@ -43,6 +43,12 @@
   --radius-lg:    10px;
 
   --sq: 58px; /* square size of the 2D fallback board — overridden at breakpoints */
+
+  /* Mobile */
+  --textc:       #a39680;                  /* captions: readable on the onyx ground */
+  --tabbar-h:    64px;                     /* bottom tab bar, without the home-indicator inset */
+  --ease-spring: cubic-bezier(.22, 1, .36, 1);
+  --surface-sheet: linear-gradient(180deg, #1c1611 0%, #120e0a 100%);
 }
 
 /* ─── Reset & base ──────────────────────────────────────────────────────────── */
@@ -50,6 +56,7 @@
 
 html, body {
   height: 100%;
+  -webkit-tap-highlight-color: transparent;
   font-family: var(--font);
   background-color: var(--bg);
   color: var(--text);
@@ -327,6 +334,162 @@ input, select, textarea { font-family: var(--font); }
   }
 }
 
+/* Phones: a slimmer frame and coordinates, every pixel to the squares */
+@media (max-width: 768px), (max-height: 500px) and (max-width: 1000px) and (orientation: landscape) {
+  .board-frame { padding: 5px; border-radius: 3px; }
+  .coord-ranks { padding: 7px 3px 7px 0; span { font-size: .7rem; } }
+  .coord-files { padding: 2px 7px 0; span { font-size: .7rem; } }
+  .board-wrap  { grid-template-columns: 12px auto; }
+  .sq:hover    { filter: none; }   /* no hover on touch: a tapped square stayed lit */
+}
+
 @media (max-width: 1024px) { :root { --sq: 52px; } }
 @media (max-width: 768px)  { :root { --sq: 46px; } }
 @media (max-width: 480px)  { :root { --sq: clamp(34px, calc((100vw - 80px) / 8), 44px); } }
+
+/* ─── Mobile primitives ─────────────────────────────────────────────────────── */
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes fade-in  { from { opacity: 0; } to { opacity: 1; } }
+
+/* Bottom sheet: the phone's dialog. Drag it down by its head to close it (see SheetDragDirective). */
+.sheet-backdrop {
+  position: fixed; inset: 0; z-index: 95;
+  background: rgba(6, 5, 4, .58); backdrop-filter: blur(2px);
+  animation: fade-in .25s ease both;
+}
+
+.sheet {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 96;
+  max-height: 92dvh; overflow-y: auto; overscroll-behavior: contain;
+  padding: 10px 20px calc(24px + env(safe-area-inset-bottom));
+  background: var(--surface-sheet);
+  border-top: 1px solid rgba(201, 164, 92, .35); border-radius: 26px 26px 0 0;
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, .6);
+  animation: sheet-up .38s var(--ease-spring) both;
+
+  &__grab {
+    display: block; width: 38px; height: 4px; margin: 0 auto 8px;
+    border-radius: 2px; background: rgba(239, 230, 214, .22);
+  }
+  &__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; touch-action: none; }
+  &__title {
+    font: 500 28px/1.1 var(--serif); color: var(--text);
+    em { font-style: italic; color: var(--gold); }
+  }
+  &__sub { font-size: 12px; color: var(--textc); }
+  &__close {
+    width: 44px; height: 44px; margin-right: -10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: 0; border-radius: 12px; color: var(--textd); cursor: pointer;
+    &:hover { color: var(--text); }
+    svg { width: 20px; height: 20px; }
+  }
+  &__label {
+    margin: 20px 0 10px;
+    font: 500 11px var(--font); letter-spacing: .22em; text-transform: uppercase; color: var(--textc);
+  }
+}
+
+/* Selectable chip, in a grid of choices */
+.chip {
+  min-height: 50px; padding: 6px 8px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  background: rgba(255, 255, 255, .03); border: 1px solid var(--border); border-radius: 12px;
+  font: 500 14px var(--font); color: var(--textd); cursor: pointer;
+  transition: background .2s, border-color .2s, color .2s, box-shadow .2s, transform .09s;
+
+  &:hover { border-color: var(--borderh); color: var(--text); }
+  &:active { transform: scale(.97); }
+  &--on, &--on:hover {
+    background: rgba(230, 194, 122, .14); border-color: var(--p); color: var(--gold2);
+    box-shadow: 0 0 18px rgba(201, 164, 92, .18);
+  }
+  small { font-size: 11px; letter-spacing: .06em; opacity: .8; }
+}
+
+/* Segmented control: two or three mutually exclusive views */
+.seg {
+  display: grid; grid-auto-columns: minmax(0, 1fr); grid-auto-flow: column; padding: 3px;
+  background: rgba(255, 255, 255, .04); border: 1px solid var(--border); border-radius: 13px;
+
+  &__btn {
+    height: 40px; border: 0; border-radius: 10px; background: transparent;
+    font: 500 14px var(--font); color: var(--textd); cursor: pointer; transition: color .2s, background .2s;
+    &:hover { color: var(--text); }
+    &--on, &--on:hover { background: var(--gold-grad); color: #140f08; }
+  }
+}
+
+/* On/off switch */
+.switch {
+  position: relative; flex-shrink: 0; width: 48px; height: 28px; padding: 0;
+  background: rgba(255, 255, 255, .06); border: 1px solid rgba(201, 164, 92, .22); border-radius: 14px;
+  cursor: pointer; transition: background .25s, border-color .25s;
+
+  &::after {
+    content: ''; position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%;
+    background: var(--textd); box-shadow: 0 2px 6px rgba(0, 0, 0, .4);
+    transition: transform .3s var(--ease-spring), background .25s;
+  }
+  &--on { background: var(--gold-grad); border-color: transparent; }
+  &--on::after { transform: translateX(20px); background: #140f08; }
+}
+
+/* Full-width gold call to action at the bottom of a phone screen */
+.cta-block {
+  display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; height: 56px;
+  border: 0; border-radius: 14px; background: var(--gold-grad); color: #140f08;
+  font: 500 14px var(--font); letter-spacing: .16em; text-transform: uppercase;
+  box-shadow: 0 10px 30px rgba(201, 164, 92, .25), inset 0 1px 0 rgba(255, 255, 255, .35);
+  cursor: pointer; transition: transform .09s, opacity .2s;
+  &:active:not(:disabled) { transform: scale(.98); }
+  &:disabled { opacity: .5; cursor: not-allowed; }
+  svg { width: 18px; height: 18px; }
+}
+
+/* Grid of actions in a sheet */
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+
+.tile {
+  position: relative; min-height: 88px; padding: 8px 4px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  font: 400 13px var(--font); color: #e4dac8; text-align: center; cursor: pointer;
+  background: rgba(255, 255, 255, .035); border: 1px solid rgba(201, 164, 92, .14); border-radius: 16px;
+  transition: border-color .2s, transform .09s;
+
+  &:hover { border-color: var(--borderh); }
+  &:active { transform: scale(.97); }
+  &[aria-pressed='true'] { border-color: var(--p); }
+  .ico { width: 24px; height: 24px; color: var(--gold); }
+  &__ico--text { height: 24px; font: 600 28px/24px var(--serif); color: var(--gold); }
+  &__badge {
+    position: absolute; top: 10px; right: 14px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font: 600 11px var(--font); color: #140f08; background: var(--gold);
+  }
+}
+
+/* Resign: held for a second, the fill shows how long is left */
+.hold {
+  position: relative; overflow: hidden; width: 100%; height: 54px; margin-top: 22px;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  font: 500 13px var(--font); letter-spacing: .14em; text-transform: uppercase; color: #ec8a75;
+  background: rgba(192, 57, 43, .08); border: 1px solid rgba(214, 84, 63, .5); border-radius: 14px;
+  cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none;
+
+  &__fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: rgba(192, 57, 43, .3); transition: width .2s ease-out; }
+  &--active &__fill { width: 100%; transition: width 1s linear; }
+  .ico, &__label { position: relative; }
+  .ico { width: 18px; height: 18px; }
+}
+
+.sheet--tall { display: flex; flex-direction: column; min-height: 55dvh; }
+/* Stroke icons drawn inline */
+.ico { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Phones: a fixed-width page column becomes the whole screen, above the tab bar */
+@media (max-width: 768px) {
+  .btn-p, .btn-primary, .btn-g { border-radius: 12px; }
+  /* under 16px, iOS Safari zooms the page into a focused field */
+  input, select, textarea, .f-input { font-size: 16px; }
+}

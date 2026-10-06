@@ -28,6 +28,25 @@
     </div>
   </header>
 
+  <!-- ══ PHONE HEADER (compact screens only) ═══════════════════════ -->
+  <header class="mbar">
+    <button type="button" class="mbar__btn" (click)="leave(vm.game)" aria-label="Quitter la partie">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <div class="mbar__title">
+      <span class="mbar__kicker">{{ vm.game.opening || modeLabel(vm.game) }}</span>
+      <span class="mbar__sub">
+        <ng-container *ngIf="!isTerminal(vm.game.status); else overSub">
+          Tour {{ vm.game.fullMoveNumber }} · {{ timeControlLabel(vm.game) }}
+        </ng-container>
+        <ng-template #overSub>Partie terminée</ng-template>
+      </span>
+    </div>
+    <button type="button" class="mbar__btn" (click)="openSheet('more')" aria-label="Réglages et actions">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+    </button>
+  </header>
+
   <!-- Board settings: mode and style, applied live -->
   <ng-container *ngIf="settingsOpen">
     <div class="settings-backdrop" (click)="closeSettings()"></div>
@@ -202,71 +221,177 @@
         (lobby)="toLobby()"
         (close)="closeResultDialog(vm.game)" />
 
-      <!-- ── MOBILE PLAYER STRIP (hidden on desktop) ───────────────── -->
-      <div class="mobile-player-strip">
-        <!-- Black (left) -->
-        <div class="mobile-player" [class.mobile-player--active]="vm.game.currentTurn === 'black'">
-          <div class="mobile-player__avatar mobile-player__avatar--black">
-            <span *ngIf="!vm.black?.isAi">{{ vm.black?.username?.slice(0,2)?.toUpperCase() }}</span>
-            <span *ngIf="vm.black?.isAi">AI</span>
-          </div>
-          <span class="mobile-player__name">{{ vm.black?.username }}</span>
-          <span class="mobile-player__timer"
-                [class.mobile-player__timer--running]="vm.game.currentTurn === 'black'">
-            {{ formatTime(vm.black?.timeRemainingMs ?? 0) }}
+      <!-- ── COMPACT LAYOUT (phones, upright or on their side) ─────────
+           Upright, the pieces of .m-side are laid out around the board (display: contents
+           + order); on its side they stack in a column to the right of the board. -->
+      <div class="m-side">
+        <app-player-strip class="mp mp--top" *ngIf="topPlayer(vm) as p" [player]="p" [thinking]="vm.aiThinking"
+                          [active]="vm.game.currentTurn === p.color && !isTerminal(vm.game.status)"></app-player-strip>
+
+        <div class="m-eval" *ngIf="vm.analysis && vm.evaluation" role="meter" aria-label="Évaluation"
+             aria-valuemin="-5" aria-valuemax="5" [attr.aria-valuenow]="(vm.evaluation.score / 100).toFixed(1)">
+          <div class="m-eval__bar"><div class="m-eval__white" [style.width.%]="evalPercent(vm.evaluation.score)"></div></div>
+          <span class="m-eval__score" [class.eval-neg]="vm.evaluation.score < 0">
+            {{ vm.evaluation.score > 0 ? '+' : '' }}{{ (vm.evaluation.score / 100).toFixed(1) }}
           </span>
         </div>
-        <!-- White (right) -->
-        <div class="mobile-player" [class.mobile-player--active]="vm.game.currentTurn === 'white'">
-          <span class="mobile-player__timer"
-                [class.mobile-player__timer--running]="vm.game.currentTurn === 'white'">
-            {{ formatTime(vm.white?.timeRemainingMs ?? 0) }}
-          </span>
-          <span class="mobile-player__name mobile-player__name--right">{{ vm.white?.username }}</span>
-          <div class="mobile-player__avatar mobile-player__avatar--white">
-            {{ vm.white?.username?.slice(0,2)?.toUpperCase() }}
-          </div>
-        </div>
+
+        <app-player-strip class="mp mp--bottom" *ngIf="bottomPlayer(vm) as p" [player]="p" [thinking]="vm.aiThinking"
+                          [active]="vm.game.currentTurn === p.color && !isTerminal(vm.game.status)"></app-player-strip>
+
+        <p class="m-hint" *ngIf="vm.hint" role="status">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z"/></svg>
+          Indice <strong>{{ hintText(vm.hint) }}</strong>
+        </p>
+
+        <button type="button" class="m-moves" #movesStrip (click)="openSheet('notation')"
+                [attr.aria-label]="'Notation, ' + vm.moves.length + ' coups'">
+          <span class="m-moves__empty" *ngIf="!vm.moves.length">Les coups s'afficheront ici</span>
+          <ng-container *ngFor="let grp of moveGroups(vm.moves); let last = last">
+            <span class="m-moves__num">{{ grp.num }}.</span>
+            <span class="m-moves__mv" [class.m-moves__mv--last]="last && !grp.black">{{ grp.white }}</span>
+            <span class="m-moves__mv" *ngIf="grp.black" [class.m-moves__mv--last]="last">{{ grp.black }}</span>
+          </ng-container>
+        </button>
+
+        <nav class="m-dock" aria-label="Actions de partie">
+          <ng-container *ngIf="vm.game.mode !== 'online'; else onlineDock">
+            <button type="button" class="m-dock__btn" (click)="requestHint()" [class.m-dock__btn--on]="!!vm.hint"
+                    [disabled]="!canHint(vm.game, vm.aiThinking || vm.loading)">
+              <span class="m-dock__ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z"/><path d="M18.5 16.5l.6 1.8 1.8.6-1.8.6-.6 1.8-.6-1.8-1.8-.6 1.8-.6z"/></svg></span>
+              Indice
+            </button>
+            <button type="button" class="m-dock__btn" (click)="undo()" [disabled]="!canUndo(vm.game)">
+              <span class="m-dock__ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg></span>
+              Annuler
+            </button>
+          </ng-container>
+          <ng-template #onlineDock>
+            <button type="button" class="m-dock__btn" (click)="offerDraw()" [disabled]="isTerminal(vm.game.status)">
+              <span class="m-dock__ico m-dock__ico--text">½</span>
+              Nulle
+            </button>
+            <button type="button" class="m-dock__btn" (click)="openSheet('chat')">
+              <span class="m-dock__ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 5.5h15v10h-9l-6 4z"/></svg></span>
+              Chat
+            </button>
+          </ng-template>
+          <button type="button" class="m-dock__btn" *ngIf="canAnalyse(vm.game)" (click)="toggleAnalysis()"
+                  [attr.aria-pressed]="vm.analysis" [class.m-dock__btn--on]="vm.analysis">
+            <span class="m-dock__ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 010 16z" fill="currentColor" stroke="none"/></svg></span>
+            Analyse
+          </button>
+          <button type="button" class="m-dock__btn" (click)="flipBoard()">
+            <span class="m-dock__ico"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v16M8 20l-3-3M8 20l3-3"/><path d="M16 20V4M16 4l-3 3M16 4l3 3"/></svg></span>
+            Retourner
+          </button>
+          <button type="button" class="m-dock__btn" (click)="openSheet('more')" [attr.aria-expanded]="sheet === 'more'">
+            <span class="m-dock__ico"><svg class="ico" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><circle cx="5.5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="18.5" cy="12" r="1.7"/></svg></span>
+            Plus
+          </button>
+        </nav>
       </div>
 
-      <!-- ── MOBILE ACTION BAR (hidden on desktop) ────────────────── -->
-      <div class="mobile-action-bar">
-        <button class="mobile-action-btn" *ngIf="vm.game && canUndo(vm.game)" (click)="undo()" title="Annuler">↩</button>
-        <button class="mobile-action-btn" (click)="flipBoard()" title="Retourner">⇅</button>
-        <button class="mobile-action-btn" *ngIf="(boardView$ | async)?.mode === '3d'" (click)="toggleView()" [title]="topView ? 'Vue 3D' : 'Vue du dessus'">{{ topView ? '◈' : '⬒' }}</button>
-        <button class="mobile-action-btn" (click)="save()" title="Sauvegarder">⎙</button>
-        <button class="mobile-action-btn" (click)="offerDraw()" title="Nulle">½</button>
-        <button class="mobile-action-btn mobile-action-btn--danger" (click)="resign()" title="Abandonner">⚑</button>
-        <button class="mobile-action-btn mobile-action-btn--chat"
-                [class.mobile-action-btn--chat-open]="mobileChatOpen"
-                (click)="toggleMobileChat()" title="Chat">💬</button>
-      </div>
+      <!-- ── SHEETS (phones) ───────────────────────────────────────── -->
+      <ng-container *ngIf="sheet">
+        <div class="sheet-backdrop" (click)="closeSheet()"></div>
 
-      <!-- ── MOBILE CHAT OVERLAY (slides up over board) ───────────── -->
-      <div class="mobile-chat" [class.mobile-chat--open]="mobileChatOpen">
-        <div class="mobile-chat__header">
-          <span>Chat</span>
-          <button (click)="toggleMobileChat()">✕</button>
-        </div>
-        <div class="mobile-chat__messages">
-          <div class="chat-msg"
-               *ngFor="let msg of vm.chat"
-               [class.chat-msg--me]="msg.senderId === currentUserId">
-            <span class="chat-msg__from"
-                  [class.chat-msg__from--me]="msg.senderId === currentUserId">
-              {{ msg.senderUsername }}
-            </span>
-            <span class="chat-msg__text">{{ msg.content }}</span>
+        <!-- More: the game's other actions and the board's look -->
+        <section class="sheet" *ngIf="sheet === 'more'" appSheetDrag (dismiss)="closeSheet()"
+                 role="dialog" aria-modal="true" aria-labelledby="more-title">
+          <span class="sheet__grab"></span>
+          <div class="sheet__head">
+            <div>
+              <h2 class="sheet__title" id="more-title">Partie</h2>
+              <p class="sheet__sub">{{ opponentLabel(vm) }} · Tour {{ vm.game.fullMoveNumber }}</p>
+            </div>
+            <button type="button" class="sheet__close" (click)="closeSheet()" aria-label="Fermer">
+              <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
           </div>
-        </div>
-        <div class="mobile-chat__input-row">
-          <input class="chat-input"
-                 [(ngModel)]="chatInput"
-                 placeholder="Message…"
-                 (keydown.enter)="sendChat()" />
-          <button class="chat-send" (click)="sendChat()">↑</button>
-        </div>
-      </div>
+
+          <div class="tiles">
+            <button type="button" class="tile" *ngIf="!isTerminal(vm.game.status) && vm.game.mode !== 'online'" (click)="offerDraw(); closeSheet()">
+              <span class="tile__ico tile__ico--text">½</span>Proposer nulle
+            </button>
+            <button type="button" class="tile" *ngIf="isTerminal(vm.game.status)" (click)="reopenResultDialog(); closeSheet()">
+              <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8v5a4 4 0 01-8 0z"/><path d="M12 13v4M8.5 20h7M16 6h3a3 3 0 01-3 3M8 6H5a3 3 0 003 3"/></svg>Résultat
+            </button>
+            <button type="button" class="tile" (click)="save(); closeSheet()">
+              <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v16l-5-3.6L7 20z"/></svg>Sauvegarder
+            </button>
+            <button type="button" class="tile" *ngIf="vm.game.mode === 'online'" (click)="openSheet('chat')">
+              <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 5.5h15v10h-9l-6 4z"/></svg>Chat
+              <span class="tile__badge" *ngIf="vm.chat.length">{{ vm.chat.length }}</span>
+            </button>
+            <button type="button" class="tile" (click)="openSheet('notation')">
+              <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h1M4 12h1M4 18h1"/></svg>Notation
+            </button>
+            <button type="button" class="tile" *ngIf="(boardView$ | async)?.mode === '3d'" (click)="toggleView()" [attr.aria-pressed]="topView">
+              <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>{{ topView ? 'Vue 3D' : 'Vue du dessus' }}
+            </button>
+          </div>
+
+          <p class="sheet__label">Plateau</p>
+          <app-board-style-picker />
+
+          <button type="button" class="hold" *ngIf="!isTerminal(vm.game.status)" [class.hold--active]="resignHolding"
+                  (pointerdown)="startResignHold($event)" (pointerup)="cancelResignHold()" (pointerleave)="cancelResignHold()"
+                  (pointercancel)="cancelResignHold()" (click)="resignByKeyboard($event)" (contextmenu)="$event.preventDefault()">
+            <span class="hold__fill"></span>
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4M5 4h12l-2.5 4.5L17 13H5"/></svg>
+            <span class="hold__label">Maintenir pour abandonner</span>
+          </button>
+        </section>
+
+        <!-- Notation -->
+        <section class="sheet sheet--tall" *ngIf="sheet === 'notation'" appSheetDrag (dismiss)="closeSheet()"
+                 role="dialog" aria-modal="true" aria-labelledby="notation-title">
+          <span class="sheet__grab"></span>
+          <div class="sheet__head">
+            <div>
+              <h2 class="sheet__title" id="notation-title">Notation</h2>
+              <p class="sheet__sub">{{ vm.game.opening || 'Ouverture non identifiée' }}</p>
+            </div>
+            <button type="button" class="sheet__close" (click)="closeSheet()" aria-label="Fermer">
+              <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+          </div>
+          <table class="notation-table notation-table--sheet">
+            <tbody>
+              <tr *ngFor="let grp of moveGroups(vm.moves); let last = last">
+                <td class="notation-table__num">{{ grp.num }}.</td>
+                <td class="notation-table__mv" [class.notation-table__mv--last]="last && !grp.black">{{ grp.white }}</td>
+                <td class="notation-table__mv" [class.notation-table__mv--last]="last && !!grp.black">{{ grp.black }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="sheet__sub" *ngIf="!vm.moves.length">Aucun coup joué pour l'instant.</p>
+        </section>
+
+        <!-- Chat (online games) -->
+        <section class="sheet sheet--tall sheet--chat" *ngIf="sheet === 'chat'" appSheetDrag (dismiss)="closeSheet()"
+                 role="dialog" aria-modal="true" aria-labelledby="chat-title">
+          <span class="sheet__grab"></span>
+          <div class="sheet__head">
+            <h2 class="sheet__title" id="chat-title">Chat</h2>
+            <button type="button" class="sheet__close" (click)="closeSheet()" aria-label="Fermer">
+              <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+          </div>
+          <div class="chat-messages">
+            <p class="sheet__sub" *ngIf="!vm.chat.length">Aucun message.</p>
+            <div class="chat-msg" *ngFor="let msg of vm.chat" [class.chat-msg--me]="msg.senderId === currentUserId">
+              <span class="chat-msg__from" [class.chat-msg__from--me]="msg.senderId === currentUserId">{{ msg.senderUsername }}</span>
+              <span class="chat-msg__text">{{ msg.content }}</span>
+            </div>
+          </div>
+          <div class="chat-input-row">
+            <input class="chat-input" [(ngModel)]="chatInput" placeholder="Message…" aria-label="Message" (keydown.enter)="sendChat()" />
+            <button type="button" class="chat-send" (click)="sendChat()" aria-label="Envoyer">↑</button>
+          </div>
+        </section>
+      </ng-container>
 
     </div>
 

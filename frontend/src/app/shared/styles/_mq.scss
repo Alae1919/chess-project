@@ -1,0 +1,17 @@
+// Breakpoints of the mobile layout, shared by the component stylesheets.
+// Keep in step with core/utils/viewport.ts, which answers the same questions in code.
+
+/* A phone held upright: one column, tab bar at the bottom */
+@mixin phone {
+  @media (max-width: 768px) { @content; }
+}
+
+/* A phone on its side: too short for the stacked layout, the board goes left */
+@mixin phone-landscape {
+  @media (max-height: 500px) and (max-width: 1000px) and (orientation: landscape) { @content; }
+}
+
+/* Either of the two: the compact game screen */
+@mixin compact {
+  @media (max-width: 768px), (max-height: 500px) and (max-width: 1000px) and (orientation: landscape) { @content; }
+}

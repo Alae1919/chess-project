@@ -1,98 +1,112 @@
 <!-- src/app/features/home/pages/home.page.html -->
-<app-floaty-pieces />
+<app-floaty-pieces class="home__floaty" />
 
 <div class="home">
 
   <!-- ── LEFT: Mode selector ─────────────────────────────────────── -->
   <div class="home__left">
     <div class="home__head">
-      <p class="eyebrow">REXCHESS</p>
+      <p class="eyebrow">{{ greeting$ | async }}</p>
       <h1 class="home__title">Choisissez<br><em>votre adversaire</em></h1>
       <p class="home__sub">
         Affrontez l'intelligence artificielle, un ami, ou rejoignez la compétition mondiale en temps réel.
       </p>
     </div>
 
-    <!-- Mode cards -->
-    <div class="mode-list">
-      <div
-        class="mode-card glass"
-        [class.mode-card--active]="selectedMode === 'ai'"
-        (click)="selectMode('ai')"
-      >
-        <div class="mode-card__icon">♟</div>
-        <div class="mode-card__info">
-          <div class="mode-card__title">Jouer contre l'IA</div>
-          <div class="mode-card__desc">Moteur Java haute performance. Adaptatif, redoutable, formateur.</div>
-        </div>
-        <span class="tag">Populaire</span>
-        <span class="mode-card__arrow">›</span>
-      </div>
-
-      <div
-        class="mode-card glass"
-        [class.mode-card--active]="selectedMode === 'local'"
-        (click)="selectMode('local')"
-      >
-        <div class="mode-card__icon">♞</div>
-        <div class="mode-card__info">
-          <div class="mode-card__title">Jouer contre un humain</div>
-          <div class="mode-card__desc">Partie locale — deux joueurs sur le même écran.</div>
-        </div>
-        <span class="mode-card__arrow">›</span>
-      </div>
-
-      <div
-        class="mode-card glass"
-        [class.mode-card--active]="selectedMode === 'online'"
-        (click)="selectMode('online')"
-      >
-        <div class="mode-card__icon">♜</div>
-        <div class="mode-card__info">
-          <div class="mode-card__title">Jouer en ligne</div>
-          <div class="mode-card__desc">Classé ou amical — rejoignez un adversaire en temps réel.</div>
-        </div>
-        <span class="tag tag-gold">ELO Classé</span>
-        <span class="mode-card__arrow">›</span>
-      </div>
-
-      <div
-        class="mode-card glass"
-        [class.mode-card--active]="selectedMode === 'saved'"
-        (click)="selectMode('saved')"
-      >
-        <div class="mode-card__icon">♛</div>
-        <div class="mode-card__info">
-          <div class="mode-card__title">Continuer une partie sauvegardée</div>
-          <div class="mode-card__desc">Reprenez exactement là où vous vous êtes arrêté.</div>
-        </div>
-        <span class="mode-card__arrow">›</span>
-      </div>
-    </div>
+    <!-- The game still going, one tap away -->
+    <a class="resume glass" *ngIf="resume$ | async as r" [routerLink]="['/game', r.id]">
+      <app-mini-board [squares]="r.squares" [size]="72" />
+      <span class="resume__info">
+        <span class="resume__kicker"><span class="resume__dot"></span>Partie en cours</span>
+        <span class="resume__title">{{ r.title }}</span>
+        <span class="resume__sub">{{ r.sub }}</span>
+      </span>
+      <span class="resume__go" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"/></svg>
+      </span>
+    </a>
 
     <!-- Saved games list (shown when mode = saved) -->
     <div class="saved-section" *ngIf="selectedMode === 'saved'">
       <p class="section-label">Parties sauvegardées</p>
       <div class="saved-list">
-        <div
+        <button
+          type="button"
           class="saved-item"
           *ngFor="let sg of savedGames$ | async"
           (click)="loadSaved(sg.gameId)"
         >
-          <span class="saved-item__thumb">♟</span>
-          <div class="saved-item__info">
-            <div class="saved-item__name">vs {{ sg.opponentName }} — Tour {{ sg.turnNumber }}</div>
-            <div class="saved-item__meta">
+          <span class="saved-item__thumb">♟&#xFE0E;</span>
+          <span class="saved-item__info">
+            <span class="saved-item__name">vs {{ sg.opponentName }} — Tour {{ sg.turnNumber }}</span>
+            <span class="saved-item__meta">
               {{ sg.savedAt | date:'short' }} · {{ sg.playerColor === 'white' ? 'Blancs' : 'Noirs' }}
               <span *ngIf="sg.opening"> · {{ sg.opening }}</span>
-            </div>
-          </div>
+            </span>
+          </span>
           <span class="saved-item__load">Charger ›</span>
-        </div>
+        </button>
         <div class="saved-empty" *ngIf="(savedGames$ | async)?.length === 0">
           Aucune partie sauvegardée.
         </div>
       </div>
+    </div>
+
+    <p class="section-label section-label--modes">Modes de jeu</p>
+
+    <!-- Mode cards -->
+    <div class="mode-list">
+      <button type="button"
+        class="mode-card glass"
+        [class.mode-card--active]="selectedMode === 'ai'"
+        (click)="pickMode('ai')"
+      >
+        <span class="mode-card__icon">♟&#xFE0E;</span>
+        <span class="mode-card__info">
+          <span class="mode-card__title">Contre l'IA <span class="tag">Populaire</span></span>
+          <span class="mode-card__desc">6 niveaux, de ≈ 1100 à ≈ 2900 Elo</span>
+        </span>
+        <span class="mode-card__arrow">›</span>
+      </button>
+
+      <button type="button"
+        class="mode-card glass"
+        [class.mode-card--active]="selectedMode === 'local'"
+        (click)="pickMode('local')"
+      >
+        <span class="mode-card__icon">♞</span>
+        <span class="mode-card__info">
+          <span class="mode-card__title">Deux joueurs</span>
+          <span class="mode-card__desc">Partie locale sur le même écran</span>
+        </span>
+        <span class="mode-card__arrow">›</span>
+      </button>
+
+      <button type="button"
+        class="mode-card glass"
+        [class.mode-card--active]="selectedMode === 'online'"
+        (click)="pickMode('online')"
+      >
+        <span class="mode-card__icon">♜</span>
+        <span class="mode-card__info">
+          <span class="mode-card__title">En ligne <span class="tag tag-gold">Classé</span></span>
+          <span class="mode-card__desc">Classé ou amical, en temps réel</span>
+        </span>
+        <span class="mode-card__arrow">›</span>
+      </button>
+
+      <button type="button"
+        class="mode-card glass"
+        [class.mode-card--active]="selectedMode === 'saved'"
+        (click)="pickMode('saved')"
+      >
+        <span class="mode-card__icon">♛</span>
+        <span class="mode-card__info">
+          <span class="mode-card__title">Parties sauvegardées</span>
+          <span class="mode-card__desc">Reprenez là où vous en étiez</span>
+        </span>
+        <span class="mode-card__arrow">›</span>
+      </button>
     </div>
 
     <!-- Decorative board -->
@@ -101,19 +115,34 @@
     </div>
   </div>
 
-  <!-- ── RIGHT: Options panel ────────────────────────────────────── -->
-  <aside class="home__right">
-    <div class="options-panel glass">
+  <!-- ── RIGHT: Options panel (a bottom sheet on phones) ─────────── -->
+  <div class="sheet-backdrop home__backdrop" *ngIf="setupOpen" (click)="closeSetup()"></div>
+  <aside class="home__right" [class.home__right--open]="setupOpen">
+    <div class="options-panel glass" appSheetDrag (dismiss)="closeSetup()"
+         [attr.role]="setupOpen ? 'dialog' : null" [attr.aria-modal]="setupOpen ? true : null"
+         aria-labelledby="setup-title">
+      <span class="sheet__grab options-panel__grab"></span>
+      <div class="sheet__head options-panel__head">
+        <h2 class="sheet__title" id="setup-title">
+          <ng-container *ngIf="selectedMode === 'local'; else vsAi">Deux <em>joueurs</em></ng-container>
+          <ng-template #vsAi>Contre <em>l'IA</em></ng-template>
+        </h2>
+        <button type="button" class="sheet__close" (click)="closeSetup()" aria-label="Fermer">
+          <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
       <div class="options-panel__title">⚙ Options avancées</div>
 
       <!-- Difficulty (only for AI) -->
       <div class="opt-sec" *ngIf="selectedMode === 'ai'">
-        <p class="opt-label">Difficulté de l'IA</p>
+        <p class="opt-label">Niveau de l'IA</p>
         <div class="btn-grid">
           <button
+            type="button"
             class="opt-btn"
             *ngFor="let label of difficultyLabels; let i = index"
             [class.opt-btn--sel]="selectedDifficulty === i + 1"
+            [attr.aria-pressed]="selectedDifficulty === i + 1"
             (click)="selectDifficulty(i + 1)"
           >{{ label }}<small class="opt-btn__elo">≈ {{ difficultyElo[i] }}</small></button>
         </div>
@@ -123,19 +152,21 @@
       <div class="opt-sec">
         <p class="opt-label">Je joue avec les</p>
         <div class="btn-grid">
-          <button class="opt-btn" [class.opt-btn--sel]="selectedColor === 'white'"  (click)="selectColor('white')">♔ Blancs</button>
-          <button class="opt-btn" [class.opt-btn--sel]="selectedColor === 'black'"  (click)="selectColor('black')">♚ Noirs</button>
-          <button class="opt-btn" [class.opt-btn--sel]="selectedColor === 'random'" (click)="selectColor('random')">⚄ Aléatoire</button>
+          <button type="button" class="opt-btn opt-btn--row" [class.opt-btn--sel]="selectedColor === 'white'" [attr.aria-pressed]="selectedColor === 'white'" (click)="selectColor('white')"><span class="swatch swatch--white"></span>Blancs</button>
+          <button type="button" class="opt-btn opt-btn--row" [class.opt-btn--sel]="selectedColor === 'black'" [attr.aria-pressed]="selectedColor === 'black'" (click)="selectColor('black')"><span class="swatch swatch--black"></span>Noirs</button>
+          <button type="button" class="opt-btn opt-btn--row" [class.opt-btn--sel]="selectedColor === 'random'" [attr.aria-pressed]="selectedColor === 'random'" (click)="selectColor('random')"><span class="swatch swatch--random"></span>Hasard</button>
         </div>
       </div>
 
       <!-- Time control -->
       <div class="opt-sec">
-        <p class="opt-label">Contrôle du temps</p>
+        <p class="opt-label">Cadence</p>
         <div class="btn-grid">
-          <button class="opt-btn" [class.opt-btn--sel]="selectedTime === 'blitz'"     (click)="selectTime('blitz')">Blitz 5'</button>
-          <button class="opt-btn" [class.opt-btn--sel]="selectedTime === 'rapid'"     (click)="selectTime('rapid')">Rapide 10'</button>
-          <button class="opt-btn" [class.opt-btn--sel]="selectedTime === 'classical'" (click)="selectTime('classical')">Classique 30'</button>
+          <button type="button" class="opt-btn" *ngFor="let t of timeChoices"
+                  [class.opt-btn--sel]="selectedTime === t.id" [attr.aria-pressed]="selectedTime === t.id"
+                  (click)="selectTime(t.id)">
+            <span class="opt-btn__mins">{{ t.mins }}</span>{{ t.label }}
+          </button>
         </div>
       </div>
 
@@ -143,61 +174,32 @@
       <div class="opt-sec">
         <p class="opt-label">Règles de jeu</p>
         <form [formGroup]="optionsForm" class="toggle-list">
-          <div class="toggle-row">
+          <div class="toggle-row" *ngFor="let r of rules">
             <div>
-              <div class="toggle-row__label">Annuler un coup</div>
-              <div class="toggle-row__hint">Revenir au coup précédent</div>
+              <div class="toggle-row__label" [id]="'rule-' + r.key">{{ r.label }}</div>
+              <div class="toggle-row__hint" *ngIf="r.hint">{{ r.hint }}</div>
             </div>
-            <div
+            <button
+              type="button"
+              role="switch"
               class="toggle"
-              [class.on]="optionsForm.get('enableUndo')?.value"
-              (click)="optionsForm.get('enableUndo')?.setValue(!optionsForm.get('enableUndo')?.value)"
-            ></div>
-          </div>
-
-          <div class="toggle-row">
-            <div class="toggle-row__label">Confirmer les coups</div>
-            <div
-              class="toggle"
-              [class.on]="optionsForm.get('confirmMoves')?.value"
-              (click)="optionsForm.get('confirmMoves')?.setValue(!optionsForm.get('confirmMoves')?.value)"
-            ></div>
-          </div>
-
-          <div class="toggle-row">
-            <div class="toggle-row__label">Afficher les coups légaux</div>
-            <div
-              class="toggle"
-              [class.on]="optionsForm.get('showLegalMoves')?.value"
-              (click)="optionsForm.get('showLegalMoves')?.setValue(!optionsForm.get('showLegalMoves')?.value)"
-            ></div>
-          </div>
-
-          <div class="toggle-row">
-            <div class="toggle-row__label">Analyse en temps réel</div>
-            <div
-              class="toggle"
-              [class.on]="optionsForm.get('realTimeAnalysis')?.value"
-              (click)="optionsForm.get('realTimeAnalysis')?.setValue(!optionsForm.get('realTimeAnalysis')?.value)"
-            ></div>
-          </div>
-
-          <div class="toggle-row">
-            <div class="toggle-row__label">Sons et effets</div>
-            <div
-              class="toggle"
-              [class.on]="optionsForm.get('soundEnabled')?.value"
-              (click)="optionsForm.get('soundEnabled')?.setValue(!optionsForm.get('soundEnabled')?.value)"
-            ></div>
+              [class.on]="optionsForm.get(r.key)?.value"
+              [attr.aria-checked]="!!optionsForm.get(r.key)?.value"
+              [attr.aria-labelledby]="'rule-' + r.key"
+              (click)="toggleRule(r.key)"
+            ></button>
           </div>
         </form>
       </div>
 
       <p class="start-error" role="alert" *ngIf="notice$ | async as notice">{{ notice }}</p>
 
-      <button class="btn-p start-btn" [disabled]="!canStart" (click)="startGame()">
-        {{ canStart ? 'Lancer la partie →' : 'Choisissez une partie dans la liste' }}
-      </button>
+      <div class="options-panel__foot">
+        <p class="options-panel__summary">{{ summary }}</p>
+        <button type="button" class="btn-p start-btn" [disabled]="!canStart" (click)="startGame()">
+          {{ canStart ? 'Lancer la partie →' : 'Choisissez une partie dans la liste' }}
+        </button>
+      </div>
     </div>
   </aside>
 </div>

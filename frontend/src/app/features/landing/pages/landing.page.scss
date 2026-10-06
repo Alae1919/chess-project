@@ -1,3 +1,5 @@
+@use '../../../shared/styles/mq';
+
 :host { display: block; }
 
 .landing { position: relative; }
@@ -167,4 +169,26 @@
   .modes { padding: 0 20px 64px; &__title { font-size: 38px; } &__panel { padding: 28px 20px; } }
   .cta { padding: 56px 20px; &__title { font-size: 42px; } }
   .footer { padding: 24px 20px; justify-content: center; text-align: center; }
+}
+
+/* Phones: headline, the board, then the calls to action by the thumb */
+@include mq.phone {
+  .hero {
+    display: flex; flex-direction: column; align-items: stretch; text-align: left; gap: 0;
+    min-height: calc(100dvh - 56px - env(safe-area-inset-top)); padding: 26px 24px calc(28px + env(safe-area-inset-bottom));
+  }
+  .hero__copy { display: contents; }
+  .hero__eyebrow { order: 1; justify-content: flex-start; margin-bottom: 14px; letter-spacing: .24em; }
+  .hero__title { order: 2; font-size: 56px; font-weight: 400; margin-bottom: 12px; }
+  .hero__sub { order: 3; margin: 0; max-width: 320px; font-size: 15px; line-height: 1.55; font-weight: 300; }
+  .hero__board { order: 4; flex: 1; display: flex; align-items: center; width: 86%; max-width: 360px; margin: 4px auto; }
+  .hero__halo { inset: -20px; }
+  .hero__stats {
+    order: 5; justify-content: space-between; gap: 0; margin: 0 0 18px; padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .hero__ctas { order: 6; flex-direction: column; gap: 10px; }
+  .hero__cta { width: 100%; height: 54px; padding: 0; border-radius: 14px; }
+  .hstat-val { font-size: 24px; line-height: 1.1; }
+  .hstat-lbl { font-size: 11px; letter-spacing: .12em; color: var(--textc); }
 }

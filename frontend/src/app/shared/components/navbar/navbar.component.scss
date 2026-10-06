@@ -27,11 +27,12 @@
   &__cta { padding: 8px 20px; font-size: 13px; }
 
   &__notif {
-    width: 34px; height: 34px; background: var(--bg2);
+    width: 34px; height: 34px; padding: 0; background: var(--bg2); color: var(--textd);
     border: 1px solid var(--border); border-radius: 6px;
     display: flex; align-items: center; justify-content: center;
-    cursor: pointer; font-size: 1rem; transition: border-color .2s;
-    &:hover { border-color: var(--borderh); }
+    cursor: pointer; transition: border-color .2s, color .2s;
+    &:hover { border-color: var(--borderh); color: var(--text); }
+    .ico { width: 18px; height: 18px; }
   }
 
   &__avatar {
@@ -42,44 +43,26 @@
     border: 1.5px solid var(--gold);
     &:hover { color: #140f08; box-shadow: var(--pg); }
   }
-
-  /* Hamburger — hidden on desktop */
-  &__hamburger {
-    display: none; background: none; border: none; color: var(--textd);
-    font-size: 1.3rem; padding: 6px 8px; line-height: 1; cursor: pointer; transition: color .2s;
-    &:hover { color: var(--p); }
-  }
 }
 
+/* Phones: logo and account only; the links move to the bottom tab bar */
 @media (max-width: 768px) {
   .nav {
-    height: 56px; padding: 0 16px; gap: 12px;
+    height: calc(56px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 16px 0; gap: 12px;
+    background: rgba(11, 9, 7, .78);
 
     &__logo { flex: 1; font-size: 18px; }
-    &__hamburger { display: flex; order: 3; }
-    &__right { order: 2; margin-left: 0; }
-    &__cta { padding: 7px 12px; font-size: 11px; letter-spacing: .08em; }
-
-    /* desktop links row becomes a dropdown */
-    &__links {
-      display: none; position: absolute; top: 56px; left: 0; right: 0;
-      flex-direction: column; gap: 2px; margin: 0;
-      background: rgba(11, 9, 7, .98); backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--borderh);
-      padding: 8px 12px 14px; z-index: 200;
-
-      &--open { display: flex; }
-    }
-    &__link { padding: 10px 14px; border-radius: var(--radius-sm); font-size: .9rem; }
+    &__links { display: none; }
+    &__right { gap: 4px; }
+    &__notif { width: 44px; height: 44px; background: none; border: 0; }
+    &__avatar { width: 36px; height: 36px; }
+    &__cta { padding: 8px 14px; font-size: 11px; letter-spacing: .1em; }
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 400px) {
   .nav {
-    padding: 0 12px; gap: 8px;
-    &__logo { font-size: 15px; letter-spacing: .2em; }
-    &__right { gap: 6px; }
-    &__cta { padding: 6px 10px; font-size: 10px; letter-spacing: .06em; }
-    &__hamburger { padding: 4px; }
+    &__logo { font-size: 15px; letter-spacing: .24em; }
+    &__cta { padding: 7px 10px; font-size: 10px; letter-spacing: .06em; }
   }
 }

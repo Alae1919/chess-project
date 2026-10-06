@@ -1,5 +1,5 @@
 import { NO_ERRORS_SCHEMA } from '@angular/core';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { MockStore, provideMockStore } from '@ngrx/store/testing';
 import { of } from 'rxjs';
@@ -18,7 +18,7 @@ import { initialAccountState } from '../../../store/account/account.reducer';
 import { GameActions } from '../../../store/game/game.actions';
 import { initialGameState } from '../../../store/game/game.state';
 import { initialLobbyState } from '../../../store/lobby/lobby.state';
-import { GamePage } from './game.page';
+import { GamePage, RESIGN_HOLD_MS } from './game.page';
 
 describe('GamePage', () => {
   let fixture: ComponentFixture<GamePage>;
@@ -252,6 +252,83 @@ describe('GamePage', () => {
       expect(text).toContain('g1 → f3');
       expect(text).toContain('Analyse');
       expect(text).toContain('Indice');
+    });
+  });
+
+  describe('on a phone', () => {
+    const press = (button = 0) => ({ button } as PointerEvent);
+
+    it("shows the far side's player above the board and the near side's below, turning with it", () => {
+      const vm = { white: human('white', 'me'), black: bot('black') };
+
+      expect(page.topPlayer(vm)).toBe(vm.black);
+      expect(page.bottomPlayer(vm)).toBe(vm.white);
+
+      page.flipBoard();
+
+      expect(page.topPlayer(vm)).toBe(vm.white);
+      expect(page.bottomPlayer(vm)).toBe(vm.black);
+    });
+
+    it('names the time control and the opponent the way the header and the sheets show them', () => {
+      expect(page.timeControlLabel(makeGame({ timeControl: { type: 'rapid', initialMs: 600_000, incrementMs: 0 } }))).toBe('Rapide 10′');
+
+      const vsAi = makeGame({ mode: 'ai', playerWhite: human('white', 'me'), playerBlack: { ...bot('black'), aiDifficulty: 5 } });
+      expect(page.opponentLabel({ game: vsAi, white: vsAi.playerWhite, black: vsAi.playerBlack })).toBe('vs IA · Maître');
+    });
+
+    it('resigns only once the button has been held for a full second', fakeAsync(() => {
+      page.startResignHold(press());
+      tick(RESIGN_HOLD_MS - 1);
+      expect(dispatch).not.toHaveBeenCalledWith(GameActions.resign());
+
+      tick(1);
+      expect(dispatch).toHaveBeenCalledWith(GameActions.resign());
+      expect(page.sheet).toBeNull();
+    }));
+
+    it('does not resign when the finger lifts too soon', fakeAsync(() => {
+      page.startResignHold(press());
+      tick(RESIGN_HOLD_MS / 2);
+      page.cancelResignHold();
+      tick(RESIGN_HOLD_MS);
+
+      expect(dispatch).not.toHaveBeenCalledWith(GameActions.resign());
+      expect(page.resignHolding).toBeFalse();
+    }));
+
+    it('ignores a right click, and asks a keyboard user instead of making them hold', fakeAsync(() => {
+      const confirmSpy = spyOn(window, 'confirm').and.returnValue(true);
+
+      page.startResignHold(press(2));
+      tick(RESIGN_HOLD_MS);
+      expect(dispatch).not.toHaveBeenCalledWith(GameActions.resign());
+
+      page.resignByKeyboard({ detail: 1 } as MouseEvent);   // the click that ends a pointer hold
+      expect(confirmSpy).not.toHaveBeenCalled();
+
+      page.resignByKeyboard({ detail: 0 } as MouseEvent);   // Enter or Space
+      expect(confirmSpy).toHaveBeenCalled();
+      expect(dispatch).toHaveBeenCalledWith(GameActions.resign());
+    }));
+
+    it('opens one sheet at a time, and Escape closes it', () => {
+      page.openSheet('more');
+      page.openSheet('notation');
+      expect(page.sheet).toBe('notation');
+
+      page.closeSettings();   // the Escape handler
+      expect(page.sheet).toBeNull();
+    });
+
+    it('starts the next game with no sheet open', () => {
+      open('game-a');
+      page.openSheet('more');
+
+      fixture.componentRef.setInput('id', 'game-b');
+      fixture.detectChanges();
+
+      expect(page.sheet).toBeNull();
     });
   });
 });

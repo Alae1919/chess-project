@@ -18,10 +18,11 @@ export class LandingPage {
   /** The decorative board wears the player's chosen 3D style */
   readonly look$ = inject(BoardPrefsService).prefs$.pipe(map((p) => p.style3d));
 
+  /** Facts about the engine (see docs/how-the-ai-works.md) */
   readonly stats = [
-    { value: '12 847', label: 'Joueurs actifs' },
-    { value: '3,2 M', label: 'Parties jouées' },
-    { value: '< 98 ms', label: 'Réponse IA' },
+    { value: '6', label: "Niveaux d'IA" },
+    { value: '≈ 2900', label: 'Elo maximum' },
+    { value: 'NNUE', label: 'Réseau neuronal' },
   ];
 
   readonly features = [

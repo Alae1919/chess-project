@@ -4,7 +4,7 @@ import { MockStore, provideMockStore } from '@ngrx/store/testing';
 import { LobbyActions } from '../../../store/lobby/lobby.actions';
 import { initialLobbyState } from '../../../store/lobby/lobby.state';
 import { UserSearchComponent } from '../components/user-search.component';
-import { OnlineLobbyPage } from './online-lobby.page';
+import { OnlineLobbyPage, elapsedSince } from './online-lobby.page';
 
 describe('OnlineLobbyPage', () => {
   let fixture: ComponentFixture<OnlineLobbyPage>;
@@ -45,5 +45,20 @@ describe('OnlineLobbyPage', () => {
     fixture.destroy();
 
     expect(dispatch).not.toHaveBeenCalledWith(LobbyActions.leaveQueue());
+  });
+});
+
+describe('elapsedSince', () => {
+  const joined = '2026-10-06T12:00:00Z';
+  const at = (iso: string) => new Date(iso).getTime();
+
+  it('counts minutes and seconds in the queue', () => {
+    expect(elapsedSince(joined, at('2026-10-06T12:00:07Z'))).toBe('0:07');
+    expect(elapsedSince(joined, at('2026-10-06T12:12:30Z'))).toBe('12:30');
+  });
+
+  it('starts at zero, and never runs backwards when the clocks disagree', () => {
+    expect(elapsedSince(undefined)).toBe('0:00');
+    expect(elapsedSince(joined, at('2026-10-06T11:59:58Z'))).toBe('0:00');
   });
 });
