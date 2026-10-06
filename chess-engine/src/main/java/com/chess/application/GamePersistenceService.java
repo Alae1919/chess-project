@@ -331,6 +331,13 @@ public class GamePersistenceService {
     private void updateUserStats(GameEntity game, String winner) {
         UUID white = game.getWhiteUserId(), black = game.getBlackUserId();
 
+        // Lock the players' rows before reading them, lowest id first: two games that end
+        // together for one player then take turns instead of overwriting each other, and
+        // two games between the same pair can't wait on each other.
+        java.util.stream.Stream.of(white, black)
+            .filter(java.util.Objects::nonNull).distinct().sorted()
+            .forEach(userRepo::findByIdForUpdate);
+
         // One person in both seats (a local game): it counts as one game played, but
         // can't be won or lost
         if (white != null && white.equals(black)) {
