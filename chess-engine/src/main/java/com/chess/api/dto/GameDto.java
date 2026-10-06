@@ -1,5 +1,6 @@
 package com.chess.api.dto;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.time.Instant;
 import java.util.List;
@@ -17,7 +18,12 @@ public final class GameDto {
         boolean blackQueenside
     ) {}
 
-    public record TimeControl(String type, long initialMs, long incrementMs) {}
+    /** At most a day on the clock and an hour of increment: anything more is a typo or an attack. */
+    public record TimeControl(
+        @NotBlank @Pattern(regexp = "blitz|rapid|classical|unlimited", message = "must be blitz, rapid, classical or unlimited") String type,
+        @PositiveOrZero @Max(86_400_000L) long initialMs,
+        @PositiveOrZero @Max(3_600_000L)  long incrementMs
+    ) {}
 
     /** The rating changes are set only for finished online games. */
     public record GameResult(String winner, String reason,
@@ -94,7 +100,7 @@ public final class GameDto {
         @Min(1) @Max(6) Integer aiDifficulty,
         @Pattern(regexp = "(?i)white|black|random", message = "must be white, black or random")
         String  playerColor,
-        @NotNull TimeControl timeControl,
+        @NotNull @Valid TimeControl timeControl,
         Boolean enableUndo,
         Boolean confirmMoves,
         Boolean showLegalMoves,

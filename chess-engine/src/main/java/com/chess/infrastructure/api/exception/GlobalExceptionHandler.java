@@ -113,7 +113,22 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private ProblemDetail problem(HttpStatus status, String errorCode,
                                    String title, Exception ex) {
-        return problem(status, errorCode, title, ex.getMessage());
+        return problem(status, errorCode, title, safeDetail(ex, title));
+    }
+
+    /** Words that only an internal error message contains: class names, packages, lookups. */
+    private static final java.util.regex.Pattern INTERNAL = java.util.regex.Pattern.compile(
+        "com\\.chess|java\\.|jakarta\\.|org\\.(springframework|hibernate|postgresql)|No enum constant|\\.java:\\d+");
+
+    /**
+     * What to tell the client. Our own explanations ("There is no draw offer to answer") go
+     * out as written; a message that shows class names or stack frames, or none at all,
+     * becomes {@code fallback}: those are for the logs, not for whoever sent the request.
+     */
+    static String safeDetail(Exception ex, String fallback) {
+        String message = ex.getMessage();
+        if (message == null || message.isBlank() || INTERNAL.matcher(message).find()) return fallback;
+        return message;
     }
 
     private ProblemDetail problem(HttpStatus status, String errorCode,

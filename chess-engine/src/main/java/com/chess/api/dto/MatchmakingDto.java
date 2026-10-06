@@ -1,7 +1,6 @@
 package com.chess.api.dto;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.*;
 
 import java.time.Instant;
 
@@ -10,9 +9,9 @@ public final class MatchmakingDto {
     private MatchmakingDto() {}
 
     public record JoinQueueRequest(
-        @NotBlank String timeControlType,
-        @NotNull Long timeControlInitialMs,
-        long timeControlIncrementMs
+        @NotBlank @Pattern(regexp = "blitz|rapid|classical|unlimited", message = "must be blitz, rapid, classical or unlimited") String timeControlType,
+        @NotNull @PositiveOrZero @Max(86_400_000L) Long timeControlInitialMs,
+        @PositiveOrZero @Max(3_600_000L) long timeControlIncrementMs
     ) {}
 
     public record QueueStatus(

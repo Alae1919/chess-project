@@ -1386,4 +1386,56 @@ class GameControllerTest {
             assertEquals("active", statusInDb(ai));
         }
     }
+
+    // ================================================================
+    // Input that should never reach the engine or leak internals
+    // ================================================================
+
+    @Nested
+    @DisplayName("Hardening")
+    class Hardening {
+
+        private Map<String, Object> withTimeControl(Object type, long initialMs, long incrementMs) {
+            Map<String, Object> body = new LinkedHashMap<>(gameBody("NONE"));
+            body.put("timeControl", Map.of("type", type, "initialMs", initialMs, "incrementMs", incrementMs));
+            return body;
+        }
+
+        private org.springframework.test.web.servlet.ResultActions create(Map<String, Object> body) throws Exception {
+            return mvc.perform(post("/api/games")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(body)));
+        }
+
+        @Test
+        @DisplayName("the unlimited position evaluator is gone: it could be pointed at a live online game")
+        void evaluateEndpointIsGone() throws Exception {
+            mvc.perform(post("/api/evaluate")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"fen\":\"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1\",\"depth\":4}"))
+                .andExpect(status().isNotFound());
+        }
+
+        @Test
+        @DisplayName("an unknown time control type is a plain 400")
+        void unknownTimeControlType() throws Exception {
+            create(withTimeControl("weird", 60_000, 0))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail", not(containsString("com.chess"))));
+        }
+
+        @Test
+        @DisplayName("a negative clock is refused")
+        void negativeClock() throws Exception {
+            create(withTimeControl("blitz", -1, 0)).andExpect(status().isBadRequest());
+            create(withTimeControl("blitz", 60_000, -5)).andExpect(status().isBadRequest());
+        }
+
+        @Test
+        @DisplayName("the usual time controls are still accepted")
+        void validTimeControlsStillWork() throws Exception {
+            create(withTimeControl("blitz", 300_000, 2_000)).andExpect(status().isCreated());
+            create(withTimeControl("unlimited", 0, 0)).andExpect(status().isCreated());
+        }
+    }
 }
