@@ -56,6 +56,7 @@ public final class GameSession {
     private Instant lastMoveAt;          // the latest move, or the start of the game
     private final ReentrantLock turnLock = new ReentrantLock();
     private final AtomicBoolean aiThinking = new AtomicBoolean();
+    private volatile Instant lastAccessAt; // when a request last looked at this session
 
     public GameSession(String id, Board initialBoard,
                        Color aiColor, int aiDepth) {
@@ -75,6 +76,7 @@ public final class GameSession {
         this.boardHistory = new ArrayDeque<>();
         this.createdAt    = clock.instant();
         this.lastMoveAt   = createdAt;
+        this.lastAccessAt = createdAt;
         this.state        = GameStateChecker.evaluate(board, board.activeColor());
         countPosition(board);
     }
@@ -92,6 +94,16 @@ public final class GameSession {
     public boolean tryBeginAiSearch() { return aiThinking.compareAndSet(false, true); }
 
     public void endAiSearch() { aiThinking.set(false); }
+
+    public boolean isAiSearching() { return aiThinking.get(); }
+
+    /** Notes that a request is using this session now (see {@link GameStore#evictIdle}). */
+    public void touch() { lastAccessAt = clock.instant(); }
+
+    public Instant lastAccessAt() { return lastAccessAt; }
+
+    /** True for a game between two people, which matchmaking or an invitation created. */
+    public boolean isOnline() { return metadata != null && "online".equals(metadata.mode()); }
 
     // ---- Mutation (called only from GameApplicationService) -----------
 

@@ -310,7 +310,7 @@ public class GameApplicationService {
     public List<GameStateResponse> abortStalledOnlineGames(java.time.Duration limit) {
         List<GameStateResponse> ended = new java.util.ArrayList<>();
         for (GameSession session : store.all()) {
-            if (!isOnline(session) || !session.firstMoveOverdue(limit)) continue;
+            if (!session.isOnline() || !session.firstMoveOverdue(limit)) continue;
             underTurnLock(session, () -> {
                 // a move may have arrived while we waited for the lock
                 if (!session.firstMoveOverdue(limit)) return null;
@@ -322,11 +322,6 @@ public class GameApplicationService {
             });
         }
         return ended;
-    }
-
-    private static boolean isOnline(GameSession session) {
-        var metadata = session.metadata();
-        return metadata != null && "online".equals(metadata.mode());
     }
 
     // ----------------------------------------------------------------
