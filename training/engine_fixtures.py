@@ -6,6 +6,8 @@ it says is a fair referee for the Java board code. This writes three things:
   * PolyglotZobrist.java     - the 781 Polyglot random numbers, so none is typed by hand
   * polyglot-keys.csv        - FEN,key for random positions
   * legal-moves.csv          - FEN,sorted UCI legal moves for the same positions
+  * mates.csv                - FEN,N,moves: positions where White forces mate in N moves
+                               (shortest N, brute-forced), with every first move that does it
 
 Run from the training folder with the venv active:
 
@@ -105,6 +107,90 @@ def write_csvs() -> None:
     print(f"wrote {len(boards)} positions to {RESOURCES}")
 
 
+def can_mate(board: chess.Board, n: int) -> bool:
+    """Can the side to move force checkmate within n of its own moves? (brute force)"""
+    if n <= 0:
+        return False
+    for move in list(board.legal_moves):
+        board.push(move)
+        if board.is_checkmate():
+            board.pop()
+            return True
+        mated = False
+        if n > 1 and not board.is_game_over():
+            mated = all(_after_reply(board, reply, n - 1) for reply in list(board.legal_moves))
+        board.pop()
+        if mated:
+            return True
+    return False
+
+
+def _after_reply(board: chess.Board, reply: chess.Move, n: int) -> bool:
+    board.push(reply)
+    result = can_mate(board, n)
+    board.pop()
+    return result
+
+
+def first_moves_mating(board: chess.Board, n: int) -> list[str]:
+    """Every move after which White still mates within n moves (counting that move)."""
+    winners = []
+    for move in list(board.legal_moves):
+        board.push(move)
+        ok = board.is_checkmate() or (
+            n > 1 and not board.is_game_over()
+            and all(_after_reply(board, reply, n - 1) for reply in list(board.legal_moves)))
+        board.pop()
+        if ok:
+            winners.append(move.uci())
+    return sorted(winners)
+
+
+def random_endgame(rng: random.Random) -> chess.Board | None:
+    material = rng.choice([
+        [chess.QUEEN], [chess.ROOK], [chess.ROOK, chess.ROOK], [chess.QUEEN, chess.ROOK],
+        [chess.ROOK, chess.BISHOP], [chess.QUEEN, chess.KNIGHT], [chess.QUEEN, chess.QUEEN],
+    ])
+    board = chess.Board(None)
+    squares = rng.sample(range(64), 2 + len(material) + rng.choice([0, 0, 1]))
+    board.set_piece_at(squares[0], chess.Piece(chess.KING, chess.WHITE))
+    board.set_piece_at(squares[1], chess.Piece(chess.KING, chess.BLACK))
+    for sq, piece_type in zip(squares[2:], material):
+        board.set_piece_at(sq, chess.Piece(piece_type, chess.WHITE))
+    if len(squares) > 2 + len(material):                        # sometimes a black pawn for company
+        sq = squares[-1]
+        if chess.square_rank(sq) in (0, 7):
+            return None
+        board.set_piece_at(sq, chess.Piece(chess.PAWN, chess.BLACK))
+    board.turn = chess.WHITE
+    if not board.is_valid() or board.is_check() or board.is_game_over():
+        return None
+    return board
+
+
+def write_mates(per_length: int = 12) -> None:
+    import time
+    rng = random.Random(SEED + 1)
+    found: dict[int, list[str]] = {1: [], 2: [], 3: []}
+    deadline = time.time() + 240
+    attempts = 0
+    while time.time() < deadline and any(len(v) < per_length for v in found.values()):
+        attempts += 1
+        board = random_endgame(rng)
+        if board is None:
+            continue
+        length = next((n for n in (1, 2, 3) if can_mate(board, n)), None)
+        if length is None or len(found[length]) >= per_length:
+            continue
+        moves = first_moves_mating(board, length)
+        found[length].append(f"{fen_with_ep(board)},{length},{' '.join(moves)}")
+    RESOURCES.mkdir(parents=True, exist_ok=True)
+    rows = [row for n in (1, 2, 3) for row in found[n]]
+    (RESOURCES / "mates.csv").write_text("\n".join(rows) + "\n", encoding="utf-8", newline="\n")
+    print(f"wrote mates.csv: " + ", ".join(f"mate in {n}: {len(found[n])}" for n in (1, 2, 3)) + f" ({attempts} candidates)")
+
+
 if __name__ == "__main__":
     write_zobrist()
     write_csvs()
+    write_mates()
