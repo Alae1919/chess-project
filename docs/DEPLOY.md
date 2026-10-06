@@ -133,29 +133,68 @@ line again.
 
 ## Automatic deploys
 
-`.github/workflows/deploy.yml` runs the "Day to day" update by itself: when CI passes on `main`, it connects over SSH,
-fast-forwards the server to the commit CI tested and runs `up -d --build --wait`, which fails the run if a service
-does not become healthy. You can also start it from the Actions tab ("Run workflow").
+`.github/workflows/deploy.yml` runs the "Day to day" update by itself: when CI passes on `main`, it fast-forwards
+the server to the commit CI tested and runs `up -d --build --wait`, which fails the run if a service does not become
+healthy. You can also start it from the Actions tab ("Run workflow").
 
-One-time setup:
+It does not use SSH. GitHub proves its identity to AWS with OIDC (no keys stored anywhere) and asks AWS Systems
+Manager (SSM) to run the commands on the instance, so port 22 can stay closed. One-time setup:
 
-1. On your machine, make a key just for this: `ssh-keygen -t ed25519 -f deploy_key -N ""`. Append `deploy_key.pub`
-   to `~/.ssh/authorized_keys` on the server.
-2. Get the server's host key (so the runner cannot be sent to an impostor): `ssh-keyscan -t ed25519 <elastic-ip>`.
-3. In GitHub, Settings, Environments, create `production`, and add these secrets to it:
+**On AWS**
 
-   | Secret | Value |
-   |---|---|
-   | `EC2_HOST` | the Elastic IP or domain |
-   | `EC2_USER` | `ubuntu` |
-   | `EC2_SSH_KEY` | the content of `deploy_key` (the private one) |
-   | `EC2_KNOWN_HOSTS` | the output of `ssh-keyscan` from step 2 |
+1. *Let the instance be managed by SSM.* Create an IAM role for EC2 with the `AmazonSSMManagedInstanceCore` policy and
+   attach it to the instance (EC2, Actions, Security, Modify IAM role). The SSM agent is preinstalled on Ubuntu AMIs.
+   After a minute the instance shows up in Systems Manager, Fleet Manager, as "Online". (The instance needs outbound
+   internet, which it has.)
+2. *Let GitHub in.* IAM, Identity providers, Add provider: type OpenID Connect, URL
+   `https://token.actions.githubusercontent.com`, audience `sts.amazonaws.com`.
+3. *Create the role GitHub assumes*: IAM, Roles, Web identity, that provider. Trust policy:
 
-4. Delete `deploy_key` from your machine. Optionally add yourself as a required reviewer on the `production`
-   environment to approve each deploy.
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Effect": "Allow",
+       "Principal": { "Federated": "arn:aws:iam::<account-id>:oidc-provider/token.actions.githubusercontent.com" },
+       "Action": "sts:AssumeRoleWithWebIdentity",
+       "Condition": {
+         "StringEquals": {
+           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+           "token.actions.githubusercontent.com:sub": "repo:Alae1919/chess-project:environment:production"
+         }
+       }
+     }]
+   }
+   ```
 
-The server's checkout must be on `main` with no local changes, or the fast-forward fails (and the run says so).
-Rolling back is still manual, as above.
+   The `sub` line is what keeps every other repository, branch and workflow out. Permissions policy (inline):
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       { "Effect": "Allow", "Action": "ssm:SendCommand",
+         "Resource": [
+           "arn:aws:ssm:<region>::document/AWS-RunShellScript",
+           "arn:aws:ec2:<region>:<account-id>:instance/<instance-id>"
+         ] },
+       { "Effect": "Allow", "Action": "ssm:GetCommandInvocation", "Resource": "*" }
+     ]
+   }
+   ```
+
+**On GitHub**: Settings, Environments, create `production` and add these secrets to it:
+
+| Secret | Value |
+|---|---|
+| `AWS_ROLE_ARN` | the ARN of the role from step 3 |
+| `AWS_REGION` | e.g. `eu-west-3` |
+| `EC2_INSTANCE_ID` | `i-0123456789abcdef0` |
+
+Optionally add yourself as a required reviewer on the environment to approve each deploy.
+
+The server's checkout (`/home/ubuntu/chess-project`) must be on `main` with no local changes, or the fast-forward
+fails (and the run says so). Rolling back is still manual, as above.
 
 ## Backups
 

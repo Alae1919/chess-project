@@ -1,6 +1,8 @@
 name: Deploy
 
 # Runs after CI has passed on main, and can be started by hand from the Actions tab.
+# GitHub proves its identity to AWS with OIDC (no stored keys) and asks AWS Systems Manager
+# to run the update on the instance: no SSH, no open port 22. See docs/DEPLOY.md.
 on:
   workflow_run:
     workflows: [CI]
@@ -15,6 +17,7 @@ concurrency:
 
 permissions:
   contents: read
+  id-token: write   # lets the job request the OIDC token AWS checks
 
 jobs:
   deploy:
@@ -26,31 +29,50 @@ jobs:
     timeout-minutes: 25
 
     steps:
-      - name: Set up SSH
-        env:
-          SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
-          KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
-        run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
-          chmod 600 ~/.ssh/id_deploy
-          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
       # The commit CI tested (not whatever main points at by now), fast-forward only so a
       # server that drifted from main fails loudly instead of being overwritten.
       # --wait returns once every service is healthy and fails otherwise.
       - name: Update and restart
         env:
-          HOST: ${{ secrets.EC2_HOST }}
-          USER_NAME: ${{ secrets.EC2_USER }}
+          INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
           SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
-          ssh -i ~/.ssh/id_deploy "$USER_NAME@$HOST" bash -s "$SHA" <<'REMOTE'
+          script=$(cat <<EOS
           set -euo pipefail
-          cd ~/chess-project
+          cd /home/ubuntu/chess-project
           git fetch --quiet origin main
-          git merge --ff-only "$1"
+          git merge --ff-only $SHA
           docker compose -f docker-compose.prod.yml up -d --build --wait --wait-timeout 300
           docker compose -f docker-compose.prod.yml ps
-          docker image prune -f >/dev/null
-          REMOTE
+          docker image prune -f > /dev/null
+          EOS
+          )
+          # SSM runs commands as root; the checkout and docker belong to ubuntu
+          params=$(jq -n --arg s "$script" '{commands: ["sudo -u ubuntu -H bash -c " + ($s | @sh)]}')
+
+          id=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "deploy $SHA" \
+            --timeout-seconds 1200 \
+            --parameters "$params" \
+            --query Command.CommandId --output text)
+          echo "SSM command $id"
+
+          status=Pending
+          while [[ $status == Pending || $status == InProgress || $status == Delayed ]]; do
+            sleep 10
+            # the invocation does not exist for a moment right after send-command
+            status=$(aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)
+          done
+
+          aws ssm get-command-invocation --command-id "$id" --instance-id "$INSTANCE_ID" \
+            --query '[StandardOutputContent, StandardErrorContent]' --output text
+          echo "Final status: $status"
+          [[ $status == Success ]]
