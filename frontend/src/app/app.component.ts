@@ -26,7 +26,7 @@ import { TabBarComponent, tabFor } from './shared/components/tab-bar/tab-bar.com
   `,
   styles: [`
     :host    { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
-    .app-main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+    .app-main { flex: 1; overflow-y: auto; overscroll-behavior: none; display: flex; flex-direction: column; }
     /* room under the content for the phone's bottom tab bar */
     @media (max-width: 768px) {
       .app-main--tabbed { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }

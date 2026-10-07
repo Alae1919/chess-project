@@ -70,8 +70,13 @@
   a { color: var(--p); font-weight: 600; &:hover { color: var(--gold); } }
 }
 
+/* phones: fill what the bar leaves (100vh counts the browser's own bars), scroll only when the form is taller */
+@media (max-width: 768px) {
+  .auth-layout { min-height: 0; flex: 1; }
+}
+
 @media (max-width: 480px) {
-  .auth-layout { min-height: 0; flex: 1; padding: 14px 16px; }
+  .auth-layout { padding: 14px 16px; }
   .auth-card { padding: 22px 18px; border-radius: 16px; }
   .auth-layout::after { display: none; }
   .auth-header { margin-bottom: 14px; }

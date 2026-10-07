@@ -68,6 +68,16 @@ html, body {
 /* marble texture is painted onto the body at runtime (see AppComponent) */
 body { background-size: cover; background-attachment: fixed; overflow-x: hidden; }
 
+/* Touch screens: the app is a fixed shell, so no pull-to-refresh or bounce on the page itself,
+   and no zoom. iOS Safari ignores user-scalable=no, so pinch and double-tap are switched off here
+   (components that need another gesture say so themselves) and again in main.ts. */
+@media (pointer: coarse) {
+  html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  * { touch-action: pan-x pan-y; }
+  /* iOS zooms into any field whose text is under 16px when it gets focus */
+  input, select, textarea { font-size: 16px !important; }
+}
+
 /* warm spotlight + vignette over the marble */
 body::before {
   content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;

@@ -12,6 +12,9 @@
   animation: fadeUp .35s ease both;
 }
 
+/* phones: the page is as tall as its content, and scrolls when that is more than the screen */
+@include mq.phone { .account { min-height: 0; } }
+
 /* Profile hero */
 .profile-hero {
   background: var(--surface); border: 1px solid var(--border);
