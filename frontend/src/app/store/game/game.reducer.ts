@@ -1,11 +1,23 @@
 // src/app/store/game/game.reducer.ts
-import { createReducer, on } from '@ngrx/store';
+import { ActionReducer, createReducer, on } from '@ngrx/store';
 import { isPlayableStatus } from '../../core/utils/game-status.utils';
 import { needsPromotionChoice } from '../../core/utils/promotion.utils';
 import { GameActions } from './game.actions';
 import { GameState, initialGameState } from './game.state';
 
-export const gameReducer = createReducer(
+const movesPlayed = (state: GameState): number => state.currentGame?.moves.length ?? 0;
+
+/** Show the board after `ply` moves; the last position is the live one. */
+function reviewAt(state: GameState, ply: number): GameState {
+  const total = movesPlayed(state);
+  const at = Math.max(0, Math.min(total, ply));
+  return {
+    ...state, reviewPly: at >= total ? null : at,
+    selectedSquare: null, legalMoves: [], legalMovesReady: false, pendingPromotion: null,
+  };
+}
+
+const reducer = createReducer(
   initialGameState,
 
   on(GameActions.createGame, (state, { options }) => ({
@@ -28,17 +40,19 @@ export const gameReducer = createReducer(
     ...state, isLoading: false, error, notice: error,
   })),
 
+  // The previous piece's moves must not pass for this one's while they load
   on(GameActions.selectSquare, (state, { square }) => ({
-    ...state, selectedSquare: square,
+    ...state, selectedSquare: square, legalMoves: [], legalMovesReady: false,
   })),
 
   on(GameActions.clearSelection, (state) => ({
-    ...state, selectedSquare: null, legalMoves: [],
+    ...state, selectedSquare: null, legalMoves: [], legalMovesReady: false,
   })),
 
-  on(GameActions.loadLegalMovesSuccess, (state, { squares }) => ({
-    ...state, legalMoves: squares ?? [],
-  })),
+  // An answer that arrives after the selection was cleared is for a piece nobody holds any more
+  on(GameActions.loadLegalMovesSuccess, (state, { squares }) =>
+    state.selectedSquare ? { ...state, legalMoves: squares ?? [], legalMovesReady: true } : state
+  ),
 
   // A pawn reaching the last rank waits for the player to pick its piece
   on(GameActions.submitMove, (state, { move }) =>
@@ -47,21 +61,26 @@ export const gameReducer = createReducer(
       : { ...state, pendingPromotion: null, notice: null, isLoading: true }
   ),
 
+  // Looking back at the game: the board shows an earlier position and nothing can be moved on it
+  on(GameActions.stepReview, (state, { delta }) => reviewAt(state, (state.reviewPly ?? movesPlayed(state)) + delta)),
+  on(GameActions.reviewPly, (state, { ply }) => reviewAt(state, ply)),
+  on(GameActions.endReview, (state) => ({ ...state, reviewPly: null })),
+
   on(GameActions.cancelPromotion, (state) => ({
-    ...state, pendingPromotion: null, selectedSquare: null, legalMoves: [],
+    ...state, pendingPromotion: null, selectedSquare: null, legalMoves: [], legalMovesReady: false,
   })),
 
   // A move arriving over the socket may be the AI's: its search is over
   on(GameActions.submitMoveSuccess, GameActions.receiveMove,
     (state, { game }) => ({
       ...state, currentGame: game, isLoading: false, isAiThinking: false,
-      selectedSquare: null, legalMoves: [], hint: null,
+      selectedSquare: null, legalMoves: [], legalMovesReady: false, hint: null,
     })
   ),
 
   on(GameActions.submitMoveFailure, (state, { error }) => ({
     ...state, isLoading: false, error, notice: error,
-    selectedSquare: null, legalMoves: [],
+    selectedSquare: null, legalMoves: [], legalMovesReady: false,
   })),
 
   on(GameActions.requestAIMove, (state) => ({
@@ -84,10 +103,10 @@ export const gameReducer = createReducer(
 
   on(GameActions.gameUpdated, (state, { game }) => ({ ...state, currentGame: game, isAiThinking: false })),
 
-  on(GameActions.undoMove, (state) => ({ ...state, selectedSquare: null, legalMoves: [] })),
+  on(GameActions.undoMove, (state) => ({ ...state, selectedSquare: null, legalMoves: [], legalMovesReady: false })),
 
   on(GameActions.undoMoveSuccess, (state, { game }) => ({
-    ...state, currentGame: game, selectedSquare: null, legalMoves: [], isAiThinking: false, hint: null,
+    ...state, currentGame: game, selectedSquare: null, legalMoves: [], legalMovesReady: false, isAiThinking: false, hint: null,
   })),
 
   on(GameActions.updateEvaluation, (state, { evaluation }) => ({
@@ -165,4 +184,9 @@ export const gameReducer = createReducer(
   on(GameActions.resetGame, () => initialGameState),
 );
 
-
+/** Looking back ends when the game moves on: a new move (or an undo) brings the live position back. */
+export const gameReducer: ActionReducer<GameState> = (state, action) => {
+  const next = reducer(state, action);
+  const moved = movesPlayed(next) !== (state ? movesPlayed(state) : 0);
+  return next.reviewPly !== null && moved ? { ...next, reviewPly: null } : next;
+};

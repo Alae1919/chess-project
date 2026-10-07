@@ -24,6 +24,11 @@ export const GameActions = createActionGroup({
     'Submit Move Failure': props<{ error: string }>(),
     'Cancel Promotion': emptyProps(),
 
+    // Looking back at the game: the board shows an earlier position, nothing is undone
+    'Step Review': props<{ delta: number }>(),
+    'Review Ply': props<{ ply: number }>(),
+    'End Review': emptyProps(),
+
     'Undo Move': emptyProps(),
     'Undo Move Success': props<{ game: Game }>(),
 

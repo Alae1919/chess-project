@@ -8,6 +8,13 @@ export interface GameState {
   savedGames: SavedGame[];
   selectedSquare: Square | null;
   legalMoves: Square[];
+  /** `legalMoves` has been answered for the selected square (an empty list can mean "not yet") */
+  legalMovesReady: boolean;
+  /**
+   * Looking back: the number of moves played on the board shown, or null for the live position.
+   * Nothing is undone, and the board returns to the live position when a move is played.
+   */
+  reviewPly: number | null;
   evaluation: PositionEvaluation | null;
   /** The player asked for the engine's opinion of the position after every move */
   analysis: boolean;
@@ -30,6 +37,8 @@ export const initialGameState: GameState = {
   savedGames: [],
   selectedSquare: null,
   legalMoves: [],
+  legalMovesReady: false,
+  reviewPly: null,
   evaluation: null,
   analysis: false,
   hint: null,

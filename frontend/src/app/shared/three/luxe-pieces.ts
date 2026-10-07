@@ -263,9 +263,13 @@ export function makeLuxeMaterials(look: Pick<Look3D, 'white' | 'black' | 'trim' 
  * Build one piece. `facing` is a quarter-turn count about Y: +1 faces the gold (white)
  * side, -1 the opposite side; knights use 2 / 0 so they look sideways along the board.
  */
-export function buildPiece(type: PieceLetter, white: boolean, mats: LuxeMaterials, facing?: number): THREE.Group {
+export function buildPiece(type: PieceLetter, white: boolean, mats: LuxeMaterials, facing?: number, size = 1): THREE.Group {
   const p = geoFor(type);
   const group = new THREE.Group();
+  // sized inside its own group: the caller scales `group` to make a piece appear or vanish
+  const shape = new THREE.Group();
+  shape.scale.setScalar(size);
+  group.add(shape);
   const body = (white ? mats.gold : mats.lacquer).clone();
   body.userData['body'] = true;
 
@@ -273,7 +277,7 @@ export function buildPiece(type: PieceLetter, white: boolean, mats: LuxeMaterial
     const m = new THREE.Mesh(geo, mat);
     m.castShadow = true;
     m.receiveShadow = true;
-    group.add(m);
+    shape.add(m);
   };
   p.body.forEach((geo) => add(geo, body));
   p.accent.forEach((geo) => add(geo, white ? mats.groove : mats.trim));

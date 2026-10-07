@@ -327,4 +327,82 @@ describe('gameReducer', () => {
       expect(next.hint).toBeNull();
     });
   });
+
+  describe('looking back at the game', () => {
+    const played = (n: number) => Array.from({ length: n }, () => ({}) as Move);
+    const threeMoves = () => withGame({ currentGame: makeGame({ moves: played(3) }) });
+
+    it('steps back from the live position, and forward again to it', () => {
+      const back = gameReducer(threeMoves(), GameActions.stepReview({ delta: -1 }));
+      expect(back.reviewPly).toBe(2);
+
+      const further = gameReducer(back, GameActions.stepReview({ delta: -1 }));
+      expect(further.reviewPly).toBe(1);
+
+      const live = gameReducer(gameReducer(further, GameActions.stepReview({ delta: 1 })), GameActions.stepReview({ delta: 1 }));
+      expect(live.reviewPly).toBeNull();
+    });
+
+    it('stays between the first position and the live one', () => {
+      expect(gameReducer(threeMoves(), GameActions.stepReview({ delta: 1 })).reviewPly).toBeNull();
+      expect(gameReducer(threeMoves(), GameActions.reviewPly({ ply: -5 })).reviewPly).toBe(0);
+      expect(gameReducer(threeMoves(), GameActions.reviewPly({ ply: 99 })).reviewPly).toBeNull();
+    });
+
+    it('lets go of the selected piece when the board moves to another position', () => {
+      const state = { ...threeMoves(), selectedSquare: { row: 6, col: 4 }, legalMoves: [{ row: 4, col: 4 }], legalMovesReady: true };
+
+      const next = gameReducer(state, GameActions.stepReview({ delta: -1 }));
+
+      expect(next.selectedSquare).toBeNull();
+      expect(next.legalMoves).toEqual([]);
+    });
+
+    it('returns to the live position when a move is played, by either side', () => {
+      const reviewing = { ...threeMoves(), reviewPly: 1 };
+      const next = makeGame({ moves: played(4) });
+
+      expect(gameReducer(reviewing, GameActions.receiveMove({ game: next })).reviewPly).toBeNull();
+      expect(gameReducer(reviewing, GameActions.aIMoveSuccess({ game: next })).reviewPly).toBeNull();
+      expect(gameReducer(reviewing, GameActions.submitMoveSuccess({ game: next })).reviewPly).toBeNull();
+    });
+
+    it('keeps looking back through updates that are not moves (a draw offer, the clock)', () => {
+      const reviewing = { ...threeMoves(), reviewPly: 1 };
+
+      expect(gameReducer(reviewing, GameActions.gameUpdated({ game: makeGame({ moves: played(3) }) })).reviewPly).toBe(1);
+      expect(gameReducer(reviewing, GameActions.tickTimer()).reviewPly).toBe(1);
+    });
+
+    it('can be ended by hand', () => {
+      expect(gameReducer({ ...threeMoves(), reviewPly: 1 }, GameActions.endReview()).reviewPly).toBeNull();
+    });
+  });
+
+  describe('legal moves of the selected piece', () => {
+    it('forgets the moves of the previous piece as soon as another one is picked', () => {
+      const state = withGame({ selectedSquare: { row: 6, col: 4 }, legalMoves: [{ row: 4, col: 4 }], legalMovesReady: true });
+
+      const next = gameReducer(state, GameActions.selectSquare({ square: { row: 7, col: 6 } }));
+
+      expect(next.legalMoves).toEqual([]);
+      expect(next.legalMovesReady).toBeFalse();
+    });
+
+    it('marks them as arrived once they are', () => {
+      const state = withGame({ selectedSquare: { row: 6, col: 4 } });
+
+      const next = gameReducer(state, GameActions.loadLegalMovesSuccess({ squares: [{ row: 4, col: 4 }] }));
+
+      expect(next.legalMoves).toEqual([{ row: 4, col: 4 }]);
+      expect(next.legalMovesReady).toBeTrue();
+    });
+
+    it('ignores an answer that comes after the piece was let go', () => {
+      const next = gameReducer(withGame(), GameActions.loadLegalMovesSuccess({ squares: [{ row: 4, col: 4 }] }));
+
+      expect(next.legalMoves).toEqual([]);
+      expect(next.legalMovesReady).toBeFalse();
+    });
+  });
 });

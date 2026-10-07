@@ -202,6 +202,11 @@
         message="Votre adversaire s'est déconnecté — la partie vous revient dans"
         [until]="away.until" />
 
+      <button type="button" class="status-bar status-bar--review" *ngIf="vm.reviewing !== null" (click)="endReview()">
+        Coup {{ vm.viewPly }} sur {{ vm.moves.length }} · Revenir au direct
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+      </button>
+
       <div class="status-bar" role="alert" *ngIf="notice$ | async as notice" (click)="dismissNotice()" title="Fermer">
         {{ notice }}
       </div>
@@ -245,15 +250,23 @@
           Indice <strong>{{ hintText(vm.hint) }}</strong>
         </p>
 
-        <button type="button" class="m-moves" #movesStrip (click)="openSheet('notation')"
-                [attr.aria-label]="'Notation, ' + vm.moves.length + ' coups'">
-          <span class="m-moves__empty" *ngIf="!vm.moves.length">Les coups s'afficheront ici</span>
-          <ng-container *ngFor="let grp of moveGroups(vm.moves); let last = last">
-            <span class="m-moves__num">{{ grp.num }}.</span>
-            <span class="m-moves__mv" [class.m-moves__mv--last]="last && !grp.black">{{ grp.white }}</span>
-            <span class="m-moves__mv" *ngIf="grp.black" [class.m-moves__mv--last]="last">{{ grp.black }}</span>
-          </ng-container>
-        </button>
+        <div class="m-hist">
+          <button type="button" class="m-hist__btn" (click)="stepReview(-1)" [disabled]="!canStepBack(vm)" aria-label="Coup précédent">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <button type="button" class="m-moves" #movesStrip (click)="openSheet('notation')"
+                  [attr.aria-label]="'Notation, ' + vm.moves.length + ' coups'">
+            <span class="m-moves__empty" *ngIf="!vm.moves.length">Les coups s'afficheront ici</span>
+            <ng-container *ngFor="let grp of moveGroups(vm.moves)">
+              <span class="m-moves__num">{{ grp.num }}.</span>
+              <span class="m-moves__mv" [class.m-moves__mv--last]="vm.viewPly === grp.num * 2 - 1">{{ grp.white }}</span>
+              <span class="m-moves__mv" *ngIf="grp.black" [class.m-moves__mv--last]="vm.viewPly === grp.num * 2">{{ grp.black }}</span>
+            </ng-container>
+          </button>
+          <button type="button" class="m-hist__btn" (click)="stepReview(1)" [disabled]="!canStepForward(vm)" aria-label="Coup suivant">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
 
         <nav class="m-dock" aria-label="Actions de partie">
           <ng-container *ngIf="vm.game.mode !== 'online'; else onlineDock">
@@ -360,10 +373,12 @@
           </div>
           <table class="notation-table notation-table--sheet">
             <tbody>
-              <tr *ngFor="let grp of moveGroups(vm.moves); let last = last">
+              <tr *ngFor="let grp of moveGroups(vm.moves)">
                 <td class="notation-table__num">{{ grp.num }}.</td>
-                <td class="notation-table__mv" [class.notation-table__mv--last]="last && !grp.black">{{ grp.white }}</td>
-                <td class="notation-table__mv" [class.notation-table__mv--last]="last && !!grp.black">{{ grp.black }}</td>
+                <td class="notation-table__mv" [class.notation-table__mv--last]="vm.viewPly === grp.num * 2 - 1"
+                    (click)="lookAt(vm, grp.num * 2 - 1, true)">{{ grp.white }}</td>
+                <td class="notation-table__mv" [class.notation-table__mv--last]="vm.viewPly === grp.num * 2"
+                    (click)="lookAt(vm, grp.num * 2, true)">{{ grp.black }}</td>
               </tr>
             </tbody>
           </table>
@@ -421,15 +436,33 @@
             <tbody>
               <tr *ngFor="let grp of moveGroups(vm.moves)">
                 <td class="notation-table__num">{{ grp.num }}.</td>
-                <td class="notation-table__mv" [class.notation-table__mv--last]="!grp.black && grp.white">
+                <td class="notation-table__mv" [class.notation-table__mv--last]="vm.viewPly === grp.num * 2 - 1"
+                    (click)="lookAt(vm, grp.num * 2 - 1)">
                   {{ grp.white }}
                 </td>
-                <td class="notation-table__mv" [class.notation-table__mv--last]="grp.black && !moveGroups(vm.moves)[grp.num]">
+                <td class="notation-table__mv" [class.notation-table__mv--last]="vm.viewPly === grp.num * 2"
+                    (click)="lookAt(vm, grp.num * 2)">
                   {{ grp.black }}
                 </td>
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- Looking back: first position, previous move, next move, live position -->
+        <div class="review-bar" *ngIf="rightTab === 'notation' && vm.canReview" role="group" aria-label="Parcourir les coups">
+          <button type="button" class="review-bar__btn" (click)="reviewPly(0)" [disabled]="!canStepBack(vm)" aria-label="Position de départ" title="Départ (Début)">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5v14M18 5l-7 7 7 7"/></svg>
+          </button>
+          <button type="button" class="review-bar__btn" (click)="stepReview(-1)" [disabled]="!canStepBack(vm)" aria-label="Coup précédent" title="Coup précédent (←)">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <button type="button" class="review-bar__btn" (click)="stepReview(1)" [disabled]="!canStepForward(vm)" aria-label="Coup suivant" title="Coup suivant (→)">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+          </button>
+          <button type="button" class="review-bar__btn" (click)="endReview()" [disabled]="vm.reviewing === null" aria-label="Revenir au direct" title="Direct (Fin)">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 5v14M6 5l7 7-7 7"/></svg>
+          </button>
         </div>
 
         <!-- Chat -->

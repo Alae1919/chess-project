@@ -3,16 +3,23 @@ import { AfterViewInit, Component, ElementRef, EventEmitter, inject, Input, Outp
 import { Store } from '@ngrx/store';
 import { combineLatest, Subscription } from 'rxjs';
 import {
-  selectBoard,
   selectCurrentGame,
   selectCurrentTurn,
+  selectDisplayedBoard,
+  selectIsLoading,
   selectLegalMoves,
+  selectLegalMovesReady,
   selectMovableColor,
+  selectPendingPromotion,
+  selectReviewPly,
+  selectReviewedCheck,
   selectSelectedSquare,
+  selectViewedMove,
 } from '../../../store/game/game.selectors';
 import { GameActions } from '../../../store/game/game.actions';
 import { Piece, Square, Style3D } from '../../../core/models';
 import { isPlayableStatus } from '../../../core/utils/game-status.utils';
+import { dropVerdict, DropVerdict } from '../../../core/utils/drag-drop.utils';
 import { initialSquares, LuxeBoardScene, Squares } from '../../three/luxe-board-scene';
 
 /**
@@ -38,7 +45,8 @@ import { initialSquares, LuxeBoardScene, Squares } from '../../three/luxe-board-
       background: radial-gradient(ellipse, rgba(255, 170, 80, .18) 0%, transparent 70%);
       filter: blur(30px); pointer-events: none;
     }
-    canvas { position: relative; display: block; width: 100%; height: 100%; touch-action: pan-y; }
+    /* none: a finger dragging a piece must not scroll the page */
+    canvas { position: relative; display: block; width: 100%; height: 100%; touch-action: none; }
   `],
 })
 export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestroy {
@@ -71,6 +79,8 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
   /** Last value this board reported itself, so the page echoing it back doesn't snap the view */
   private reportedTopView?: boolean;
   private vm: any = null;
+  /** A piece let go on a square, until the game has answered (or its legal moves have arrived) */
+  private pendingDrop: { from: Square; to: Square; squares: unknown; waiting: boolean } | null = null;
 
   ngAfterViewInit(): void {
     const canvas = this.canvasRef.nativeElement;
@@ -81,6 +91,9 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
           interactive: this.interactive,
           look: this.look,
           tight: this.tight,
+          canDrag: (sq) => this.canDrag(sq),
+          onDragStart: (sq) => this.zone.run(() => this.store.dispatch(GameActions.selectSquare({ square: sq }))),
+          onDrop: (from, to) => this.zone.run(() => this.onDrop(from, to)),
           onSquareClick: (sq) => this.zone.run(() => this.onSquareClick(sq)),
           onTopViewChange: (top) => this.zone.run(() => {
             this.reportedTopView = top;
@@ -110,9 +123,15 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
 
     this.sub.add(
       combineLatest({
-        board: this.store.select(selectBoard),
+        board: this.store.select(selectDisplayedBoard),
         selected: this.store.select(selectSelectedSquare),
         legalMoves: this.store.select(selectLegalMoves),
+        legalMovesReady: this.store.select(selectLegalMovesReady),
+        reviewing: this.store.select(selectReviewPly),
+        reviewedCheck: this.store.select(selectReviewedCheck),
+        viewedMove: this.store.select(selectViewedMove),
+        loading: this.store.select(selectIsLoading),
+        promoting: this.store.select(selectPendingPromotion),
         currentTurn: this.store.select(selectCurrentTurn),
         // the side the viewer may move right now: not the opponent's, not the AI's
         movable: this.store.select(selectMovableColor),
@@ -153,17 +172,19 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
       scene.setPosition(squares, true);
     }
 
-    const moves = vm.game?.moves ?? [];
-    const last = moves[moves.length - 1];
+    // the marks follow the move being looked at, which is the last one unless looking back
+    const last = vm.viewedMove;
     scene.setHighlights({
       selected: vm.selected ?? null,
       hints: vm.legalMoves ?? [],
       lastMove: last ? [last.from, last.to] : null,
       check: this.findCheckedKing(vm),
     });
+    this.resolveDrop(vm);
   }
 
   private findCheckedKing(vm: any): Square | null {
+    if (vm.reviewing !== null) return vm.reviewedCheck ?? null;
     if (!vm.board || (vm.game?.status !== 'check' && vm.game?.status !== 'checkmate')) return null;
     for (let row = 0; row < 8; row++) {
       for (let col = 0; col < 8; col++) {
@@ -172,6 +193,63 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
       }
     }
     return null;
+  }
+
+  /* ── dragging a piece ───────────────────────────────────────────────────── */
+
+  /** A press on this square may pick its piece up: it is the player's, and it is their move. */
+  private canDrag(sq: Square): boolean {
+    const vm = this.vm;
+    if (!vm?.game || !isPlayableStatus(vm.game.status)) return false;
+    const piece: Piece | null = vm.board?.squares?.[sq.row]?.[sq.col] ?? null;
+    return !!piece && piece.color === vm.movable;
+  }
+
+  /** A piece let go over a square: play the move if it is legal, otherwise the piece goes back. */
+  private onDrop(from: Square, to: Square): DropVerdict {
+    const vm = this.vm;
+    const verdict = dropVerdict(vm, from, to);
+    if (verdict === 'accept') this.play(from, to);
+    // the piece's legal moves are still on the way: it waits over the square (see resolveDrop)
+    else if (verdict === 'wait') this.pendingDrop = { from, to, squares: vm.board?.squares, waiting: true };
+    return verdict;
+  }
+
+  private play(from: Square, to: Square): void {
+    const vm = this.vm;
+    this.pendingDrop = { from, to, squares: vm.board?.squares, waiting: false };
+    this.store.dispatch(
+      GameActions.submitMove({
+        move: {
+          from,
+          to,
+          piece: vm.board.squares[from.row][from.col],
+          capturedPiece: vm.board.squares[to.row][to.col] ?? undefined,
+        },
+      })
+    );
+  }
+
+  /** After every change of the game: settle a piece that was let go, once the game has answered. */
+  private resolveDrop(vm: any): void {
+    const d = this.pendingDrop;
+    if (!d || !this.scene) return;
+
+    if (vm.board?.squares !== d.squares) {
+      this.pendingDrop = null;               // the move went through: the position is the new one
+    } else if (d.waiting) {
+      if (!vm.selected) return this.refuseDrop();             // the legal moves never came
+      if (!vm.legalMovesReady) return;
+      if (dropVerdict(vm, d.from, d.to) === 'accept') this.zone.run(() => this.play(d.from, d.to));
+      else this.refuseDrop();
+    } else if (!vm.loading && !vm.promoting) {
+      this.refuseDrop();                     // sent, answered, and nothing changed: the move was refused
+    }
+  }
+
+  private refuseDrop(): void {
+    this.pendingDrop = null;
+    this.scene?.settle();
   }
 
   /** Same move logic as the 2D board: select, move to a legal square, reselect or clear. */

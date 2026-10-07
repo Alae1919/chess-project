@@ -11,6 +11,8 @@ const LETTER: Record<PieceType, PieceLetter> = {
   king: 'K', queen: 'Q', rook: 'R', bishop: 'B', knight: 'N', pawn: 'P',
 };
 
+/** Phones: pieces drawn this much bigger than on a desktop, to be seen and tapped easily (a king's base stays inside its square). */
+const PHONE_PIECE_SIZE = 1.25;
 const REST_Y = 0.1;
 const LIFT_Y = 0.38;
 const BASE_PITCH = -0.24;
@@ -36,7 +38,21 @@ export interface SceneOptions {
   onTopViewChange?: (top: boolean) => void;
   /** Phones: the board may barely turn sideways, so the camera can come closer and fill the screen */
   tight?: boolean;
+  /** Dragging a piece: may the piece on this square be picked up? */
+  canDrag?: (sq: Square) => boolean;
+  /** A piece was picked up and dragged off its square: select it, so its legal moves load */
+  onDragStart?: (sq: Square) => void;
+  /**
+   * A piece was let go over a square. The answer tells the piece where to go: `accept` (the move is
+   * played) and `wait` (decided later) leave it there, `reject` sends it back where it came from.
+   */
+  onDrop?: (from: Square, to: Square) => 'accept' | 'reject' | 'wait';
 }
+
+/** Pixels a press must travel before it counts as a drag rather than a tap */
+const DRAG_THRESHOLD_PX = 6;
+/** Height a piece is carried at, above the board */
+const HELD_Y = 0.75;
 
 /** How far the board may turn sideways (rad) — the camera is framed so the whole frame stays visible within it. */
 const YAW_LIMIT = { interactive: 0.3, still: 0.1, tight: 0.06 };
@@ -138,6 +154,11 @@ export class LuxeBoardScene {
   private parallaxYaw = 0;
   private flipYaw = 0;
   private drag = { down: false, moved: false, x: 0, y: 0 };
+  /** The piece in the player's hand: pressed, and carried once the pointer has moved far enough */
+  private held: { entry: PieceEntry; from: Square; x: number; y: number; id: number; active: boolean } | null = null;
+  /** The square under the carried piece */
+  private hover: Square | null = null;
+  private suppressClick = false;
 
   private readonly listeners: Array<() => void> = [];
 
@@ -253,6 +274,15 @@ export class LuxeBoardScene {
 
     this.positioned = true;
     this.applyHighlights();
+  }
+
+  /** Send every piece that is not on its square back to it (a move that was not played). */
+  settle(): void {
+    this.pieces.forEach((e) => {
+      if (this.held?.active && this.held.entry === e) return;
+      const [x, z] = sqCenter(e.row, e.col);
+      if (Math.hypot(e.group.position.x - x, e.group.position.z - z) > 0.02) this.glide(e, x, z);
+    });
   }
 
   setHighlights(h: Highlights): void {
@@ -441,7 +471,8 @@ export class LuxeBoardScene {
 
   /** Back the camera off until the whole frame stays on screen, for both the tilted and the top-down view. */
   private fitCamera(): void {
-    const dir = new THREE.Vector3(0, 9.6, 9.4).normalize();
+    // phones look down more steeply: the far ranks get taller, so a finger can find them
+    const dir = new THREE.Vector3(0, 9.6, this.opts.tight ? 3.8 : 9.4).normalize();
     const target = PERSP_TARGET;
     const E = 4.97; // frame half-width, bevel included
     const yawMax = this.yawLimit;
@@ -513,7 +544,7 @@ export class LuxeBoardScene {
   /* ── pieces ─────────────────────────────────────────────────────────────── */
 
   private addPiece(letter: PieceLetter, white: boolean, row: number, col: number, animated: boolean): PieceEntry {
-    const group = buildPiece(letter, white, this.mats, letter === 'N' ? (white ? 2 : 0) : white ? 1 : -1);
+    const group = buildPiece(letter, white, this.mats, letter === 'N' ? (white ? 2 : 0) : white ? 1 : -1, this.opts.tight ? PHONE_PIECE_SIZE : 1);
     const [x, z] = sqCenter(row, col);
     group.position.set(x, REST_Y, z);
     group.userData = { row, col };
@@ -534,7 +565,8 @@ export class LuxeBoardScene {
     entry.targetY = REST_Y;
     const g = entry.group;
     this.cancelTween(entry);
-    if (!animated) {
+    // a piece the player dropped on this square is already there: no hop
+    if (!animated || Math.hypot(g.position.x - tx, g.position.z - tz) < 0.02) {
       g.position.set(tx, REST_Y, tz);
       return;
     }
@@ -571,6 +603,25 @@ export class LuxeBoardScene {
     );
   }
 
+  /** Slide a piece (carried or not) to a point of the board and set it down. */
+  private glide(entry: PieceEntry, tx: number, tz: number, ms = 190): void {
+    const g = entry.group;
+    const [sx, sy, sz] = [g.position.x, g.position.y, g.position.z];
+    this.cancelTween(entry);
+    entry.moving = true;
+    entry.tween = this.tween(
+      ms,
+      (t) => {
+        const e = 1 - Math.pow(1 - t, 3);
+        g.position.set(sx + (tx - sx) * e, sy + (REST_Y - sy) * e, sz + (tz - sz) * e);
+      },
+      () => {
+        entry.moving = false;
+        g.position.set(tx, REST_Y, tz);
+      },
+    );
+  }
+
   private tween(duration: number, step: (t: number) => void, done?: () => void, delay = 0): Tween {
     const tw: Tween = { start: performance.now(), delay, duration, step, done };
     this.tweens.push(tw);
@@ -604,6 +655,7 @@ export class LuxeBoardScene {
       const isLast = !!lastMove && (sameSq(lastMove[0], row, col) || sameSq(lastMove[1], row, col));
       const [color, emissive, intensity] = sameSq(check, row, col) ? [0xffb0a0, 0x8a1c14, 0.6]
         : sameSq(selected, row, col) ? [0xffd890, 0x6a4510, 0.5]
+        : isHint && sameSq(this.hover, row, col) ? [0xfff2c8, 0xb07a14, 0.8]
         : isHint ? [0xf2dfb4, 0x3a2808, 0.3]
         : isLast ? [0xead6aa, 0x2a1c06, 0.18]
         : [0xffffff, 0x000000, 0];
@@ -647,9 +699,22 @@ export class LuxeBoardScene {
     }
 
     on(this.canvas, 'pointerdown', (e: PointerEvent) => {
+      const sq = e.button === 0 ? this.pick(e) : null;
+      const entry = sq && this.opts.canDrag?.(sq) ? this.pieces.get(keyOf(sq.row, sq.col)) : undefined;
+      if (sq && entry) {
+        // a press on a piece of the player's is for moving it, not for turning the board
+        this.held = { entry, from: sq, x: e.clientX, y: e.clientY, id: e.pointerId, active: false };
+        return;
+      }
+      // on a phone the board stays put under the finger
+      if (e.pointerType === 'touch' && this.opts.tight) return;
       this.drag = { down: true, moved: false, x: e.clientX, y: e.clientY };
     });
     on(window, 'pointermove', (e: PointerEvent) => {
+      if (this.held) {
+        this.moveHeld(e);
+        return;
+      }
       if (this.drag.down) {
         const dx = e.clientX - this.drag.x;
         const dy = e.clientY - this.drag.y;
@@ -665,13 +730,20 @@ export class LuxeBoardScene {
         this.canvas.style.cursor = this.pick(e) ? 'pointer' : 'default';
       }
     });
-    on(window, 'pointerup', () => {
+    on(window, 'pointercancel', () => this.dropHeld(null));
+    on(window, 'pointerup', (e: PointerEvent) => {
+      if (this.held) {
+        if (e.pointerId === this.held.id) this.dropHeld(e);
+        return;
+      }
       // the board stays at whatever angle it was dragged to; just tell the page which side of halfway it is
       if (this.drag.down && this.drag.moved) this.opts.onTopViewChange?.(this.topTarget > 0.5);
       this.drag.down = false;
       this.canvas.style.cursor = 'default';
     });
     on(this.canvas, 'click', (e: MouseEvent) => {
+      // the click that ends a drag is not a tap
+      if (this.suppressClick) return;
       if (this.drag.moved) {
         this.drag.moved = false;
         return;
@@ -679,6 +751,78 @@ export class LuxeBoardScene {
       const sq = this.pick(e);
       if (sq && this.opts.onSquareClick) this.opts.onSquareClick(sq);
     });
+  }
+
+  /** Carry the pressed piece after the pointer, once it has moved far enough to be a drag. */
+  private moveHeld(e: PointerEvent): void {
+    const h = this.held;
+    if (!h || e.pointerId !== h.id) return;
+    // the button was released outside the window: nobody holds the piece any more
+    if (e.pointerType === 'mouse' && e.buttons === 0) {
+      this.dropHeld(e);
+      return;
+    }
+    if (!h.active) {
+      if (Math.hypot(e.clientX - h.x, e.clientY - h.y) < DRAG_THRESHOLD_PX) return;
+      h.active = true;
+      this.cancelTween(h.entry);
+      h.entry.moving = true;
+      this.canvas.style.cursor = 'grabbing';
+      this.opts.onDragStart?.(h.from);
+    }
+    const p = this.boardPoint(e, HELD_Y);
+    if (p) h.entry.group.position.set(Math.max(-4.5, Math.min(4.5, p.x)), HELD_Y, Math.max(-4.5, Math.min(4.5, p.z)));
+    const over = this.squareUnder(e);
+    const moved = !over !== !this.hover || (!!over && !!this.hover && !sameSq(this.hover, over.row, over.col));
+    if (moved) {
+      this.hover = over;
+      this.applyHighlights();
+    }
+  }
+
+  /** The carried piece is let go (`e` null: the gesture was interrupted). */
+  private dropHeld(e: PointerEvent | null): void {
+    const h = this.held;
+    this.held = null;
+    if (!h || !h.active) return;   // never moved: a tap, and the click that follows selects the piece
+
+    this.suppressClick = true;
+    setTimeout(() => (this.suppressClick = false), 0);
+    this.canvas.style.cursor = 'default';
+    this.hover = null;
+    this.applyHighlights();
+
+    // the position moved on under the player's hand: nothing to put down
+    if (this.pieces.get(keyOf(h.from.row, h.from.col)) !== h.entry) return;
+
+    const to = e ? this.squareUnder(e) : null;
+    const [fx, fz] = sqCenter(h.from.row, h.from.col);
+    if (!to || sameSq(to, h.from.row, h.from.col)) {
+      this.glide(h.entry, fx, fz);
+      return;
+    }
+    const verdict = this.opts.onDrop?.(h.from, to) ?? 'reject';
+    const [tx, tz] = verdict === 'reject' ? [fx, fz] : sqCenter(to.row, to.col);
+    this.glide(h.entry, tx, tz, verdict === 'reject' ? 230 : 120);
+  }
+
+  /** Where the pointer's ray meets the horizontal plane at height `y`, in board coordinates. */
+  private boardPoint(e: { clientX: number; clientY: number }, y: number): THREE.Vector3 | null {
+    const rect = this.canvas.getBoundingClientRect();
+    this.pointer.set(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    this.raycaster.setFromCamera(this.pointer, this.camera);
+    this.boardGroup.updateMatrixWorld();
+    const ray = this.raycaster.ray.clone().applyMatrix4(this.boardGroup.matrixWorld.clone().invert());
+    return ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -y), new THREE.Vector3());
+  }
+
+  /** The board square under the pointer, whatever stands on it; null off the board. */
+  private squareUnder(e: { clientX: number; clientY: number }): Square | null {
+    const p = this.boardPoint(e, REST_Y);
+    if (!p) return null;
+    const col = Math.floor(p.x + 4);
+    const row = Math.floor(p.z + 4);
+    return col < 0 || col > 7 || row < 0 || row > 7 ? null : { row, col };
   }
 
   /** Board square under the pointer, or null. */

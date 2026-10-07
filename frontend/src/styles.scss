@@ -230,6 +230,9 @@ input, select, textarea { font-family: var(--font); }
   --pw-fill: #fff8e7; --pw-stroke: #2b1b0a;
   --pb-fill: #1c1612; --pb-stroke: #e9d8b4;
 
+  --piece-font: calc(var(--sq) * .62);   /* the glyph's em; a piece is drawn at 1.12 of it */
+
+  position: relative;
   display: inline-grid;
   grid-template-columns: 16px auto;
   grid-template-rows: auto auto;
@@ -301,7 +304,7 @@ input, select, textarea { font-family: var(--font); }
 .sq {
   width: var(--sq); height: var(--sq);
   display: flex; align-items: center; justify-content: center;
-  font-size: calc(var(--sq) * .62); cursor: pointer; position: relative;
+  font-size: var(--piece-font); cursor: pointer; position: relative;
   transition: filter .12s; user-select: none;
 
   &.light  { background: var(--sq-light); }
@@ -324,6 +327,7 @@ input, select, textarea { font-family: var(--font); }
   }
 
   &.in-check { background: var(--check) !important; }
+  &.drop-target { box-shadow: inset 0 0 0 3px var(--hint); }
 
   .piece {
     position: relative; z-index: 3; pointer-events: none;
@@ -341,8 +345,23 @@ input, select, textarea { font-family: var(--font); }
       -webkit-text-stroke: 1.2px var(--pb-stroke);
       filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .55));
     }
+    &--carried { opacity: .25; }   /* its twin is in the player's hand */
   }
 }
+
+/* The piece in the player's hand, over the board: bigger than on its square, as if lifted */
+.board-wrap .piece--ghost {
+  position: absolute; z-index: 20; pointer-events: none; transform: translate(-50%, -50%);
+  font-family: 'Segoe UI Symbol', 'Noto Sans Symbols 2', 'DejaVu Sans', 'Arial Unicode MS', sans-serif;
+  line-height: 1; font-size: calc(var(--piece-font) * 1.32); paint-order: stroke fill;
+  filter: drop-shadow(0 10px 8px rgba(0, 0, 0, .5));
+  &.piece--white { color: var(--pw-fill); -webkit-text-stroke: 1.5px var(--pw-stroke); }
+  &.piece--black { color: var(--pb-fill); -webkit-text-stroke: 1.2px var(--pb-stroke); }
+  &.piece--settling { transition: left .16s ease-out, top .16s ease-out; }
+}
+
+/* a finger dragging a piece must not scroll the page */
+.board-grid { touch-action: none; }
 
 /* Coordinates drawn in the corner squares: only on phones, where they replace the outer ones */
 .sq-coord { display: none; }
@@ -357,6 +376,7 @@ input, select, textarea { font-family: var(--font); }
   }
   .board-grid  { border: 0; }
   .sq:hover    { filter: none; }   /* no hover on touch: a tapped square stayed lit */
+  .board-wrap  { --piece-font: calc(var(--sq) * .76); }   /* bigger pieces, easier to see and to tap */
 
   .sq-coord {
     display: block; position: absolute; z-index: 1; pointer-events: none;

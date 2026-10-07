@@ -37,6 +37,9 @@ import {
   selectWhitePlayer,
   selectBlackPlayer,
   selectMoveHistory,
+  selectCanReview,
+  selectReviewPly,
+  selectViewPly,
   selectAnalysis,
   selectEvaluation,
   selectHint,
@@ -58,12 +61,11 @@ export const RESIGN_HOLD_MS = 1000;
 
 /**
  * Canvas shape of the 3D board. The tilted board is wider than it is tall, so a wide canvas
- * wastes the least: 1.5 on a desktop, a little wider than square on an upright phone, square
- * on a phone on its side, where the height is what runs out.
+ * wastes the least on a desktop (1.5). A phone looks down on the board more steeply (see the
+ * scene's `tight` option) and needs the height for it: square, upright or on its side.
  */
 export function boardAspectFor(): number {
-  if (!isCompactViewport()) return 1.5;
-  return window.innerWidth < window.innerHeight ? 1.25 : 1;
+  return isCompactViewport() ? 1 : 1.5;
 }
 
 @Component({
@@ -100,6 +102,10 @@ export class GamePage implements OnInit, OnDestroy, AfterViewChecked {
     white:        this.store.select(selectWhitePlayer),
     black:        this.store.select(selectBlackPlayer),
     moves:        this.store.select(selectMoveHistory),
+    // looking back: the move count of the board shown, and null when it is the live one
+    viewPly:      this.store.select(selectViewPly),
+    reviewing:    this.store.select(selectReviewPly),
+    canReview:    this.store.select(selectCanReview),
     evaluation:   this.store.select(selectEvaluation),
     analysis:     this.store.select(selectAnalysis),
     hint:         this.store.select(selectHint),
@@ -145,7 +151,7 @@ export class GamePage implements OnInit, OnDestroy, AfterViewChecked {
   private resignTimer?: ReturnType<typeof setTimeout>;
 
   @ViewChild('movesStrip') private movesStrip?: ElementRef<HTMLElement>;
-  private movesStripSize = 0;
+  private movesStripKey: string | number = 0;
 
   ngOnInit(): void {
     const mobile = isCompactViewport();
@@ -319,16 +325,53 @@ export class GamePage implements OnInit, OnDestroy, AfterViewChecked {
     if (event.detail === 0) this.resign();
   }
 
-  /** Keep the latest move in view in the moves strip */
+  /** Keep the move being looked at (the latest, unless looking back) in view in the moves strip */
   ngAfterViewChecked(): void {
     const el = this.movesStrip?.nativeElement;
     if (!el) return;
-    const size = el.scrollWidth + el.scrollHeight;
-    if (size !== this.movesStripSize) {
-      this.movesStripSize = size;
-      el.scrollLeft = el.scrollWidth;
-      el.scrollTop = el.scrollHeight;
+    const current = el.querySelector<HTMLElement>('.m-moves__mv--last');
+    const key = el.scrollWidth + el.scrollHeight + (current?.textContent ?? '') + (current?.offsetLeft ?? 0);
+    if (key === this.movesStripKey) return;
+    this.movesStripKey = key;
+    if (current) {
+      // centre the move in the strip (the strip scrolls along one axis, whichever it is)
+      const strip = el.getBoundingClientRect();
+      const at = current.getBoundingClientRect();
+      el.scrollLeft += at.left - strip.left - (strip.width - at.width) / 2;
+      el.scrollTop += at.top - strip.top - (strip.height - at.height) / 2;
     }
+  }
+
+  // ── Looking back at the moves ────────────────────────────────────────────
+  // The board shows an earlier position; nothing is undone, and the live position
+  // returns by itself when a move is played.
+  stepReview(delta: number): void { this.store.dispatch(GameActions.stepReview({ delta })); }
+  reviewPly(ply: number): void { this.store.dispatch(GameActions.reviewPly({ ply })); }
+  endReview(): void { this.store.dispatch(GameActions.endReview()); }
+
+  /** Show the board after the given move, if it exists (a tap on a move of the notation) */
+  lookAt(vm: { canReview: boolean; moves: unknown[] }, ply: number, closeAfter = false): void {
+    if (!vm.canReview || ply > vm.moves.length) return;
+    this.reviewPly(ply);
+    if (closeAfter) this.closeSheet();
+  }
+
+  canStepBack(vm: { canReview: boolean; viewPly: number }): boolean { return vm.canReview && vm.viewPly > 0; }
+  canStepForward(vm: { canReview: boolean; viewPly: number; moves: unknown[] }): boolean {
+    return vm.canReview && vm.viewPly < vm.moves.length;
+  }
+
+  /** Left and right arrows walk through the moves, Home and End go to the first position and the live one */
+  @HostListener('document:keydown', ['$event'])
+  onArrowKey(e: KeyboardEvent): void {
+    const t = e.target as HTMLElement | null;
+    if (e.altKey || e.ctrlKey || e.metaKey || t?.closest('input, textarea, select, [contenteditable]')) return;
+    if (e.key === 'ArrowLeft') this.stepReview(-1);
+    else if (e.key === 'ArrowRight') this.stepReview(1);
+    else if (e.key === 'Home') this.reviewPly(0);
+    else if (e.key === 'End') this.endReview();
+    else return;
+    e.preventDefault();
   }
 
   toggleView(): void { this.setTopView(!this.topView); }
