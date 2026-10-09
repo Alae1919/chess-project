@@ -21,14 +21,13 @@ export class LandingPage {
   /** Facts about the engine (see docs/how-the-ai-works.md) */
   readonly stats = [
     { value: '6', label: "Niveaux d'IA" },
-    { value: '≈ 2900', label: 'Elo maximum' },
     { value: 'NNUE', label: 'Réseau neuronal' },
   ];
 
   readonly features = [
-    { icon: '♟', title: 'IA adaptative', desc: 'Moteur haute performance adapté à votre niveau — du débutant au Grand Maître.' },
+    { icon: '♟', title: 'IA adaptative', desc: 'Moteur haute performance adapté à votre niveau, en six paliers de difficulté.' },
     { icon: '♜', title: 'Jeu en ligne', desc: 'Affrontez des joueurs du monde entier. Classement ELO en temps réel.' },
-    { icon: '♛', title: 'Analyse en direct', desc: 'Évaluation de position, coups légaux, ouvertures reconnues automatiquement.' },
+    { icon: '♛', title: 'Analyse en direct', desc: 'Évaluation de la position, indice du meilleur coup, coups légaux affichés.' },
   ];
 
   readonly modes = [
