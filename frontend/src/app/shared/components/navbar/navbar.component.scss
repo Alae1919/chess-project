@@ -45,6 +45,13 @@
   }
 }
 
+/* Over the landing film: no slab of colour, just enough shade at the top for the links to read */
+.nav.nav--overlay {
+  background: linear-gradient(to bottom, rgba(3, 2, 1, .72), rgba(3, 2, 1, 0));
+  border-bottom-color: transparent;
+  backdrop-filter: none;
+}
+
 /* Phones: logo and account only; the links move to the bottom tab bar */
 @media (max-width: 768px) {
   .nav {

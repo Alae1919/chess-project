@@ -12,3 +12,9 @@ logging:
     root: INFO
     com.chess: INFO
     org.hibernate.SQL: WARN     # one log line per query is noise, and cost, in production
+
+app:
+  showcase:
+    # Search the landing page's position as soon as the server is up, so the first visitor
+    # doesn't wait for it (off elsewhere, so the tests don't spend seconds on it at every start)
+    warm-up: true

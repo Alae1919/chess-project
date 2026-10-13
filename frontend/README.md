@@ -49,6 +49,22 @@ shared/     boards (2D and 3D), promotion picker, game-over dialog, navbar, tab 
 features/   landing, auth, home, game, online, account
 ```
 
+## The landing page
+
+`/` is a film in five acts, driven by the scroll: a tall track with a sticky stage, and one GSAP timeline scrubbed by
+ScrollTrigger (`features/landing/pages/landing.page.ts`). The scroll container is the app shell's `.app-main`, not the
+window. Acts I and V are a Three.js scene of a lone king under a spotlight (`scenes/king-stage.ts`), built from the
+same pieces and marble as the game's board; acts II and III are footage stills; act IV is the game's own 3D board
+(`LuxeBoardScene`, Ebony & Ivory style) with the engine's lines drawn on it.
+
+* **Real figures only.** Every number, move and line on the page comes from `GET /api/showcase`, the engine's search
+  of the story's position (Légal's trap). While it loads the page says so; if it fails, no figures are shown.
+* **Footage.** The stills are in `src/assets/landing` (WebP, 800 and 1600 px). To use video clips, add them there and
+  name them in `landing-media.ts`; they play while their shot is on screen, with the still as poster.
+* **Lighter versions.** Phones and data-saver browsers get stills of the king scene instead of live 3D, and no video.
+  With `prefers-reduced-motion`, each act is shown at rest and switched in place as you scroll; nothing animates.
+  Without WebGL, act IV falls back to the flat board.
+
 ## In production
 
 The [`Dockerfile`](Dockerfile) builds the app and serves it with nginx ([`nginx.conf`](nginx.conf)), which also proxies `/api`

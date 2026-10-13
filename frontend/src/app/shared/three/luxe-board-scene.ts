@@ -47,6 +47,19 @@ export interface SceneOptions {
    * played) and `wait` (decided later) leave it there, `reject` sends it back where it came from.
    */
   onDrop?: (from: Square, to: Square) => 'accept' | 'reject' | 'wait';
+  /** How long an animated move takes, in ms (default 380) */
+  moveMs?: number;
+  /** How high a moving piece hops (default 0.95) */
+  hop?: number;
+  /** A coloured light that travels with a moving piece and fades once it has landed (off by default) */
+  moveLight?: number;
+}
+
+/** A line of the engine's calculation drawn over the board: from one square to another, at some strength (0..1). */
+export interface Arc {
+  from: Square;
+  to: Square;
+  strength: number;
 }
 
 /** Pixels a press must travel before it counts as a drag rather than a tap */
@@ -131,6 +144,10 @@ export class LuxeBoardScene {
   private ringMat = new THREE.MeshStandardMaterial({ color: 0xe6c27a, emissive: 0x8a6420, emissiveIntensity: 0.8, metalness: 1, roughness: 0.25 });
 
   private highlights: Highlights = { selected: null, hints: [], lastMove: null, check: null };
+  /** Calculation arcs, by "from-to" key, so changing a strength reuses the meshes */
+  private arcs = new Map<string, { group: THREE.Group; mats: THREE.MeshBasicMaterial[]; geos: THREE.BufferGeometry[] }>();
+  /** Travels with a moving piece when `moveLight` is set; made once, as adding a light later recompiles every material */
+  private carryLight: THREE.PointLight | null = null;
   private tweens: Tween[] = [];
   private positioned = false;
 
@@ -180,6 +197,10 @@ export class LuxeBoardScene {
     this.scene.add(this.boardGroup);
     this.buildBoard();
     this.boardGroup.add(this.pieceGroup);
+    if (opts.moveLight !== undefined) {
+      this.carryLight = new THREE.PointLight(opts.moveLight, 0, 2.6, 1.6);
+      this.boardGroup.add(this.carryLight);
+    }
     this.fitCamera();
     this.bindEvents();
 
@@ -290,6 +311,41 @@ export class LuxeBoardScene {
     this.applyHighlights();
   }
 
+  /** Put the camera part-way between the tilted view (0) and straight above (1); `snap` skips the easing. */
+  setTopAmount(t: number, snap = false): void {
+    this.topTarget = Math.max(0, Math.min(1, t));
+    if (snap) {
+      this.topT = this.topTarget;
+      this.applyCamera();
+    }
+  }
+
+  /** Draw these arcs over the board (and remove the others). A strength of 0 hides an arc without freeing it. */
+  setArcs(arcs: Arc[], color = 0x4da6ff): void {
+    const wanted = new Set<string>();
+    for (const a of arcs) {
+      const key = `${a.from.row},${a.from.col}-${a.to.row},${a.to.col}`;
+      wanted.add(key);
+      let arc = this.arcs.get(key);
+      if (!arc) {
+        arc = this.buildArc(a.from, a.to, color);
+        this.arcs.set(key, arc);
+        this.boardGroup.add(arc.group);
+      }
+      const k = Math.max(0, Math.min(1, a.strength));
+      arc.group.visible = k > 0.001;
+      // core, glow, landing square: each its own share of the strength
+      [1, 0.28, 0.85].forEach((share, i) => (arc!.mats[i].opacity = k * share));
+    }
+    for (const [key, arc] of this.arcs) {
+      if (wanted.has(key)) continue;
+      this.boardGroup.remove(arc.group);
+      arc.mats.forEach((m) => m.dispose());
+      arc.geos.forEach((g) => g.dispose());
+      this.arcs.delete(key);
+    }
+  }
+
   /** Free everything that belongs to the current style: squares, frame, labels, pieces. */
   private disposeBoard(): void {
     this.clearMarkers();
@@ -317,6 +373,8 @@ export class LuxeBoardScene {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
     this.listeners.forEach((off) => off());
+    this.setArcs([]);
+    this.carryLight?.dispose();
     this.disposeBoard();
     [this.dotGeo, this.ringGeo].forEach((g) => g.dispose());
     [this.dotMat, this.ringMat].forEach((m) => m.dispose());
@@ -572,20 +630,57 @@ export class LuxeBoardScene {
     }
     const sx = g.position.x;
     const sz = g.position.z;
+    const hop = this.opts.hop ?? 0.95;
+    const light = this.carryLight;
     entry.moving = true;
     entry.tween = this.tween(
-      380,
+      this.opts.moveMs ?? 380,
       (t) => {
         const e = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
         g.position.x = sx + (tx - sx) * e;
         g.position.z = sz + (tz - sz) * e;
-        g.position.y = REST_Y + Math.sin(t * Math.PI) * 0.95;
+        g.position.y = REST_Y + Math.sin(t * Math.PI) * hop;
+        if (light) {
+          light.position.set(g.position.x, g.position.y + 0.35, g.position.z);
+          light.intensity = 2.6 * Math.min(1, t * 4);
+        }
       },
       () => {
         entry.moving = false;
         g.position.set(tx, REST_Y, tz);
+        if (light) {
+          // the colour stays on the square a moment after the piece lands, then goes
+          const from = light.intensity;
+          this.tween(700, (t) => (light.intensity = from * (1 - t) * (1 - t)));
+        }
       },
     );
+  }
+
+  /** A glowing curve from one square to another, and a thin square outline where it lands. */
+  private buildArc(from: Square, to: Square, color: number): { group: THREE.Group; mats: THREE.MeshBasicMaterial[]; geos: THREE.BufferGeometry[] } {
+    const [fx, fz] = sqCenter(from.row, from.col);
+    const [tx, tz] = sqCenter(to.row, to.col);
+    const dist = Math.hypot(tx - fx, tz - fz);
+    const y = 0.13;
+    const curve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(fx, y, fz),
+      new THREE.Vector3((fx + tx) / 2, y + 0.18 + dist * 0.16, (fz + tz) / 2),
+      new THREE.Vector3(tx, y, tz),
+    );
+    const mat = (): THREE.MeshBasicMaterial => new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false,
+    });
+    const core = new THREE.TubeGeometry(curve, 48, 0.018, 8, false);
+    const glow = new THREE.TubeGeometry(curve, 48, 0.07, 10, false);
+    const ring = new THREE.RingGeometry(0.4, 0.44, 4, 1, Math.PI / 4);
+    ring.rotateX(-Math.PI / 2);
+    ring.translate(tx, 0.115, tz);
+    const mats = [mat(), mat(), mat()];
+    const group = new THREE.Group();
+    group.add(new THREE.Mesh(core, mats[0]), new THREE.Mesh(glow, mats[1]), new THREE.Mesh(ring, mats[2]));
+    group.renderOrder = 2;
+    return { group, mats, geos: [core, glow, ring] };
   }
 
   private fadeOut(entry: PieceEntry): void {

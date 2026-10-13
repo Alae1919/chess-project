@@ -46,6 +46,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/api/auth/**",
+                    // the landing page's engine analysis: one fixed position, searched once and cached
+                    "/api/showcase",
                     "/error",   // the error page of a failed request must not itself need a login
                     "/ws/**",
                     // the container healthcheck; nginx only proxies /api and /ws, so it is not public
