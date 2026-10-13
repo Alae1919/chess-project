@@ -54,6 +54,9 @@ app:
     # Login and registration attempts allowed per address per minute (counted separately)
     auth-per-minute: 20
   allowed-origins: ${ALLOWED_ORIGINS:http://localhost:[*],http://127.0.0.1:[*]}
+  showcase:
+    # Search the landing page's position at startup rather than on its first request (on in production)
+    warm-up: false
 
 management:
   endpoints:

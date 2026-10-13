@@ -146,6 +146,33 @@ for a draw. The rating changes are set only for finished online games. `reason` 
 | POST | `/api/invitations/{id}/respond` | `{"response": "accept"}` or `"decline"` | Accepting returns the new game; declining returns the invitation |
 | DELETE | `/api/invitations/{id}` | | The inviter cancels. `204` |
 
+## Landing page
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/api/showcase` | The engine's analysis of the landing page's position (Légal's trap, after 5.Nxe5). No login needed |
+
+The position is fixed, so the server searches it once (at depth 12, four lines; at startup in production, else on
+the first request) and serves the same answer after that, with `Cache-Control: max-age=600`. While the search is
+still running a request waits up to 20 seconds, then gets `503` with `Retry-After: 5`. Scores are from White's
+point of view: `{"cp": 161}` or `{"mateIn": 2}` (negative when Black mates).
+
+```json
+{
+  "playerMove": {"uci": "f3e5", "san": "Nxe5"},
+  "fen": "…",                      // after the player's move: the position searched
+  "engine": {
+    "bestMove": {"uci": "d6e5", "san": "dxe5"}, "score": {"cp": 161},
+    "depth": 12, "nodes": 2119709, "timeMs": 5993, "nodesPerSecond": 353579,
+    "lines":      [{"move": {…}, "score": {…}, "pv": ["dxe5", "Qxg4", …]}, …],
+    "iterations": [{"depth": 1, "nodes": 457, "timeMs": 92, "bestMove": {"san": "Bxd1", …}, "score": {…}}, …]
+  },
+  "replyFen": "…",
+  "trap": {"move": {"san": "Bxd1", …}, "score": {"mateIn": 2}, "refutation": ["Bxf7+", "Ke7", "Nd5#"], "depth": 3, "nodes": 326},
+  "evaluator": "neural network evaluation (256 hidden units)"
+}
+```
+
 ## Account
 
 All under `/api/users/me`.

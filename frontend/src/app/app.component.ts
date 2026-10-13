@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, HostBinding, inject, OnInit } from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { Store } from '@ngrx/store';
 import { filter } from 'rxjs';
@@ -12,12 +12,17 @@ import { InvitationToastComponent } from './features/online/components/invitatio
 import { makeMarble } from './shared/three/marble';
 import { TabBarComponent, tabFor } from './shared/components/tab-bar/tab-bar.component';
 
+/** The landing page, whatever query or fragment follows the slash */
+export function isLandingUrl(url: string): boolean {
+  return url.split(/[?#]/)[0] === '/';
+}
+
 @Component({
   selector: 'app-root',
   standalone: true,
   imports: [RouterOutlet, NavbarComponent, InvitationToastComponent, TabBarComponent],
   template: `
-    @if (showNavbar) { <app-navbar /> }
+    @if (showNavbar) { <app-navbar [overlay]="isLanding" /> }
     <main class="app-main" [class.app-main--tabbed]="showTabBar">
       <router-outlet />
     </main>
@@ -27,6 +32,8 @@ import { TabBarComponent, tabFor } from './shared/components/tab-bar/tab-bar.com
   styles: [`
     :host    { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
     .app-main { flex: 1; overflow-y: auto; overscroll-behavior: none; display: flex; flex-direction: column; }
+    /* the landing film runs under a see-through bar, from the very top of the screen */
+    :host(.app--landing) app-navbar { position: absolute; top: 0; left: 0; right: 0; z-index: 100; }
     /* room under the content for the phone's bottom tab bar */
     @media (max-width: 768px) {
       .app-main--tabbed { padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); }
@@ -44,6 +51,8 @@ export class AppComponent implements OnInit {
   showNavbar = !location.pathname.startsWith('/game');
   /** The phone's bottom tab bar, on the pages it leads to */
   showTabBar = tabFor(location.pathname + location.search) !== null;
+  /** The landing page draws its film under the navbar */
+  @HostBinding('class.app--landing') isLanding = isLandingUrl(location.pathname);
 
   constructor() {
     this.router.events
@@ -51,6 +60,7 @@ export class AppComponent implements OnInit {
       .subscribe((e) => {
         this.showNavbar = !e.urlAfterRedirects.startsWith('/game');
         this.showTabBar = tabFor(e.urlAfterRedirects) !== null;
+        this.isLanding = isLandingUrl(e.urlAfterRedirects);
       });
   }
 

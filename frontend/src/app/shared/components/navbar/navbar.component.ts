@@ -1,5 +1,5 @@
 // src/app/shared/components/navbar/navbar.component.ts
-import { Component, inject } from '@angular/core';
+import { Component, inject, Input } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AsyncPipe, NgIf } from '@angular/common';
 import { Store } from '@ngrx/store';
@@ -13,7 +13,7 @@ import { map } from 'rxjs';
   standalone: true,
   imports: [RouterLink, RouterLinkActive, AsyncPipe, NgIf],
   template: `
-    <nav class="nav">
+    <nav class="nav" [class.nav--overlay]="overlay">
       <a class="nav__logo" routerLink="/">REXCHESS</a>
       <!-- on phones these live in the bottom tab bar -->
       <div class="nav__links">
@@ -42,6 +42,9 @@ import { map } from 'rxjs';
   styleUrls: ['./navbar.component.scss'],
 })
 export class NavbarComponent {
+  /** See-through, over a full-screen page (the landing film) */
+  @Input() overlay = false;
+
   private store = inject(Store);
   user$ = this.store.select(selectUser);
   /** Id of the game still being played, or null when there is none */

@@ -1,89 +1,173 @@
-<div class="landing">
-  <app-floaty-pieces />
+<div class="landing" lang="en" [class.landing--still]="still">
 
-  <!-- ── HERO ─────────────────────────────────────────────────────── -->
-  <section class="hero">
-    <div class="hero__copy">
-      <div class="hero__eyebrow"><span class="hero__rule"></span><span class="d-only">REXCHESS — La référence des échecs</span><span class="m-only">Échecs · IA neuronale</span></div>
-      <h1 class="hero__title">
-        <span class="hero__t1">Maîtrisez</span>
-        <span class="hero__t2">les échecs</span>
-      </h1>
-      <p class="hero__sub">
-        Affrontez une IA haute performance, jouez en ligne et analysez chaque coup en temps réel.
-      </p>
-      <div class="hero__ctas">
-        <a class="btn-p hero__cta" routerLink="/home">Jouer maintenant →</a>
-        <a class="btn-g hero__cta d-only" href="#features" (click)="$event.preventDefault(); scrollTo('features')">En savoir plus</a>
-        <a class="btn-g hero__cta m-only" routerLink="/register">Créer un compte</a>
+  <!-- The film: a tall track, and the stage that stays on screen while it scrolls by -->
+  <section class="film" #film aria-labelledby="landing-title">
+    <div class="stage" #stage>
+
+      <!-- ── pictures ───────────────────────────────────────────────── -->
+      <div class="layer layer--king" data-layer="king">
+        <app-king-stage [stillsOnly]="lite || still" [focus]="wide ? 0.18 : 0" />
       </div>
-      <div class="hero__stats">
-        <div *ngFor="let s of stats">
-          <span class="hstat-val">{{ s.value }}</span>
-          <span class="hstat-lbl">{{ s.label }}</span>
+      @for (shot of shots; track shot.id; let first = $first) {
+        <div class="layer layer--shot" [attr.data-layer]="shot.id">
+          <app-shot [shot]="shot" [first]="first" [withVideo]="!lite && !still" />
         </div>
+      }
+      <div class="layer layer--board" data-layer="board">
+        <app-duel-board [still]="still" />
       </div>
-    </div>
+      <div class="veil" aria-hidden="true"></div>
+      <div class="grain" aria-hidden="true"></div>
 
-    <div class="hero__board">
-      <div class="hero__halo"></div>
-      <app-chess-board-3d [look]="(look$ | async) ?? 'marble-gold'" />
+      <!-- ── I · the silence before the move ────────────────────────── -->
+      <header class="copy copy--hero" data-copy="hero">
+        <p class="eyebrow"><span class="eyebrow__rule"></span>RexChess · A Java engine, alpha‑beta search</p>
+        <h1 class="hero__title" id="landing-title">Don't just play chess. <em>Outsmart the board.</em></h1>
+        <a class="hero__play" routerLink="/home">Play now <span aria-hidden="true">→</span></a>
+      </header>
+      <div class="cue" aria-hidden="true"><span>Scroll</span><i></i></div>
+
+      <div class="copy copy--act1" data-copy="act1" aria-hidden="true">
+        <p class="eyebrow">I · The silence before the move</p>
+        <h2 class="line">64 squares.<br /><em>Infinite possibilities.</em></h2>
+      </div>
+
+      <!-- ── II · the human instinct ────────────────────────────────── -->
+      <div class="copy copy--act2" data-copy="act2" aria-hidden="true">
+        <p class="eyebrow">II · The human instinct</p>
+        <h2 class="line">You see a move.</h2>
+        <p class="caption"><b class="san">{{ playerMoveLabel }}</b> The knight takes a pawn, and leaves the queen to the bishop on g4. Légal's trap, Paris, around 1750.</p>
+      </div>
+
+      <!-- ── III · inside the machine ───────────────────────────────── -->
+      <div class="copy copy--act3" data-copy="act3" aria-hidden="true">
+        <p class="eyebrow">III · Inside the machine</p>
+        <h2 class="line">The machine sees <em>thousands.</em></h2>
+      </div>
+
+      <div class="hud hud--search" data-copy="ladder" aria-hidden="true">
+        @if (data; as d) {
+          @if (iteration; as it) {
+            <div class="hud__stats">
+              <div class="stat">
+                <span class="stat__label">Depth</span>
+                <span class="stat__value">{{ it.depth }}</span>
+              </div>
+              <div class="stat">
+                <span class="stat__label">Positions explored</span>
+                <span class="stat__value stat__value--engine">{{ count(it.nodes) }}</span>
+              </div>
+            </div>
+            <div class="ticks">
+              @for (x of d.engine.iterations; track x.depth) { <i [class.on]="x.depth <= it.depth"></i> }
+            </div>
+            <p class="hud__best">
+              Best so far <b class="san">{{ it.bestMove?.san }}</b>
+              <span class="score">{{ score(it.score) }}</span>
+            </p>
+            <p class="hud__note" [class.hud__note--on]="it.depth > trapDepth">
+              @if (trapDepth > 0) { Up to depth {{ trapDepth }}, taking the queen looked best. }
+              Taking it allows mate in {{ d.trap.score.mateIn }}:
+              <span class="san san--engine">{{ refutation(d) }}</span>
+            </p>
+          }
+        } @else if (loading) {
+          <p class="hud__wait">The engine is thinking…</p>
+        } @else {
+          <p class="hud__wait">The live analysis is not available right now.</p>
+        }
+      </div>
+
+      <div class="hud hud--lines" data-copy="lines" [class.hud--converged]="converged" aria-hidden="true">
+        @if (data) {
+          <p class="hud__title">Replies weighed, depth {{ data.engine.depth }}</p>
+          <ol class="lines">
+            @for (l of weighed(data); track l.move.uci) {
+              <li class="lines__row" [class.lines__row--best]="l.best" [class.lines__row--trap]="l.trap">
+                <span class="san">{{ replyLabel(data, l.move.san) }}</span>
+                <span class="score">{{ score(l.score) }}</span>
+              </li>
+            }
+          </ol>
+          <p class="hud__legend">Scores from White's side: plus favours White.</p>
+        }
+      </div>
+
+      <!-- ── IV · the duel ──────────────────────────────────────────── -->
+      <div class="copy copy--act4" data-copy="act4" aria-hidden="true">
+        <p class="eyebrow">IV · The duel</p>
+        <h2 class="line">Every move has a consequence.</h2>
+      </div>
+
+      <div class="hud hud--reply" data-copy="reply" aria-hidden="true">
+        @if (data) {
+          <p class="hud__label">RexChess replies</p>
+          <p class="reply__move san san--engine">{{ replyLabel(data, data.engine.bestMove.san) }}</p>
+          <div class="reply__eval"><span class="stat__label">Evaluation</span><b class="score">{{ score(data.engine.score) }}</b></div>
+          <p class="reply__line">{{ expected(data) }}</p>
+          <p class="reply__meta">
+            Depth {{ data.engine.depth }} · {{ count(data.engine.nodes) }} positions · {{ time(data.engine.timeMs) }}
+            · {{ evaluatorName(data) }}
+          </p>
+        }
+      </div>
+
+      <!-- ── V · your move ──────────────────────────────────────────── -->
+      <div class="copy copy--final" data-copy="act5">
+        <p class="eyebrow" aria-hidden="true">V · Your move</p>
+        <h2 class="line">Every move has a consequence. <em>What's yours?</em></h2>
+        <div class="final__mark">
+          <svg class="final__emblem" viewBox="120 70 272 370" aria-hidden="true">
+            <defs><linearGradient id="landing-gold" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#f3dda2" /><stop offset=".5" stop-color="#c9a45c" /><stop offset="1" stop-color="#8f6c2e" />
+            </linearGradient></defs>
+            <g fill="url(#landing-gold)">
+              <rect x="240" y="78" width="32" height="92" rx="4" /><rect x="210" y="104" width="92" height="30" rx="4" />
+              <path d="M256 170c-62 0-104 40-104 92 0 30 14 52 36 66l-22 54h180l-22-54c22-14 36-36 36-66 0-52-42-92-104-92z" />
+              <rect x="132" y="392" width="248" height="34" rx="10" />
+            </g>
+          </svg>
+          <span class="final__word">REXCHESS</span>
+        </div>
+        <a class="btn-p final__cta" routerLink="/home">Play now <span aria-hidden="true">→</span></a>
+      </div>
+
+      <!-- ── chapters ───────────────────────────────────────────────── -->
+      <nav class="chapters" aria-label="Acts">
+        @for (a of acts; track a.numeral; let i = $index) {
+          <button type="button" class="chapters__btn" [class.chapters__btn--on]="act === i"
+                  [attr.aria-current]="act === i ? 'step' : null" (click)="goTo(i)">
+            <span class="chapters__num">{{ a.numeral }}</span><span class="chapters__title">{{ a.title }}</span>
+          </button>
+        }
+      </nav>
     </div>
   </section>
 
-  <div class="divider"></div>
-
-  <!-- ── FEATURES ─────────────────────────────────────────────────── -->
-  <section id="features" class="features">
-    <div class="section-head">
-      <div class="eyebrow">Fonctionnalités</div>
-      <h2 class="section-title">Conçu pour les maîtres</h2>
-      <p class="section-sub">Chaque détail pensé pour vous aider à progresser.</p>
-    </div>
-    <div class="feat-grid">
-      <div class="feat-card glass" *ngFor="let f of features">
-        <div class="feat-icon">{{ f.icon }}</div>
-        <div class="feat-title">{{ f.title }}</div>
-        <div class="feat-desc">{{ f.desc }}</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── GAME MODES ───────────────────────────────────────────────── -->
-  <section class="modes">
-    <div class="modes__panel">
-      <div>
-        <div class="eyebrow">Modes de jeu</div>
-        <h2 class="modes__title">Jouez comme vous voulez</h2>
-        <p class="modes__text">
-          IA adaptative, parties locales ou tournois en ligne — chaque mode offre une expérience unique.
-        </p>
-        <a class="btn-p" routerLink="/home">Choisir un mode →</a>
-      </div>
-      <div class="modes__list">
-        <a class="mode-row" *ngFor="let m of modes" routerLink="/home">
-          <span class="mode-row__icon">{{ m.icon }}</span>
-          <span class="mode-row__label">{{ m.label }}</span>
-          <span *ngIf="m.tag" class="tag" [class.tag-gold]="m.gold">{{ m.tag }}</span>
-          <span class="mode-row__chev">›</span>
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── CTA ──────────────────────────────────────────────────────── -->
-  <section class="cta">
-    <div class="eyebrow">Commencez gratuitement</div>
-    <h2 class="cta__title">Prêt à jouer ?</h2>
-    <p class="cta__sub">Créez votre compte gratuitement et commencez en secondes.</p>
-    <div class="cta__buttons">
-      <a class="btn-p" routerLink="/register">S'inscrire →</a>
-      <a class="btn-g" routerLink="/home">Jouer maintenant</a>
-    </div>
-  </section>
+  <!-- The same story in words, for screen readers (the stage shows it one act at a time) -->
+  <div class="sr-only">
+    <h2>Five acts</h2>
+    <p>I. 64 squares. Infinite possibilities.</p>
+    <p>II. You see a move: {{ playerMoveLabel }}. The knight takes a pawn and leaves the queen to the bishop on g4, Légal's trap.</p>
+    <p>III. The machine sees thousands.
+      @if (data) {
+        At depth {{ data.engine.depth }} the engine explored {{ count(data.engine.nodes) }} positions.
+        Taking the queen allows mate in {{ data.trap.score.mateIn }}: {{ refutation(data) }}.
+      }
+    </p>
+    <p>IV. Every move has a consequence.
+      @if (data) { RexChess replies {{ replyLabel(data, data.engine.bestMove.san) }}, evaluation {{ score(data.engine.score) }} from White's side. }
+    </p>
+    <p>V. What's yours?</p>
+  </div>
 
   <footer class="footer">
-    <span class="footer__logo">REXCHESS</span>
-    <span class="footer__note">© 2026 REXCHESS. Tous droits réservés.</span>
+    <a class="footer__logo" routerLink="/">REXCHESS</a>
+    <nav class="footer__links" aria-label="Footer">
+      <a routerLink="/home">Play</a>
+      <a routerLink="/login">Sign in</a>
+      <a routerLink="/register">Create an account</a>
+    </nav>
+    <p class="footer__note">A chess engine written in Java: bitboards, alpha-beta search, a neural-network evaluation. © 2026 REXCHESS</p>
   </footer>
 </div>
