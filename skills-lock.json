@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "auteur": {
+      "source": "agiwhitelist/auteur",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "844ec6fe2cfe1318591a033d7bdafd62fad5c6826d4fcb708f1d3b0b2c6efb59"
+    },
+    "design-motion-principles": {
+      "source": "kylezantos/design-motion-principles",
+      "sourceType": "github",
+      "skillPath": "skills/design-motion-principles/SKILL.md",
+      "computedHash": "ca263e4515ddd34e412c841a2b35c2898a2a2122744836fdd003f0a2552192d6"
+    }
+  }
+}
