@@ -16,7 +16,7 @@ export const BOARD_MODES: ReadonlyArray<{ id: BoardMode; label: string; hint: st
 
 export const STYLES_3D: ReadonlyArray<StyleOption<Style3D>> = [
   { id: 'marble-gold', label: 'Marbre & Or', swatch: ['#d8c9b2', '#121010', '#e2b25e'] },
-  { id: 'classic-wood', label: 'Bois classique', swatch: ['#d0a46e', '#7a4a28', '#f7ecd2'] },
+  { id: 'classic-wood', label: 'Bois classique', swatch: ['#e2bd86', '#9c5a30', '#f3ead6'] },
   { id: 'ebony-ivory', label: 'Ébène & Ivoire', swatch: ['#c9bca3', '#16120f', '#f8f3e4'] },
 ];
 
