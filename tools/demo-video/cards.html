@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>REXCHESS demo cards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Title / end cards are recorded at 1280x720 CSS px (x1.5); the online overlays are
+     screenshotted at 1920x1080 CSS px (x1) so their geometry matches ffmpeg pixels. */
+  :root { --bg: #0b0907; --gold: #e6c27a; --gold2: #f3dda2; --text: #efe6d6; --textd: #b3a690; --line: rgba(230, 194, 122, .35); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; }
+  body { background: var(--bg); color: var(--text); font-family: 'Jost', sans-serif; overflow: hidden; }
+  body.transparent { background: transparent; }
+  .hidden { display: none !important; }
+
+  /* ── title & end cards ─────────────────────────────────────────── */
+  .card {
+    position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse 60% 55% at 50% 45%, rgba(230, 194, 122, .13), transparent 70%), var(--bg);
+  }
+  .card .glyph { font-size: 64px; color: var(--gold); line-height: 1; margin-bottom: 18px; }
+  .card .logo {
+    font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 84px; letter-spacing: .32em;
+    margin-right: -.32em; background: linear-gradient(135deg, #f3dda2 0%, #c9a45c 48%, #8f6c2e 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .card .rule { width: 0; height: 1px; background: var(--line); margin: 22px 0 20px; }
+  .card .tag { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 30px; color: var(--text); }
+  .card .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-width: 860px; margin-top: 30px; }
+  .card .chip {
+    font-size: 13px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--gold);
+    border: 1px solid var(--line); border-radius: 999px; padding: 7px 15px; background: rgba(230, 194, 122, .05);
+  }
+  .card .points { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 46px; margin-top: 30px; font-size: 17px; color: var(--textd); }
+  .card .points li::before { content: '♟'; color: var(--gold); margin-right: 10px; }
+  .card .link { margin-top: 34px; font-size: 19px; letter-spacing: .06em; color: var(--gold2); }
+
+  .anim > * { opacity: 0; transform: translateY(14px); animation: up .9s cubic-bezier(.2, .7, .2, 1) forwards; }
+  .anim > *:nth-child(1) { animation-delay: .15s; }
+  .anim > *:nth-child(2) { animation-delay: .35s; }
+  .anim > *:nth-child(3) { animation-delay: .55s; animation-name: grow; }
+  .anim > *:nth-child(4) { animation-delay: .75s; }
+  .anim > *:nth-child(5) { animation-delay: 1.05s; }
+  .anim > *:nth-child(6) { animation-delay: 1.35s; }
+  @keyframes up { to { opacity: 1; transform: none; } }
+  @keyframes grow { from { width: 0; opacity: 1; transform: none; } to { width: 240px; opacity: 1; transform: none; } }
+
+  /* ── online split-screen (1920x1080) ───────────────────────────── */
+  .split-bg {
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse 70% 60% at 50% 40%, rgba(230, 194, 122, .09), transparent 70%), var(--bg);
+  }
+  .split { position: fixed; inset: 0; }
+  .split .head { position: absolute; top: 58px; left: 0; right: 0; text-align: center; }
+  .split .eyebrow { font-size: 17px; font-weight: 500; letter-spacing: .3em; text-transform: uppercase; color: var(--gold); }
+  .split .title { font-family: 'Cormorant Garamond', serif; font-size: 64px; font-weight: 500; margin-top: 6px; }
+  .split .title em { color: var(--gold2); }
+  .pane-frame { position: absolute; top: 250px; width: 928px; height: 522px; border: 2px solid var(--line); border-radius: 6px; margin: -2px 0 0 -2px; box-sizing: content-box; }
+  .pane-label { position: absolute; top: 208px; font-size: 22px; font-weight: 500; color: var(--text); display: flex; align-items: center; gap: 12px; }
+  .pane-label .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 10px var(--gold); }
+  .pane-label .meta { color: var(--textd); font-weight: 400; font-size: 18px; }
+  .split .cap {
+    position: absolute; left: 50%; top: 832px; transform: translateX(-50%); min-width: 900px; text-align: center;
+    padding: 20px 40px 22px; border: 1px solid rgba(230, 194, 122, .5); border-radius: 18px; background: rgba(20, 16, 12, .9);
+  }
+  .split .cap .t { font-size: 34px; font-weight: 500; }
+  .split .cap .s { margin-top: 8px; font-size: 18px; font-weight: 500; color: var(--gold); letter-spacing: .14em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+  <div id="title" class="card anim hidden">
+    <div class="glyph">♚</div>
+    <div class="logo">REXCHESS</div>
+    <div class="rule"></div>
+    <div class="tag">A full-stack chess platform — play the engine or a friend, in 3D</div>
+    <div class="chips">
+      <span class="chip">Angular 17</span><span class="chip">NgRx</span><span class="chip">Three.js</span>
+      <span class="chip">Java 17</span><span class="chip">Spring Boot 3</span><span class="chip">PostgreSQL</span>
+      <span class="chip">WebSockets</span><span class="chip">Docker</span>
+    </div>
+  </div>
+
+  <div id="end" class="card anim hidden">
+    <div class="glyph">♚</div>
+    <div class="logo">REXCHESS</div>
+    <div class="rule"></div>
+    <div class="tag">Thanks for watching</div>
+    <ul class="points">
+      <li>Java move generator, perft-tested</li>
+      <li>JWT auth with refresh tokens</li>
+      <li>Live games over WebSockets</li>
+      <li>Server-owned clocks &amp; Elo ratings</li>
+      <li>Reconnects &amp; abandoned-game handling</li>
+      <li>3D (Three.js) and 2D boards</li>
+    </ul>
+    <div class="link">github.com/Alae1919/chess-project</div>
+  </div>
+
+  <div id="split-bg" class="split-bg hidden"></div>
+
+  <div id="split" class="split hidden">
+    <div class="head">
+      <div class="eyebrow">Online play</div>
+      <div class="title">Two browsers, <em>one live game</em></div>
+    </div>
+    <div class="pane-frame" style="left: 20px"></div>
+    <div class="pane-frame" style="left: 972px"></div>
+    <div class="pane-label" style="left: 22px"><span class="dot"></span><span id="left-name"></span><span class="meta" id="left-meta"></span></div>
+    <div class="pane-label" style="left: 974px"><span class="dot"></span><span id="right-name"></span><span class="meta" id="right-meta"></span></div>
+    <div class="cap" id="cap"><div class="t" id="cap-t"></div><div class="s" id="cap-s"></div></div>
+  </div>
+
+<script>
+  // ?card=title|end   a recorded card
+  // ?splitbg=1        the split-screen background
+  // ?split=frame&ln=..&lm=..&rn=..&rm=..   header, pane frames and labels (transparent)
+  // ?split=cap&cap=..&sub=..               one caption (transparent)
+  const q = new URLSearchParams(location.search);
+  if (q.get('card')) document.getElementById(q.get('card')).classList.remove('hidden');
+  if (q.get('splitbg')) document.getElementById('split-bg').classList.remove('hidden');
+  if (q.get('split')) {
+    document.body.classList.add('transparent');
+    const split = document.getElementById('split');
+    split.classList.remove('hidden');
+    for (const [id, key] of [['left-name', 'ln'], ['left-meta', 'lm'], ['right-name', 'rn'], ['right-meta', 'rm'], ['cap-t', 'cap'], ['cap-s', 'sub']]) {
+      document.getElementById(id).textContent = q.get(key) ?? '';
+    }
+    const capOnly = q.get('split') === 'cap';
+    split.querySelectorAll('.head, .pane-frame, .pane-label').forEach((el) => el.classList.toggle('hidden', capOnly));
+    document.getElementById('cap').classList.toggle('hidden', !capOnly);
+  }
+</script>
+</body>
+</html>
