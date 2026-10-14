@@ -6,6 +6,10 @@
 # Local tool settings
 .claude/settings.local.json
 
+# JVM crash dumps, written to the working directory when the backend dies
+hs_err_pid*.log
+replay_pid*.log
+
 training/.venv/
 training/data/
 training/runs/
