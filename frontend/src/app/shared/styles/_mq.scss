@@ -20,3 +20,8 @@
 @mixin compact {
   @media (max-width: 768px), (max-height: 500px) and (max-width: 1000px) and (orientation: landscape) { @content; }
 }
+
+/* A window with room for the side panels and the bar under the board: the opposite of `compact` */
+@mixin desktop {
+  @media (min-width: 769px) and (min-height: 501px) { @content; }
+}

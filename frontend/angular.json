@@ -23,7 +23,16 @@
             "browser": "src/main.ts",
             "polyfills": ["zone.js"],
             "tsConfig": "tsconfig.app.json",
-            "assets": ["src/favicon.ico", "src/manifest.webmanifest", "src/assets"],
+            "assets": [
+              "src/favicon.ico",
+              "src/manifest.webmanifest",
+              "src/assets",
+              {
+                "glob": "{draco_wasm_wrapper.js,draco_decoder.wasm}",
+                "input": "node_modules/three/examples/jsm/libs/draco/gltf",
+                "output": "/assets/draco"
+              }
+            ],
             "styles": ["src/styles.scss"],
             "scripts": []
           },
@@ -31,7 +40,7 @@
             "production": {
               "budgets": [
                 { "type": "initial", "maximumWarning": "500kb", "maximumError": "1mb" },
-                { "type": "anyComponentStyle", "maximumWarning": "10kb", "maximumError": "20kb" }
+                { "type": "anyComponentStyle", "maximumWarning": "10kb", "maximumError": "28kb" }
               ],
               "fileReplacements": [
                 {

@@ -1,5 +1,5 @@
 // src/app/shared/components/chess-board-3d/chess-board-3d.component.ts
-import { AfterViewInit, Component, ElementRef, EventEmitter, inject, Input, Output, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, EventEmitter, HostBinding, inject, Input, Output, NgZone, OnChanges, OnDestroy, SimpleChanges, ViewChild } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { combineLatest, Subscription } from 'rxjs';
 import {
@@ -20,7 +20,8 @@ import { GameActions } from '../../../store/game/game.actions';
 import { Piece, Square, Style3D } from '../../../core/models';
 import { isPlayableStatus } from '../../../core/utils/game-status.utils';
 import { dropVerdict, DropVerdict } from '../../../core/utils/drag-drop.utils';
-import { initialSquares, LuxeBoardScene, Squares } from '../../three/luxe-board-scene';
+import { initialSquares, LuxeBoardScene, SafeArea, Squares } from '../../three/luxe-board-scene';
+import { loadPieceModels } from '../../three/glb-pieces';
 
 /**
  * The REXCHESS Luxe 3D board.
@@ -33,7 +34,7 @@ import { initialSquares, LuxeBoardScene, Squares } from '../../three/luxe-board-
   selector: 'app-chess-board-3d',
   standalone: true,
   template: `
-    <div class="stage" [style.aspect-ratio]="aspect">
+    <div class="stage" [style.aspect-ratio]="fill ? null : aspect">
       <canvas #canvas></canvas>
     </div>
   `,
@@ -45,6 +46,10 @@ import { initialSquares, LuxeBoardScene, Squares } from '../../three/luxe-board-
       background: radial-gradient(ellipse, rgba(255, 170, 80, .18) 0%, transparent 70%);
       filter: blur(30px); pointer-events: none;
     }
+    /* fill: the canvas covers the whole of its (positioned) parent, and the page puts panels over it */
+    :host(.fill) { position: absolute; inset: 0; width: auto; }
+    :host(.fill) .stage { height: 100%; }
+    :host(.fill) .stage::before { display: none; }
     /* none: a finger dragging a piece must not scroll the page */
     canvas { position: relative; display: block; width: 100%; height: 100%; touch-action: none; }
   `],
@@ -64,6 +69,14 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
   @Input() aspect = 1;
   /** Phones: fill the width, with little room to turn the board sideways (read once, at creation) */
   @Input() tight = false;
+  /** Cover the whole of the parent (which must be positioned) instead of keeping the `aspect` shape */
+  @Input() fill = false;
+  /** `study`: the board lies flat on a table that the page paints behind the canvas (read once, at creation) */
+  @Input() environment: 'studio' | 'study' = 'studio';
+  /** Where the board may go on a canvas that panels float over; the camera frames the board inside it */
+  @Input() safeArea: SafeArea | null = null;
+
+  @HostBinding('class.fill') get fillClass(): boolean { return this.fill; }
 
   @ViewChild('canvas', { static: true }) private canvasRef!: ElementRef<HTMLCanvasElement>;
 
@@ -91,6 +104,7 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
           interactive: this.interactive,
           look: this.look,
           tight: this.tight,
+          environment: this.environment,
           canDrag: (sq) => this.canDrag(sq),
           onDragStart: (sq) => this.zone.run(() => this.store.dispatch(GameActions.selectSquare({ square: sq }))),
           onDrop: (from, to) => this.zone.run(() => this.onDrop(from, to)),
@@ -106,6 +120,7 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
       }
       this.scene.setFlipped(this.flipped);
       this.scene.setTopView(this.topView, true);
+      if (this.safeArea) this.scene.setSafeArea(this.safeArea);
 
       this.resizeObserver = new ResizeObserver(() => this.scene?.resize(canvas.clientWidth, canvas.clientHeight));
       this.resizeObserver.observe(canvas);
@@ -115,6 +130,9 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
     });
 
     if (!this.scene) return;
+
+    // the player's own pieces, when the game ships them (assets/pieces/pieces.glb); the built-in ones until then
+    loadPieceModels().then((models) => models && this.scene?.setPieceModels(models));
 
     if (!this.interactive) {
       this.scene.setPosition(initialSquares(), false);
@@ -146,6 +164,7 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['flipped']) this.scene?.setFlipped(this.flipped);
     if (changes['look']) this.scene?.setLook(this.look);
+    if (changes['safeArea'] && this.safeArea) this.scene?.setSafeArea(this.safeArea);
     if (changes['topView']) {
       // a drag that left the board part-way reports a side; the page echoing it back must not pull it to that end
       const echo = this.topView === this.reportedTopView;

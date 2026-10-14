@@ -39,9 +39,17 @@ const BLACK_WORDS = ['black', 'dark', 'ebony', 'b'];
 
 type Side = 'white' | 'black';
 
-/** "Bishop_Black.003" -> ["bishop", "black", "003"]; "WhiteKing" -> ["white", "king"] */
+/**
+ * "Bishop_Black.003" -> ["bishop", "black", "003"]; "WhiteKing" -> ["white", "king"].
+ * glTF loaders drop the dot of Blender's "King.001" (it reads "King001"), so letters and digits are split too.
+ */
 function tokens(name: string): string[] {
-  return name.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  return name
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/([a-zA-Z])([0-9])/g, '$1 $2')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
 }
 
 function sideOf(words: string[]): Side | null {
@@ -135,7 +143,8 @@ function recolour(root: THREE.Object3D, to: Side): THREE.Object3D {
     for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
       const std = m as THREE.MeshStandardMaterial;
       if (!std.color) continue;
-      std.color.lerp(ink, 0.88);
+      // colours mix in linear light: a dark piece needs almost all of the way, or it stays a muddy grey
+      std.color.lerp(ink, to === 'black' ? 0.97 : 0.88);
       // a white piece made from a dark one must not stay dark through its texture
       if (to === 'white') std.map = null;
       std.needsUpdate = true;
@@ -164,24 +173,28 @@ export function extractPieceModels(root: THREE.Object3D): PieceModels | null {
   };
   walk(root, null);
 
-  const has = (b: Partial<Record<PieceLetter, THREE.Object3D>>): boolean => LETTERS.every((l) => !!b[l]);
-  // pieces without a colour in their name fill what the coloured ones leave out
-  const merged = (side: Side): Partial<Record<PieceLetter, THREE.Object3D>> => ({ ...found.any, ...found[side] });
+  type Set6 = Partial<Record<PieceLetter, THREE.Object3D>>;
+  const has = (b: Set6): boolean => LETTERS.every((l) => !!b[l]);
+  const count = (b: Set6): number => LETTERS.filter((l) => b[l]).length;
+  // a file whose names say nothing of colour holds one set, for white; black is made from it.
+  // Otherwise pieces without a colour in their name complete whichever side lacks them.
+  const nothingColoured = count(found.white) === 0 && count(found.black) === 0;
+  const white: Set6 = nothingColoured ? found.any : { ...found.any, ...found.white };
+  const black: Set6 = nothingColoured ? {} : { ...found.any, ...found.black };
 
   let derived = false;
-  let white = merged('white');
-  let black = merged('black');
-  if (has(white) && !has(black) && !LETTERS.some((l) => found.black[l])) derived = true;
-  else if (has(black) && !has(white) && !LETTERS.some((l) => found.white[l])) derived = true;
+  if (has(white) && has(black)) derived = false;
+  else if (has(white) && count(black) === 0) derived = true;
+  else if (has(black) && count(white) === 0) derived = true;
   else if (!has(white) || !has(black)) {
-    const missing = (b: Partial<Record<PieceLetter, THREE.Object3D>>): string => LETTERS.filter((l) => !b[l]).join('');
-    console.warn(`[pieces] the file does not hold a whole set: missing white ${missing(white) || '-'}, black ${missing(black) || '-'}. Names found: ` +
-      (JSON.stringify(Object.fromEntries(Object.entries(found).map(([k, v]) => [k, Object.keys(v).join('')]))) ));
+    const missing = (b: Set6): string => LETTERS.filter((l) => !b[l]).join('');
+    console.warn(`[pieces] the file does not hold a whole set: missing white ${missing(white) || '-'}, black ${missing(black) || '-'}. ` +
+      `Names understood: ${JSON.stringify(Object.fromEntries(Object.entries(found).map(([k, v]) => [k, Object.keys(v).join('')])))}`);
     return null;
   }
 
   // measure one side, then derive the other if the file had no second set
-  const measureSet = (set: Partial<Record<PieceLetter, THREE.Object3D>>): Record<PieceLetter, Measured> | null => {
+  const measureSet = (set: Set6): Record<PieceLetter, Measured> | null => {
     const out: Partial<Record<PieceLetter, Measured>> = {};
     for (const l of LETTERS) {
       const m = measure(set[l]!);
