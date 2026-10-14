@@ -65,6 +65,28 @@ same pieces and marble as the game's board; acts II and III are footage stills; 
   With `prefers-reduced-motion`, each act is shown at rest and switched in place as you scroll; nothing animates.
   Without WebGL, act IV falls back to the flat board.
 
+## The game's 3D view (the "study")
+
+In 3D mode the game page is a room: a photo of a table behind a transparent WebGL canvas, the board lying flat on it,
+and the panels floating over the photo as glass. The scene (`shared/three/luxe-board-scene.ts`, option
+`environment: 'study'`) draws only the board, the pieces and their shadows, lit by a warm key light and a lamp, so the
+photo does the rest. The camera is fitted to the free space between the panels and the dock (the game page measures them
+and passes a `safeArea` to `chess-board-3d`), so the board is as large as it can be without sliding under anything.
+The flat 2D board and the top view keep the plain dark background.
+
+* **The background.** `src/assets/game/study-2000.webp` (wide screens) and `study-1000.webp` (under 1000 px), set as
+  `--plate` in `game.page.scss`. To change the room, replace both files, keeping the names, with a photo of a table
+  seen from about 30 degrees above, light from the left, the middle of the picture empty (that is where the board goes).
+  Every piece is then stood upright on its square, its base centred, and the whole set scaled by one factor so the king is
+  1.4 squares tall (a base never exceeds 0.38 of a square), so the file's units and origin do not matter. Knights are
+  turned to face the opponent: if yours look the wrong way, rotate the model by 180 degrees about Y in the file.
+* **Compressed files.** Draco and Meshopt are decoded, and the Draco decoder is copied to `assets/draco` by the build.
+  Both need WebAssembly and a worker, which the production CSP (`nginx-snippets/security-headers.conf`) does not allow:
+  to serve a compressed set, add `'wasm-unsafe-eval'` to `script-src` and a `worker-src 'self' blob:`. Uncompressed
+  files need nothing.
+* **The wood.** The study is tuned for the `classic-wood` board style (the backend only accepts `marble-gold`,
+  `classic-wood` and `ebony-ivory`, so no new style was added).
+
 ## In production
 
 The [`Dockerfile`](Dockerfile) builds the app and serves it with nginx ([`nginx.conf`](nginx.conf)), which also proxies `/api`

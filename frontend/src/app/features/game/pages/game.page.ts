@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // src/app/features/game/pages/game.page.ts
 // ─────────────────────────────────────────────────────────────────────────────
-import { AfterViewChecked, Component, ElementRef, HostListener, inject, OnInit, OnDestroy, Input, ViewChild } from '@angular/core';
+import { AfterViewChecked, Component, ElementRef, HostListener, inject, NgZone, OnInit, OnDestroy, Input, ViewChild } from '@angular/core';
 import { CommonModule, AsyncPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms'; // <-- ADDED THIS
 import { Router, RouterLink } from '@angular/router';
@@ -29,6 +29,7 @@ import { aiLevelLabel } from '../../../core/utils/ai-levels';
 import { formatClock, isLowTime } from '../../../core/utils/clock.utils';
 import { PlayerStripComponent } from '../components/player-strip.component';
 import { BoardPrefsService } from '../../../core/services/board-prefs.service';
+import type { SafeArea } from '../../../shared/three/luxe-board-scene';
 import { GameActions } from '../../../store/game/game.actions';
 import { selectUser } from '../../../store/account/account.reducer'; // <-- ADDED THIS
 import { isPlayableStatus, isTerminalStatus } from '../../../core/utils/game-status.utils';
@@ -134,6 +135,12 @@ export class GamePage implements OnInit, OnDestroy, AfterViewChecked {
 
   /** Canvas shape of the 3D board (see boardAspectFor) */
   boardAspect   = boardAspectFor();
+  /**
+   * Wide screens: the 3D board's canvas covers the whole arena and the panels float over it, so the board
+   * is framed around them (`safeArea`, measured from the panels as they are). Phones keep the board in its column.
+   */
+  fill          = !isCompactViewport();
+  safeArea: SafeArea | null = null;
   /** The compact layout is in use (read when the board is created) */
   readonly compact = isCompactViewport();
   boardFlipped  = false;
@@ -246,7 +253,52 @@ export class GamePage implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   @HostListener('window:resize')
-  onResize(): void { this.boardAspect = boardAspectFor(); }
+  onResize(): void {
+    this.boardAspect = boardAspectFor();
+    this.fill = !isCompactViewport();
+    this.measure();
+  }
+
+  // ── Where the board may go: what the panels leave free ────────────────────
+  private zone = inject(NgZone);
+  private layout: Partial<Record<'board' | 'left' | 'right' | 'dock', HTMLElement>> = {};
+  private layoutObserver?: ResizeObserver;
+
+  @ViewChild('board3d', { read: ElementRef }) set board3dEl(el: ElementRef<HTMLElement> | undefined) { this.watch('board', el?.nativeElement); }
+  @ViewChild('leftPanel') set leftPanelEl(el: ElementRef<HTMLElement> | undefined) { this.watch('left', el?.nativeElement); }
+  @ViewChild('rightPanel') set rightPanelEl(el: ElementRef<HTMLElement> | undefined) { this.watch('right', el?.nativeElement); }
+  @ViewChild('dock') set dockEl(el: ElementRef<HTMLElement> | undefined) { this.watch('dock', el?.nativeElement); }
+
+  private watch(key: 'board' | 'left' | 'right' | 'dock', el: HTMLElement | undefined): void {
+    const old = this.layout[key];
+    if (old === el) return;
+    if (old) this.layoutObserver?.unobserve(old);
+    this.layout[key] = el;
+    if (el && typeof ResizeObserver !== 'undefined') {
+      this.layoutObserver ??= new ResizeObserver(() => this.measure());
+      this.layoutObserver.observe(el);
+    }
+    // the elements exist now, but not yet in their place: measure once the page has been laid out
+    queueMicrotask(() => this.measure());
+  }
+
+  private measure(): void {
+    const board = this.layout.board;
+    let next: SafeArea | null = null;
+    if (board && this.fill) {
+      const c = board.getBoundingClientRect();
+      const rel = (el?: HTMLElement) => {
+        const r = el?.getBoundingClientRect();
+        return r && r.width > 0 && r.height > 0 ? { x: r.left - c.left, y: r.top - c.top, w: r.width, h: r.height } : null;
+      };
+      const dock = rel(this.layout.dock);
+      const avoid = [rel(this.layout.left), rel(this.layout.right), dock].filter((r): r is NonNullable<typeof r> => !!r);
+      next = { left: 0, right: 0, top: 6, bottom: dock ? Math.max(6, c.height - dock.y + 6) : 6, avoid };
+    }
+    const cur = this.safeArea;
+    if (JSON.stringify(cur) === JSON.stringify(next)) return;
+    this.zone.run(() => (this.safeArea = next));
+  }
 
   toggleSettings(): void { this.settingsOpen = !this.settingsOpen; }
 
@@ -395,6 +447,7 @@ export class GamePage implements OnInit, OnDestroy, AfterViewChecked {
     // must not keep the player "connected" to a game they have walked away from.
     this.gameSocket.disconnect();
     this.sub.unsubscribe();
+    this.layoutObserver?.disconnect();
     clearTimeout(this.resignTimer);
   }
 

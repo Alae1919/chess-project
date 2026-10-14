@@ -1,6 +1,6 @@
 <!-- src/app/features/game/pages/game.page.html -->
 <ng-container *ngIf="vm$ | async as vm">
-<div class="arena" *ngIf="vm.game; else noGame">
+<div class="arena" *ngIf="vm.game; else noGame" [class.arena--study]="(boardView$ | async)?.mode === '3d'" [class.arena--top]="topView">
 
   <!-- ══ TOP BAR ═════════════════════════════════════════════════════ -->
   <header class="topbar">
@@ -65,7 +65,7 @@
        [class.game-layout--right-collapsed]="!rightOpen">
 
     <!-- ── LEFT PANEL (desktop only) ──────────────────────────────── -->
-    <aside class="game-left" [class.game-left--collapsed]="!leftOpen">
+    <aside class="game-left" #leftPanel [class.game-left--collapsed]="!leftOpen">
 
       <button class="panel-tab panel-tab--left" (click)="toggleLeft()" [title]="leftOpen ? 'Réduire' : 'Ouvrir'">
         <span class="panel-tab__icon">{{ leftOpen ? '◀' : '▶' }}</span>
@@ -119,30 +119,20 @@
           <span>L'IA réfléchit…</span>
         </div>
 
-        <!-- Actions -->
+        <!-- The game's other actions (the frequent ones are in the dock under the board) -->
         <div class="action-section">
-          <p class="action-section__label">Actions</p>
-          <div class="action-grid">
-            <button class="action-btn" *ngIf="canUndo(vm.game)" (click)="undo()"><span class="action-btn__ico">↩</span>Annuler</button>
-            <button class="action-btn" (click)="flipBoard()"><span class="action-btn__ico">⇅</span>Retourner</button>
-            <button class="action-btn" *ngIf="canAnalyse(vm.game)" (click)="toggleAnalysis()" [attr.aria-pressed]="vm.analysis"
-                    [class.action-btn--on]="vm.analysis">
-              <span class="action-btn__ico">◐</span>Analyse
-            </button>
-            <button class="action-btn" *ngIf="vm.game.mode !== 'online'" (click)="requestHint()"
-                    [disabled]="!canHint(vm.game, vm.aiThinking || vm.loading)">
-              <span class="action-btn__ico">✦</span>Indice
-            </button>
-            <button class="action-btn" (click)="save()"><span class="action-btn__ico">⎙</span>Sauvegarder</button>
-            <button class="action-btn" (click)="offerDraw()"><span class="action-btn__ico">½</span>Nulle</button>
-            <button class="action-btn action-btn--full" *ngIf="(boardView$ | async)?.mode === '3d'" (click)="toggleView()"
-                    [attr.aria-pressed]="topView">
-              <span class="action-btn__ico">{{ topView ? '◈' : '⬒' }}</span>{{ topView ? 'Vue 3D' : 'Vue du dessus' }}
-            </button>
-            <button class="action-btn action-btn--danger action-btn--full" (click)="resign()">
-              ⚑ Abandonner
-            </button>
-          </div>
+          <p class="action-section__label">Partie</p>
+          <ul class="menu">
+            <li><button type="button" class="menu__item" (click)="save()">
+              <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h10v16l-5-3.6L7 20z"/></svg>Sauvegarder
+            </button></li>
+            <li><button type="button" class="menu__item" (click)="offerDraw()">
+              <span class="menu__half" aria-hidden="true">½</span>Proposer nulle
+            </button></li>
+            <li><button type="button" class="menu__item menu__item--danger" (click)="resign()">
+              <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4M5 4h12l-2.5 4.5L17 13H5"/></svg>Abandonner
+            </button></li>
+          </ul>
         </div>
 
         <div class="spacer"></div>
@@ -171,10 +161,11 @@
     <!-- ── BOARD CENTER ───────────────────────────────────────────── -->
     <div class="game-center">
       <ng-container *ngIf="boardView$ | async as bv">
-        <div class="board-stage" [class.board-stage--flat]="bv.mode === '2d'" [style.--board-aspect]="boardAspect">
+        <div class="board-stage" [class.board-stage--flat]="bv.mode === '2d'" [class.board-stage--fill]="fill && bv.mode === '3d'" [style.--board-aspect]="boardAspect">
           <app-chess-board-3d
-            *ngIf="bv.mode === '3d'; else flatBoard"
+            *ngIf="bv.mode === '3d'; else flatBoard" #board3d
             [interactive]="true" [aspect]="boardAspect" [tight]="compact" [flipped]="boardFlipped"
+            [fill]="fill" environment="study" [safeArea]="safeArea"
             [look]="bv.prefs.style3d" [topView]="topView" (topViewChange)="setTopView($event)" />
           <ng-template #flatBoard>
             <app-chess-board [flipped]="boardFlipped" [boardStyle]="bv.prefs.style2d" />
@@ -412,7 +403,7 @@
     </div>
 
     <!-- ── RIGHT PANEL (desktop only) ─────────────────────────────── -->
-    <aside class="game-right" [class.game-right--collapsed]="!rightOpen">
+    <aside class="game-right" #rightPanel [class.game-right--collapsed]="!rightOpen">
 
       <button class="panel-tab panel-tab--right" (click)="toggleRight()" [title]="rightOpen ? 'Réduire' : 'Ouvrir'">
         <span class="panel-tab__icon">{{ rightOpen ? '▶' : '◀' }}</span>
@@ -490,6 +481,28 @@
       </div>
     </aside>
   </div>
+
+  <!-- ══ DOCK (wide screens): what a player reaches for most ═══════════ -->
+  <nav class="dock" #dock aria-label="Actions de partie">
+    <button type="button" class="dock__btn" *ngIf="canUndo(vm.game)" (click)="undo()">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 010 11H11"/></svg>Annuler
+    </button>
+    <button type="button" class="dock__btn dock__btn--primary" *ngIf="vm.game.mode !== 'online'" (click)="requestHint()"
+            [disabled]="!canHint(vm.game, vm.aiThinking || vm.loading)">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9z"/><path d="M18.5 16.5l.6 1.8 1.8.6-1.8.6-.6 1.8-.6-1.8-1.8-.6 1.8-.6z"/></svg>Indice
+    </button>
+    <button type="button" class="dock__btn" (click)="flipBoard()">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v16M8 20l-3-3M8 20l3-3"/><path d="M16 20V4M16 4l-3 3M16 4l3 3"/></svg>Retourner
+    </button>
+    <button type="button" class="dock__btn" *ngIf="canAnalyse(vm.game)" (click)="toggleAnalysis()"
+            [attr.aria-pressed]="vm.analysis" [class.dock__btn--on]="vm.analysis">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 010 16z" fill="currentColor" stroke="none"/></svg>Analyse
+    </button>
+    <button type="button" class="dock__btn" *ngIf="(boardView$ | async)?.mode === '3d'" (click)="toggleView()"
+            [attr.aria-pressed]="topView" [class.dock__btn--on]="topView">
+      <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>{{ topView ? 'Vue 3D' : 'Vue du dessus' }}
+    </button>
+  </nav>
 </div>
 
 <!-- No game fallback -->

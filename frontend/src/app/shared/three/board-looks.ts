@@ -47,8 +47,8 @@ export const LOOKS_3D: Record<Style3D, Look3D> = {
   // maple and copper-red squares in a dark walnut frame with a thin gold inlay; ivory against rosewood
   'classic-wood': {
     frame: { kind: 'wood', base: '#3a1c0e', grain: 'rgba(12,5,2,', seed: 4, repeat: 0.3 },
-    light: { kind: 'wood', base: '#e2bd86', grain: 'rgba(150,100,50,', seed: 9 },
-    dark: { kind: 'wood', base: '#9c5a30', grain: 'rgba(50,22,8,', seed: 6 },
+    light: { kind: 'wood', base: '#e8cb97', grain: 'rgba(150,100,50,', seed: 9 },
+    dark: { kind: 'wood', base: '#7c4a2c', grain: 'rgba(44,20,8,', seed: 6 },
     inlay: 0xc9a05a,
     label: 'rgba(240,222,184,.9)',
     white: { color: 0xf3ead6, metalness: 0, roughness: 0.34, clearcoat: 0.6, clearcoatRoughness: 0.2, envMapIntensity: 1.0 },

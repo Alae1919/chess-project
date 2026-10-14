@@ -204,26 +204,6 @@ $topbar-h: 52px;
   color: var(--textm); margin-bottom: 8px;
 }
 
-.action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
-
-.action-btn {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
-  padding: 7px 4px; font: 500 11px var(--font); color: var(--textd);
-  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
-  transition: all .2s;
-
-  &__ico { font-size: 14px; line-height: 1.2; }
-  &:hover { border-color: var(--borderh); color: var(--text); background: var(--bg3); }
-
-  &--full { grid-column: 1 / -1; flex-direction: row; gap: 6px; }
-  &--on { color: var(--p); border-color: var(--p); background: rgba(201, 164, 92, .08); }
-  &:disabled { opacity: .45; cursor: not-allowed; &:hover { border-color: var(--border); color: var(--textd); background: var(--bg2); } }
-  &--danger {
-    color: #ef4444; border-color: rgba(239, 68, 68, .25);
-    &:hover { background: rgba(239, 68, 68, .1); border-color: #ef4444; color: #ef4444; }
-  }
-}
-
 .spacer { flex: 1; }
 
 /* ── Center board ─────────────────────────────────────────────────────── */
@@ -408,6 +388,7 @@ $m-chrome: 290px;
   .topbar, .settings-pop, .settings-backdrop { display: none; }
 
   .mbar {
+    position: relative; z-index: 2;   /* above the study's photo */
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     height: calc(48px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 6px 0;
 
@@ -577,3 +558,93 @@ $m-chrome: 290px;
   }
 }
 
+
+/* ══ Left panel: the game's other actions ════════════════════════════════ */
+.menu { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.menu__item {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 10px; border-radius: 10px;
+  background: none; border: 0; color: var(--textd); font: 500 17px var(--serif); text-align: left; cursor: pointer;
+  transition: background .2s, color .2s;
+  .ico { width: 20px; height: 20px; color: var(--gold); flex-shrink: 0; }
+  &:hover { background: rgba(255, 214, 150, .08); color: var(--text); }
+  &--danger { color: #e0806f; .ico { color: currentColor; } &:hover { background: rgba(239, 68, 68, .12); color: #f0907f; } }
+}
+.menu__half { width: 20px; flex-shrink: 0; text-align: center; font: 600 23px/1 var(--serif); color: var(--gold); }
+
+/* ══ Dock under the board: what a player reaches for most ════════════════ */
+.dock {
+  position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 3;
+  display: flex; gap: 4px; padding: 6px; border-radius: 16px; max-width: calc(100% - 32px);
+  background: rgba(16, 11, 8, .66); border: 1px solid rgba(255, 214, 150, .14);
+  backdrop-filter: blur(16px) saturate(1.15); box-shadow: 0 14px 40px rgba(0, 0, 0, .45);
+  @include mq.compact { display: none; }
+
+  &__btn {
+    display: flex; align-items: center; gap: 9px; min-height: 46px; padding: 0 18px; border: 0; border-radius: 11px;
+    background: transparent; color: var(--text); font: 500 17px var(--serif); white-space: nowrap; cursor: pointer;
+    transition: background .2s, color .2s;
+    .ico { width: 20px; height: 20px; color: var(--gold); }
+    &:hover:not(:disabled) { background: rgba(255, 214, 150, .09); }
+    &:disabled { opacity: .4; cursor: not-allowed; }
+    &--on { background: rgba(230, 194, 122, .14); box-shadow: inset 0 0 0 1px rgba(230, 194, 122, .45); }
+    &--primary {
+      background: linear-gradient(180deg, #f1cf8a, #d9a95a); color: #1b1208; font-weight: 600;
+      .ico { color: #1b1208; }
+      &:hover:not(:disabled) { background: linear-gradient(180deg, #f6d899, #e0b165); }
+    }
+  }
+}
+
+/* ══ The study: the 3D board on a table, in the light of a lamp ═══════════
+   The photo is the page's background; the canvas over it is transparent and draws the board,
+   its pieces and their shadows. Swap the photo for another one (same file names) to change the room. */
+.arena--study {
+  --plate: url('/assets/game/study-2000.webp');
+  @media (max-width: 1000px) { --plate: url('/assets/game/study-1000.webp'); }
+  background: #0b0907;
+
+  &::before {
+    content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(ellipse 85% 75% at 50% 52%, transparent 42%, rgba(6, 3, 1, .55) 100%),
+      linear-gradient(rgba(8, 4, 2, .6), transparent 24%),
+      var(--plate) center / cover no-repeat #1a0f08;
+    transition: filter .5s ease;
+  }
+  /* straight down, the table of the photo is out of place: let it recede */
+  &.arena--top::before { filter: blur(6px) brightness(.5); }
+
+  .topbar { background: linear-gradient(rgba(8, 5, 3, .8), rgba(8, 5, 3, 0)); border-bottom: 0; backdrop-filter: none; }
+  .game-layout { background: none; }
+}
+
+@include mq.desktop {
+  .arena--study {
+    .game-layout {
+      grid-template-columns: 276px 1fr 316px;
+      &--left-collapsed  { grid-template-columns: #{$collapsed-w} 1fr 316px; }
+      &--right-collapsed { grid-template-columns: 276px 1fr #{$collapsed-w}; }
+      &--left-collapsed.game-layout--right-collapsed { grid-template-columns: #{$collapsed-w} 1fr #{$collapsed-w}; }
+    }
+
+    /* the side panels float over the scene, as glass */
+    .game-left, .game-right {
+      z-index: 2; align-self: start;
+      background: rgba(18, 12, 8, .58); border: 1px solid rgba(255, 214, 150, .14); border-radius: 16px;
+      backdrop-filter: blur(18px) saturate(1.15); box-shadow: 0 18px 50px rgba(0, 0, 0, .4);
+    }
+    .game-left  { margin: 6px 0 0 20px; max-height: calc(100% - 130px); }
+    .game-right { margin: 6px 20px 0 0; max-height: min(520px, calc(100% - 130px)); .notation-scroll { min-height: 140px; } }
+    .game-left--collapsed, .game-right--collapsed { background: none; border-color: transparent; box-shadow: none; backdrop-filter: none; height: 56px; }
+    .player-bar:first-child, .eval-bar-wrap, .action-section { border-color: rgba(255, 214, 150, .1); }
+    .tabs, .opening-row, .review-bar { border-color: rgba(255, 214, 150, .1); }
+
+    /* the board's canvas covers the whole arena: the centre column only holds the banners, above the dock */
+    .game-center {
+      position: static; overflow: visible; background: none; padding: 0 12px 96px; justify-content: flex-end; pointer-events: none;
+      &::before { display: none; }
+      > * { pointer-events: auto; }
+    }
+    .board-stage--fill { position: static; width: 0; height: 0; margin: 0; }
+  }
+}
