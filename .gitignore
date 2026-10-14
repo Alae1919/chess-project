@@ -13,3 +13,11 @@ training/__pycache__/
 
 # external engines used only as match opponents
 tools/engine/external/
+
+# Recon material is third-party (screenshots, image search results): direction only, never shipped
+design/refs/shots/
+design/refs/refs.json
+design/moodboard/img/
+design/moodboard/contact-sheet*.png
+design/moodboard/_sheet*.html
+design/sourced/
