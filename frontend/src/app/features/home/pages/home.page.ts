@@ -10,17 +10,14 @@ import { Store } from '@ngrx/store';
 import { GameActions } from '../../../store/game/game.actions';
 import { selectCurrentGame, selectNotice, selectSavedGames } from '../../../store/game/game.selectors';
 import { selectUser } from '../../../store/account/account.reducer';
-import { AiDifficulty, Game, GameMode, GameOptions, PieceColor, TimeControl, User } from '../../../core/models';
+import { AiDifficulty, Game, GameMode, GameOptions, PieceColor, SavedGame, TimeControl, User } from '../../../core/models';
 import { AuthService } from '../../../core/services/auth.service';
-import { BoardPrefsService } from '../../../core/services/board-prefs.service';
 import { combineLatest, map } from 'rxjs';
-import { ChessBoard3DComponent } from '../../../shared/components/chess-board-3d/chess-board-3d.component';
-import { FloatyPiecesComponent } from '../../../shared/components/floaty-pieces/floaty-pieces.component';
 import { MiniBoardComponent } from '../../../shared/components/mini-board/mini-board.component';
 import { SheetDragDirective } from '../../../shared/directives/sheet-drag.directive';
 import { isPlayableStatus } from '../../../core/utils/game-status.utils';
 import { playerColorOf } from '../../../core/utils/game-result.utils';
-import { isPhoneViewport } from '../../../core/utils/viewport';
+import { isPhoneViewport, isStudioViewport } from '../../../core/utils/viewport';
 import { AI_LEVEL_ELO, AI_LEVEL_LABELS, aiLevelLabel } from '../../../core/utils/ai-levels';
 
 type TimeChoice = 'blitz' | 'rapid' | 'classical';
@@ -49,13 +46,11 @@ export function resumeCard(game: Game | null, user: User | null): ResumeCard | n
 @Component({
   selector: 'app-home-page',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink, ChessBoard3DComponent, FloatyPiecesComponent, MiniBoardComponent, SheetDragDirective],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, MiniBoardComponent, SheetDragDirective],
   templateUrl: './home.page.html',
   styleUrls: ['./home.page.scss'],
 })
 export class HomePage implements OnInit {
-  /** The decorative board wears the player's chosen 3D style */
-  readonly look$ = inject(BoardPrefsService).prefs$.pipe(map((p) => p.style3d));
   private store = inject(Store);
   private fb = inject(FormBuilder);
   private router = inject(Router);
@@ -75,6 +70,8 @@ export class HomePage implements OnInit {
   );
 
   selectedMode: GameMode = 'ai';
+  /** The saved game picked in the list, waiting for "Reprendre la partie" (the studio layout has that button) */
+  selectedSaved: SavedGame | null = null;
   selectedDifficulty: AiDifficulty = 1;
   selectedColor: PieceColor | 'random' = 'white';
   selectedTime: TimeChoice = 'blitz';
@@ -161,8 +158,13 @@ export class HomePage implements OnInit {
     control?.setValue(!control.value);
   }
 
-  /** "Maître (≈ 2550) · Blancs · Rapide 10′" */
+  /** "Maître (≈ 2550) · Blancs · Rapide 10′", or what the other modes have to say */
   get summary(): string {
+    if (this.selectedMode === 'online') return 'Classé ou amical · en temps réel';
+    if (this.selectedMode === 'saved') {
+      const g = this.selectedSaved;
+      return g ? `vs ${g.opponentName} · Tour ${g.turnNumber}` : 'Choisissez une partie dans la liste';
+    }
     const time = this.timeChoices.find((t) => t.id === this.selectedTime)!;
     const color = { white: 'Blancs', black: 'Noirs', random: 'Couleur au hasard' }[this.selectedColor];
     const clock = `${time.label} ${time.mins}`;
@@ -173,13 +175,31 @@ export class HomePage implements OnInit {
     return `${color} · ${clock}`;
   }
 
-  /** A saved game is picked from the list, so there is nothing to start in that mode. */
+  /** What the start button says */
+  get ctaLabel(): string {
+    return { ai: 'Lancer la partie', local: 'Lancer la partie', online: 'Ouvrir le salon', saved: 'Reprendre la partie' }[this.selectedMode];
+  }
+
+  /** A saved game must be picked from the list first */
   get canStart(): boolean {
-    return this.selectedMode !== 'saved';
+    return this.selectedMode !== 'saved' || this.selectedSaved !== null;
+  }
+
+  /**
+   * A saved game was tapped. With the launch bar on screen it is only picked, and "Reprendre la partie"
+   * opens it; in the stacked layouts (phone, tablet) there is no such bar, so it opens straight away.
+   */
+  pickSaved(game: SavedGame): void {
+    this.selectedSaved = game;
+    if (!isStudioViewport()) this.loadSaved(game.gameId);
   }
 
   startGame(): void {
     if (!this.canStart) return;
+    if (this.selectedMode === 'saved') {
+      this.loadSaved(this.selectedSaved!.gameId);
+      return;
+    }
     // Games belong to an account: without one the request would only fail, silently
     if (!this.auth.isLoggedIn) {
       this.router.navigate(['/login'], { queryParams: { returnUrl: '/home' } });

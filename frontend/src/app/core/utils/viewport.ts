@@ -8,6 +8,13 @@ export const COMPACT_QUERY =
 /** A phone held upright: the bottom tab bar and bottom sheets */
 export const PHONE_QUERY = '(max-width: 768px)';
 
+/** The studio layout: the photo behind three columns, with the launch bar on the table (see HomePage) */
+export const STUDIO_QUERY = '(min-width: 1181px)';
+
+export function isStudioViewport(): boolean {
+  return typeof window !== 'undefined' && !!window.matchMedia?.(STUDIO_QUERY).matches;
+}
+
 export function isPhoneViewport(): boolean {
   return typeof window !== 'undefined' && !!window.matchMedia?.(PHONE_QUERY).matches;
 }

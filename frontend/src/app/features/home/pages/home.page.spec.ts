@@ -1,15 +1,10 @@
-import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { MockStore, provideMockStore } from '@ngrx/store/testing';
-import { of } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
-import { BoardPrefsService } from '../../../core/services/board-prefs.service';
-import { ChessBoard3DComponent } from '../../../shared/components/chess-board-3d/chess-board-3d.component';
-import { FloatyPiecesComponent } from '../../../shared/components/floaty-pieces/floaty-pieces.component';
 import { GameActions } from '../../../store/game/game.actions';
 import { initialGameState } from '../../../store/game/game.state';
-import { User } from '../../../core/models';
+import { SavedGame, User } from '../../../core/models';
 import { makeGame } from '../../../testing/game-fixtures';
 import { HomePage, resumeCard } from './home.page';
 
@@ -29,12 +24,7 @@ describe('HomePage', () => {
         provideMockStore({ initialState: { game: initialGameState } }),
         provideRouter([]),
         { provide: AuthService, useValue: { get isLoggedIn() { return loggedIn; } } },
-        { provide: BoardPrefsService, useValue: { prefs$: of({ style3d: 'marble-gold' }) } },
       ],
-    });
-    TestBed.overrideComponent(HomePage, {
-      remove: { imports: [ChessBoard3DComponent, FloatyPiecesComponent] },
-      add: { schemas: [NO_ERRORS_SCHEMA] },
     });
     store = TestBed.inject(MockStore);
     dispatch = spyOn(store, 'dispatch');
@@ -90,6 +80,47 @@ describe('HomePage', () => {
       page.selectMode(mode);
       expect(page.canStart).withContext(mode).toBeTrue();
     }
+  });
+
+  describe('saved games', () => {
+    const saved = { id: 's1', gameId: 'g1', opponentName: 'IA · Expert', mode: 'ai', turnNumber: 14, playerColor: 'white', savedAt: new Date() } as SavedGame;
+    let studio: boolean;
+
+    beforeEach(() => {
+      studio = true;
+      spyOn(window, 'matchMedia').and.callFake((query: string) => ({ matches: query.includes('1181') ? studio : false }) as MediaQueryList);
+      page.selectMode('saved');
+    });
+
+    it('only picks a game where the launch bar is, and opens it from there', () => {
+      page.pickSaved(saved);
+
+      expect(dispatch).not.toHaveBeenCalled();
+      expect(page.canStart).toBeTrue();
+      expect(page.summary).toBe('vs IA · Expert · Tour 14');
+      expect(page.ctaLabel).toBe('Reprendre la partie');
+
+      page.startGame();
+
+      expect(dispatch).toHaveBeenCalledWith(GameActions.loadGame({ gameId: 'g1' }));
+    });
+
+    it('opens the game at once where there is no launch bar', () => {
+      studio = false;
+
+      page.pickSaved(saved);
+
+      expect(dispatch).toHaveBeenCalledWith(GameActions.loadGame({ gameId: 'g1' }));
+    });
+  });
+
+  it('names what the start button does in each mode', () => {
+    const labels = (['ai', 'local', 'online', 'saved'] as const).map((mode) => {
+      page.selectMode(mode);
+      return page.ctaLabel;
+    });
+
+    expect(labels).toEqual(['Lancer la partie', 'Lancer la partie', 'Ouvrir le salon', 'Reprendre la partie']);
   });
 
   it('shows why a game could not be created', () => {
