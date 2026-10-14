@@ -421,6 +421,11 @@ export function makeLuxeMaterials(look: Pick<Look3D, 'white' | 'black' | 'stone'
   };
 }
 
+/** Free what `makeLuxeMaterials` made. `stone` only describes the marble: it is not a material and has nothing to free. */
+export function disposeLuxeMaterials(mats: LuxeMaterials): void {
+  [mats.gold, mats.lacquer, mats.trim, mats.groove].forEach((m) => m.dispose());
+}
+
 /** Counts the pieces built, so each one cuts its marble from a different part of the block */
 let pieceSerial = 0;
 

@@ -4,7 +4,7 @@
 // position / selection from the store and listens for square clicks.
 import * as THREE from 'three';
 import { Piece, PieceType, Square, Style3D } from '../../core/models';
-import { buildFrame, buildPiece, glowPiece, hasPieceModel, loadPieceModels, LuxeMaterials, makeLuxeMaterials, PieceLetter, pieceModelsSettled, reshapePiece } from './luxe-pieces';
+import { buildFrame, buildPiece, disposeLuxeMaterials, glowPiece, hasPieceModel, loadPieceModels, LuxeMaterials, makeLuxeMaterials, PieceLetter, pieceModelsSettled, reshapePiece } from './luxe-pieces';
 import { LOOKS_3D, lookTextures } from './board-looks';
 
 const LETTER: Record<PieceType, PieceLetter> = {
@@ -20,6 +20,8 @@ const LIFT_Y = 0.38;
  * (a stalled connection), the stand-in lathe pieces are shown instead and swapped when the files arrive.
  */
 const MODEL_WAIT_MS = 6000;
+/** Longest the board waits for its shaders to compile before drawing anyway (a driver that never reports them done) */
+const COMPILE_WAIT_MS = 8000;
 const BASE_PITCH = -0.24;
 /** What the camera looks at in the tilted 3D view. */
 const PERSP_TARGET = new THREE.Vector3(0, -0.3, 0.3);
@@ -195,6 +197,12 @@ export class LuxeBoardScene {
   /** Waiting for the piece models: setPosition only remembers the position until they are in */
   private modelsPending = false;
   private modelsTimer = 0;
+  /** The shaders are still compiling (see compile()): nothing is drawn yet, and the intro waits for it */
+  private compiling = true;
+  /** Run once the next frame has been drawn: frees the look that has just been replaced (see retireBoard) */
+  private afterDraw: Array<() => void> = [];
+  /** One pawn per look, never drawn: their materials keep every look's shader programs alive (see keepLooksWarm) */
+  private warm: { group: THREE.Group; mats: LuxeMaterials[] } | null = null;
 
   private raycaster = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
@@ -254,7 +262,12 @@ export class LuxeBoardScene {
     this.bindEvents();
 
     this.boardGroup.position.y = this.study ? 0.9 : -2;
-    this.frame();
+    this.keepLooksWarm();
+    this.frame(); // arms the loop; nothing is drawn until the shaders are compiled
+    // a tick on, so that the pieces the caller is about to set are compiled with the rest
+    queueMicrotask(() => void this.compile().then(() => {
+      try { this.drawWarm(); } finally { this.compiling = false; }
+    }));
 
     // the model files come in after the first frame; until they have, no piece is drawn
     if (!pieceModelsSettled()) {
@@ -304,13 +317,16 @@ export class LuxeBoardScene {
   /** Re-dress the board and pieces in another style, keeping the position, selection and camera. */
   setLook(look: Style3D): void {
     if (look === this.look || this.disposed) return;
-    this.disposeBoard();
+    // The old look is freed only after the new one has been drawn: a shader program is deleted the moment the
+    // last material using it goes, and the new materials (the same programs, other colours) would compile it again.
+    const free = this.retireBoard();
     this.look = look;
     this.mats = makeLuxeMaterials(LOOKS_3D[look]);
     this.buildBoard();
     this.applyCamera(); // re-applies the top-view reflection dimming to the new materials
     if (this.lastSquares) this.setPosition(this.lastSquares, false);
     else this.applyHighlights();
+    this.afterDraw.push(free);
   }
 
   setFlipped(flipped: boolean): void {
@@ -417,29 +433,44 @@ export class LuxeBoardScene {
     }
   }
 
-  /** Free everything that belongs to the current style: squares, frame, labels, pieces. */
-  private disposeBoard(): void {
+  /**
+   * Take everything that belongs to the current style (squares, frame, labels, pieces) off the board, and hand
+   * back what frees it. Nothing is freed until that is called, so the old look can stay alive while the new one is made.
+   */
+  private retireBoard(): () => void {
     this.clearMarkers();
     this.tweens = [];
     this.boardParts.forEach((o) => this.boardGroup.remove(o));
+    const textures = this.sqTextures;
+    const materials = this.ownedMaterials;
+    const geometries = this.ownedGeometries;
+    const pieces = [...this.pieces.values()];
+    const mats = this.mats;
     this.boardParts = [];
     this.sqMeshes = [];
     this.boardMaterials = [];
-    this.sqTextures.forEach((t) => t.dispose());
     this.sqTextures = [];
-    this.ownedMaterials.forEach((m) => m.dispose());
     this.ownedMaterials = [];
-    this.ownedGeometries.forEach((g) => g.dispose());
     this.ownedGeometries = [];
-    this.pieces.forEach((e) => this.disposePiece(e));
     this.pieces.clear();
     this.pieceGroup.clear();
-    Object.values(this.mats).forEach((m: THREE.Material) => m.dispose());
+    return () => {
+      textures.forEach((t) => t.dispose());
+      materials.forEach((m) => m.dispose());
+      geometries.forEach((g) => g.dispose());
+      pieces.forEach((e) => this.disposeBodies(e.group));
+      disposeLuxeMaterials(mats);
+    };
+  }
+
+  /** Free everything that belongs to the current style at once. */
+  private disposeBoard(): void {
+    this.retireBoard()();
   }
 
   /** A piece's own materials (the geometry is shared by every piece of its kind) */
-  private disposePiece(e: PieceEntry): void {
-    e.group.traverse((o) => {
+  private disposeBodies(piece: THREE.Object3D): void {
+    piece.traverse((o) => {
       const mat = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
       for (const m of Array.isArray(mat) ? mat : mat ? [mat] : []) if (m.userData['body']) m.dispose();
     });
@@ -452,6 +483,12 @@ export class LuxeBoardScene {
     this.listeners.forEach((off) => off());
     this.setArcs([]);
     this.carryLight?.dispose();
+    this.afterDraw.splice(0).forEach((free) => free());
+    if (this.warm) {
+      this.disposeBodies(this.warm.group);
+      this.warm.mats.forEach(disposeLuxeMaterials);
+      this.warm = null;
+    }
     this.disposeBoard();
     [this.dotGeo, this.ringGeo].forEach((g) => g.dispose());
     [this.dotMat, this.ringMat].forEach((m) => m.dispose());
@@ -848,10 +885,69 @@ export class LuxeBoardScene {
     this.modelsPending = false;
     if (!this.lastSquares) return; // nothing to draw yet: the first setPosition will do it directly
     this.setPosition(this.lastSquares, false);
-    this.pieces.forEach((e) => {
-      const g = e.group;
-      g.scale.setScalar(0.01);
-      this.tween(280, (t) => g.scale.setScalar(0.01 + 0.99 * (1 - Math.pow(1 - t, 3))), undefined, (7 - e.row) * 40 + e.col * 6);
+    // the pieces stay hidden while their shaders compile (if they are not already), then come in
+    this.pieceGroup.visible = false;
+    void this.compile().then(() => {
+      if (this.disposed) return;
+      this.pieceGroup.visible = true;
+      this.pieces.forEach((e) => {
+        const g = e.group;
+        g.scale.setScalar(0.01);
+        this.tween(280, (t) => g.scale.setScalar(0.01 + 0.99 * (1 - Math.pow(1 - t, 3))), undefined, (7 - e.row) * 40 + e.col * 6);
+      });
+    });
+  }
+
+  /**
+   * Make a pawn in each look's materials and keep them, hidden, for as long as the scene lives. A shader program is
+   * deleted when the last material that uses it goes, so without these the style that is not on show would have to
+   * compile its programs again each time it is picked. Compiling them with the rest also leaves them in the
+   * graphics driver's cache. Hidden objects are compiled but never drawn.
+   */
+  private keepLooksWarm(): void {
+    const group = new THREE.Group();
+    group.visible = false;
+    const sets = (Object.keys(LOOKS_3D) as Style3D[]).map((look) => {
+      const mats = makeLuxeMaterials(LOOKS_3D[look]);
+      group.add(buildPiece('P', true, mats));
+      return mats;
+    });
+    this.scene.add(group);
+    this.warm = { group, mats: sets };
+  }
+
+  /** Draw the warm pawns once, too small to see: some drivers only finish a program when it is first drawn. */
+  private drawWarm(): void {
+    const warm = this.warm?.group;
+    if (!warm || this.disposed) return;
+    warm.visible = true;
+    warm.scale.setScalar(1e-4);
+    this.renderer.render(this.scene, this.camera);
+    warm.visible = false;
+  }
+
+  /**
+   * Have every shader in the scene compiled, all at once and without holding up the page. Left alone, three
+   * compiles each shader the first time something using it is drawn, one after the other, and the page stands
+   * still for all of it (seconds, on some graphics drivers). Resolves when they are ready; at once if the
+   * driver cannot compile in parallel (then the first draw compiles, as before), and after a while regardless.
+   */
+  private compile(): Promise<void> {
+    try {
+      this.renderer.compile(this.scene, this.camera);
+    } catch (err) {
+      console.warn('[luxe-board-scene] shader pre-compile failed, compiling on first draw', err);
+      return Promise.resolve();
+    }
+    const giveUp = performance.now() + COMPILE_WAIT_MS;
+    return new Promise((resolve) => {
+      const poll = (): void => {
+        // `isReady` is three's own check of the driver's "compile finished" flag
+        const programs = (this.renderer.info.programs ?? []) as Array<{ isReady?: () => boolean }>;
+        if (this.disposed || programs.every((p) => p.isReady?.() ?? true) || performance.now() > giveUp) resolve();
+        else window.setTimeout(poll, 16);
+      };
+      poll();
     });
   }
 
@@ -1200,7 +1296,7 @@ export class LuxeBoardScene {
   private frame = (): void => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.frame);
-    if (!this.visible || document.hidden) return;
+    if (!this.visible || document.hidden || this.compiling) return;
 
     const now = performance.now();
     const t = now * 0.001;
@@ -1248,5 +1344,6 @@ export class LuxeBoardScene {
     this.markers.forEach((m, i) => m.scale.setScalar(0.85 + Math.sin(t * 2 + i * 0.9) * 0.1));
 
     this.renderer.render(this.scene, this.camera);
+    this.afterDraw.splice(0).forEach((free) => free());
   };
 }

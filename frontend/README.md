@@ -86,6 +86,13 @@ The flat 2D board and the top view keep the plain dark background.
   files need nothing.
 * **The wood.** The study is tuned for the `classic-wood` board style (the backend only accepts `marble-gold`,
   `classic-wood` and `ebony-ivory`, so no new style was added).
+* **Loading.** Left alone, three compiles each shader the first time something using it is drawn, one after the
+  other, and the page stands still for all of it (about 2.5 s for the study on a Windows/ANGLE GPU). So the scene
+  compiles every shader at once and without blocking (`compile()`), draws nothing until they are ready, and keeps a
+  hidden pawn in each style's materials (`keepLooksWarm`): a shader program is deleted when the last material using it
+  goes, so without them every style change compiled its programs again. A style change builds the new look before it
+  frees the old one for the same reason. What is left is painting a style's textures the first time it is shown (up to
+  about 0.8 s on that machine, once per style and visit).
 
 ## In production
 
