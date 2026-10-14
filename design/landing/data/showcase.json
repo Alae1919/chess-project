@@ -1,0 +1,959 @@
+{
+ "meta": {
+  "engine": "REXCHESS",
+  "engineCommit": "acf5cf5",
+  "eval": "nnue",
+  "network": {
+   "file": "chess-engine/src/main/resources/nnue/default.nnue",
+   "sha256": "2e35c4e0da66570fd71fb68c2cbb62ccf6226011664b5a775a56227364118cea"
+  },
+  "hashMb": 16,
+  "rootDepth": 14,
+  "moveDepth": 13,
+  "generated": "2026-10-09T14:14:49+00:00",
+  "recorder": "design/landing/tools/record.py, python-chess 1.11.2 over UCI",
+  "method": "depth-limited searches, each from a fresh engine state (ucinewgame)"
+ },
+ "source": {
+  "site": "https://lichess.org/pT2w9HPz",
+  "event": "Rated Classical game",
+  "date": "2016.01.01",
+  "white": "popolesimi",
+  "whiteElo": 2202,
+  "black": "simbali",
+  "blackElo": 2164,
+  "licence": "Lichess open database, CC0",
+  "played": "Nf5"
+ },
+ "position": {
+  "fen": "5r1k/p1p3b1/1p5p/3Pp1p1/6P1/1QP3N1/PP3q1P/2K4R w - - 3 26",
+  "sideToMove": "white",
+  "fullmove": 26,
+  "legalMoves": 25
+ },
+ "root": {
+  "depth": 14,
+  "nodes": 667110,
+  "score": {
+   "cp": -54
+  },
+  "best": {
+   "uci": "c1b1",
+   "san": "Kb1",
+   "from": "c1",
+   "to": "b1",
+   "piece": "king",
+   "captured": null,
+   "capture": false,
+   "check": false
+  },
+  "pv": [
+   {
+    "uci": "c1b1",
+    "san": "Kb1",
+    "from": "c1",
+    "to": "b1",
+    "piece": "king",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   {
+    "uci": "f8f4",
+    "san": "Rf4",
+    "from": "f8",
+    "to": "f4",
+    "piece": "rook",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   {
+    "uci": "b3c2",
+    "san": "Qc2",
+    "from": "b3",
+    "to": "c2",
+    "piece": "queen",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   {
+    "uci": "f2c2",
+    "san": "Qxc2+",
+    "from": "f2",
+    "to": "c2",
+    "piece": "queen",
+    "captured": "queen",
+    "capture": true,
+    "check": true
+   },
+   {
+    "uci": "b1c2",
+    "san": "Kxc2",
+    "from": "b1",
+    "to": "c2",
+    "piece": "king",
+    "captured": "queen",
+    "capture": true,
+    "check": false
+   },
+   {
+    "uci": "f4g4",
+    "san": "Rxg4",
+    "from": "f4",
+    "to": "g4",
+    "piece": "rook",
+    "captured": "pawn",
+    "capture": true,
+    "check": false
+   },
+   {
+    "uci": "c2b3",
+    "san": "Kb3",
+    "from": "c2",
+    "to": "b3",
+    "piece": "king",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   {
+    "uci": "g4f4",
+    "san": "Rf4",
+    "from": "g4",
+    "to": "f4",
+    "piece": "rook",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   {
+    "uci": "h1f1",
+    "san": "Rf1",
+    "from": "h1",
+    "to": "f1",
+    "piece": "rook",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   {
+    "uci": "f4f1",
+    "san": "Rxf1",
+    "from": "f4",
+    "to": "f1",
+    "piece": "rook",
+    "captured": "rook",
+    "capture": true,
+    "check": false
+   },
+   {
+    "uci": "g3f1",
+    "san": "Nxf1",
+    "from": "g3",
+    "to": "f1",
+    "piece": "knight",
+    "captured": "rook",
+    "capture": true,
+    "check": false
+   },
+   {
+    "uci": "e5e4",
+    "san": "e4",
+    "from": "e5",
+    "to": "e4",
+    "piece": "pawn",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   {
+    "uci": "f1g3",
+    "san": "Ng3",
+    "from": "f1",
+    "to": "g3",
+    "piece": "knight",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   {
+    "uci": "g7e5",
+    "san": "Be5",
+    "from": "g7",
+    "to": "e5",
+    "piece": "bishop",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   {
+    "uci": "b3c4",
+    "san": "Kc4",
+    "from": "b3",
+    "to": "c4",
+    "piece": "king",
+    "captured": null,
+    "capture": false,
+    "check": false
+   }
+  ]
+ },
+ "moves": [
+  {
+   "uci": "c1b1",
+   "san": "Kb1",
+   "from": "c1",
+   "to": "b1",
+   "piece": "king",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -43
+   },
+   "depth": 13,
+   "nodes": 437014,
+   "reply": {
+    "uci": "f2g2",
+    "san": "Qg2",
+    "from": "f2",
+    "to": "g2",
+    "piece": "queen",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   "rank": 1
+  },
+  {
+   "uci": "b3b5",
+   "san": "Qb5",
+   "from": "b3",
+   "to": "b5",
+   "piece": "queen",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -73
+   },
+   "depth": 13,
+   "nodes": 600529,
+   "reply": {
+    "uci": "f2e3",
+    "san": "Qe3+",
+    "from": "f2",
+    "to": "e3",
+    "piece": "queen",
+    "captured": null,
+    "capture": false,
+    "check": true
+   },
+   "rank": 2
+  },
+  {
+   "uci": "a2a3",
+   "san": "a3",
+   "from": "a2",
+   "to": "a3",
+   "piece": "pawn",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -76
+   },
+   "depth": 13,
+   "nodes": 634194,
+   "reply": {
+    "uci": "f8f4",
+    "san": "Rf4",
+    "from": "f8",
+    "to": "f4",
+    "piece": "rook",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   "rank": 3
+  },
+  {
+   "uci": "b3c2",
+   "san": "Qc2",
+   "from": "b3",
+   "to": "c2",
+   "piece": "queen",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -82
+   },
+   "depth": 13,
+   "nodes": 688975,
+   "reply": {
+    "uci": "f2f4",
+    "san": "Qf4+",
+    "from": "f2",
+    "to": "f4",
+    "piece": "queen",
+    "captured": null,
+    "capture": false,
+    "check": true
+   },
+   "rank": 4
+  },
+  {
+   "uci": "d5d6",
+   "san": "d6",
+   "from": "d5",
+   "to": "d6",
+   "piece": "pawn",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -87
+   },
+   "depth": 13,
+   "nodes": 516388,
+   "reply": {
+    "uci": "c7d6",
+    "san": "cxd6",
+    "from": "c7",
+    "to": "d6",
+    "piece": "pawn",
+    "captured": "pawn",
+    "capture": true,
+    "check": false
+   },
+   "rank": 5
+  },
+  {
+   "uci": "b3d1",
+   "san": "Qd1",
+   "from": "b3",
+   "to": "d1",
+   "piece": "queen",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -103
+   },
+   "depth": 13,
+   "nodes": 323552,
+   "reply": {
+    "uci": "f8f4",
+    "san": "Rf4",
+    "from": "f8",
+    "to": "f4",
+    "piece": "rook",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   "rank": 6
+  },
+  {
+   "uci": "a2a4",
+   "san": "a4",
+   "from": "a2",
+   "to": "a4",
+   "piece": "pawn",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -105
+   },
+   "depth": 13,
+   "nodes": 427814,
+   "reply": {
+    "uci": "e5e4",
+    "san": "e4",
+    "from": "e5",
+    "to": "e4",
+    "piece": "pawn",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   "rank": 7
+  },
+  {
+   "uci": "b3c4",
+   "san": "Qc4",
+   "from": "b3",
+   "to": "c4",
+   "piece": "queen",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -110
+   },
+   "depth": 13,
+   "nodes": 575916,
+   "reply": {
+    "uci": "f8f4",
+    "san": "Rf4",
+    "from": "f8",
+    "to": "f4",
+    "piece": "rook",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   "rank": 8
+  },
+  {
+   "uci": "b3a4",
+   "san": "Qa4",
+   "from": "b3",
+   "to": "a4",
+   "piece": "queen",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -110
+   },
+   "depth": 13,
+   "nodes": 542602,
+   "reply": {
+    "uci": "f8f4",
+    "san": "Rf4",
+    "from": "f8",
+    "to": "f4",
+    "piece": "rook",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   "rank": 9
+  },
+  {
+   "uci": "h1d1",
+   "san": "Rd1",
+   "from": "h1",
+   "to": "d1",
+   "piece": "rook",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -140
+   },
+   "depth": 13,
+   "nodes": 366531,
+   "reply": {
+    "uci": "f2h2",
+    "san": "Qxh2",
+    "from": "f2",
+    "to": "h2",
+    "piece": "queen",
+    "captured": "pawn",
+    "capture": true,
+    "check": false
+   },
+   "rank": 10
+  },
+  {
+   "uci": "c1d1",
+   "san": "Kd1",
+   "from": "c1",
+   "to": "d1",
+   "piece": "king",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -149
+   },
+   "depth": 13,
+   "nodes": 2120070,
+   "reply": {
+    "uci": "h6h5",
+    "san": "h5",
+    "from": "h6",
+    "to": "h5",
+    "piece": "pawn",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   "rank": 11
+  },
+  {
+   "uci": "c3c4",
+   "san": "c4",
+   "from": "c3",
+   "to": "c4",
+   "piece": "pawn",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -157
+   },
+   "depth": 13,
+   "nodes": 516935,
+   "reply": {
+    "uci": "f2g2",
+    "san": "Qg2",
+    "from": "f2",
+    "to": "g2",
+    "piece": "queen",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   "rank": 12
+  },
+  {
+   "uci": "g3f1",
+   "san": "Nf1",
+   "from": "g3",
+   "to": "f1",
+   "piece": "knight",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -177
+   },
+   "depth": 13,
+   "nodes": 1382208,
+   "reply": {
+    "uci": "e5e4",
+    "san": "e4",
+    "from": "e5",
+    "to": "e4",
+    "piece": "pawn",
+    "captured": null,
+    "capture": false,
+    "check": false
+   },
+   "rank": 13
+  },
+  {
+   "uci": "g3e4",
+   "san": "Ne4",
+   "from": "g3",
+   "to": "e4",
+   "piece": "knight",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -185
+   },
+   "depth": 13,
+   "nodes": 417653,
+   "reply": {
+    "uci": "f2e3",
+    "san": "Qe3+",
+    "from": "f2",
+    "to": "e3",
+    "piece": "queen",
+    "captured": null,
+    "capture": false,
+    "check": true
+   },
+   "rank": 14
+  },
+  {
+   "uci": "h1f1",
+   "san": "Rf1",
+   "from": "h1",
+   "to": "f1",
+   "piece": "rook",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -202
+   },
+   "depth": 13,
+   "nodes": 286859,
+   "reply": {
+    "uci": "f2e3",
+    "san": "Qe3+",
+    "from": "f2",
+    "to": "e3",
+    "piece": "queen",
+    "captured": null,
+    "capture": false,
+    "check": true
+   },
+   "rank": 15
+  },
+  {
+   "uci": "b3b4",
+   "san": "Qb4",
+   "from": "b3",
+   "to": "b4",
+   "piece": "queen",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -272
+   },
+   "depth": 13,
+   "nodes": 437457,
+   "reply": {
+    "uci": "f2e3",
+    "san": "Qe3+",
+    "from": "f2",
+    "to": "e3",
+    "piece": "queen",
+    "captured": null,
+    "capture": false,
+    "check": true
+   },
+   "rank": 16
+  },
+  {
+   "uci": "b3a3",
+   "san": "Qa3",
+   "from": "b3",
+   "to": "a3",
+   "piece": "queen",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -278
+   },
+   "depth": 13,
+   "nodes": 478740,
+   "reply": {
+    "uci": "f2e3",
+    "san": "Qe3+",
+    "from": "f2",
+    "to": "e3",
+    "piece": "queen",
+    "captured": null,
+    "capture": false,
+    "check": true
+   },
+   "rank": 17
+  },
+  {
+   "uci": "h2h3",
+   "san": "h3",
+   "from": "h2",
+   "to": "h3",
+   "piece": "pawn",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -677
+   },
+   "depth": 13,
+   "nodes": 201339,
+   "reply": {
+    "uci": "f2g3",
+    "san": "Qxg3",
+    "from": "f2",
+    "to": "g3",
+    "piece": "queen",
+    "captured": "knight",
+    "capture": true,
+    "check": false
+   },
+   "rank": 18
+  },
+  {
+   "uci": "g3e2",
+   "san": "Ne2",
+   "from": "g3",
+   "to": "e2",
+   "piece": "knight",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -691
+   },
+   "depth": 13,
+   "nodes": 243876,
+   "reply": {
+    "uci": "f2e2",
+    "san": "Qxe2",
+    "from": "f2",
+    "to": "e2",
+    "piece": "queen",
+    "captured": "knight",
+    "capture": true,
+    "check": false
+   },
+   "rank": 19
+  },
+  {
+   "uci": "h2h4",
+   "san": "h4",
+   "from": "h2",
+   "to": "h4",
+   "piece": "pawn",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -819
+   },
+   "depth": 13,
+   "nodes": 190091,
+   "reply": {
+    "uci": "f2g3",
+    "san": "Qxg3",
+    "from": "f2",
+    "to": "g3",
+    "piece": "queen",
+    "captured": "knight",
+    "capture": true,
+    "check": false
+   },
+   "rank": 20
+  },
+  {
+   "uci": "g3f5",
+   "san": "Nf5",
+   "from": "g3",
+   "to": "f5",
+   "piece": "knight",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -907
+   },
+   "depth": 13,
+   "nodes": 305218,
+   "reply": {
+    "uci": "f2f4",
+    "san": "Qf4+",
+    "from": "f2",
+    "to": "f4",
+    "piece": "queen",
+    "captured": null,
+    "capture": false,
+    "check": true
+   },
+   "rank": 21
+  },
+  {
+   "uci": "h1e1",
+   "san": "Re1",
+   "from": "h1",
+   "to": "e1",
+   "piece": "rook",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -1086
+   },
+   "depth": 13,
+   "nodes": 127460,
+   "reply": {
+    "uci": "f2e1",
+    "san": "Qxe1+",
+    "from": "f2",
+    "to": "e1",
+    "piece": "queen",
+    "captured": "rook",
+    "capture": true,
+    "check": true
+   },
+   "rank": 22
+  },
+  {
+   "uci": "h1g1",
+   "san": "Rg1",
+   "from": "h1",
+   "to": "g1",
+   "piece": "rook",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -1221
+   },
+   "depth": 13,
+   "nodes": 248722,
+   "reply": {
+    "uci": "f2e3",
+    "san": "Qe3+",
+    "from": "f2",
+    "to": "e3",
+    "piece": "queen",
+    "captured": null,
+    "capture": false,
+    "check": true
+   },
+   "rank": 23
+  },
+  {
+   "uci": "b3b6",
+   "san": "Qxb6",
+   "from": "b3",
+   "to": "b6",
+   "piece": "queen",
+   "captured": "pawn",
+   "capture": true,
+   "check": false,
+   "score": {
+    "cp": -1679
+   },
+   "depth": 13,
+   "nodes": 299408,
+   "reply": {
+    "uci": "a7b6",
+    "san": "axb6",
+    "from": "a7",
+    "to": "b6",
+    "piece": "pawn",
+    "captured": "queen",
+    "capture": true,
+    "check": false
+   },
+   "rank": 24
+  },
+  {
+   "uci": "g3h5",
+   "san": "Nh5",
+   "from": "g3",
+   "to": "h5",
+   "piece": "knight",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "score": {
+    "cp": -1971
+   },
+   "depth": 13,
+   "nodes": 217109,
+   "reply": {
+    "uci": "f2e3",
+    "san": "Qe3+",
+    "from": "f2",
+    "to": "e3",
+    "piece": "queen",
+    "captured": null,
+    "capture": false,
+    "check": true
+   },
+   "rank": 25
+  }
+ ],
+ "totals": {
+  "movesSearched": 25,
+  "nodes": 12586660
+ },
+ "line": [
+  {
+   "uci": "g3f5",
+   "san": "Nf5",
+   "from": "g3",
+   "to": "f5",
+   "piece": "knight",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "fen": "5r1k/p1p3b1/1p5p/3PpNp1/6P1/1QP5/PP3q1P/2K4R b - - 4 26",
+   "score": {
+    "cp": -907
+   },
+   "depth": 13
+  },
+  {
+   "uci": "f2f4",
+   "san": "Qf4+",
+   "from": "f2",
+   "to": "f4",
+   "piece": "queen",
+   "captured": null,
+   "capture": false,
+   "check": true,
+   "fen": "5r1k/p1p3b1/1p5p/3PpNp1/5qP1/1QP5/PP5P/2K4R w - - 5 27",
+   "score": {
+    "cp": -924
+   },
+   "depth": 13
+  },
+  {
+   "uci": "c1b1",
+   "san": "Kb1",
+   "from": "c1",
+   "to": "b1",
+   "piece": "king",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "fen": "5r1k/p1p3b1/1p5p/3PpNp1/5qP1/1QP5/PP5P/1K5R b - - 6 27",
+   "score": {
+    "cp": -826
+   },
+   "depth": 13
+  },
+  {
+   "uci": "f4e4",
+   "san": "Qe4+",
+   "from": "f4",
+   "to": "e4",
+   "piece": "queen",
+   "captured": null,
+   "capture": false,
+   "check": true,
+   "fen": "5r1k/p1p3b1/1p5p/3PpNp1/4q1P1/1QP5/PP5P/1K5R w - - 7 28",
+   "score": {
+    "cp": -919
+   },
+   "depth": 13
+  },
+  {
+   "uci": "b1c1",
+   "san": "Kc1",
+   "from": "b1",
+   "to": "c1",
+   "piece": "king",
+   "captured": null,
+   "capture": false,
+   "check": false,
+   "fen": "5r1k/p1p3b1/1p5p/3PpNp1/4q1P1/1QP5/PP5P/2K4R b - - 8 28",
+   "score": {
+    "cp": -949
+   },
+   "depth": 13
+  },
+  {
+   "uci": "e4h1",
+   "san": "Qxh1+",
+   "from": "e4",
+   "to": "h1",
+   "piece": "queen",
+   "captured": "rook",
+   "capture": true,
+   "check": true,
+   "fen": "5r1k/p1p3b1/1p5p/3PpNp1/6P1/1QP5/PP5P/2K4q w - - 0 29",
+   "score": {
+    "cp": -903
+   },
+   "depth": 13
+  }
+ ],
+ "lineMeta": {
+  "from": "Nf5",
+  "searchDepth": 14,
+  "searchNodes": 975968,
+  "score": {
+   "cp": -912
+  }
+ }
+}

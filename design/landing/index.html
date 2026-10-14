@@ -1,0 +1,648 @@
+<title>REXCHESS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* One light in a dark room: a full-bleed film for the human beats, the machine's view as the real board
+   with the engine's recorded search drawn on it. Gold = the brand, blue = engine data, nothing else. */
+:root {
+  color-scheme: dark;
+  --bg: #050505;
+  --ink: #F1E9D8;
+  --ink-dim: rgba(241, 233, 216, .62);
+  --line: rgba(241, 233, 216, .16);
+  --gold: #c9a45c;
+  --gold-hi: #e0bd76;
+  --blue: #4F8CFF;
+  --serif: 'Cormorant Garamond', 'Times New Roman', serif;
+  --sans: 'Jost', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', monospace;
+  --gutter: clamp(20px, 6vw, 96px);
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); }
+body { font: 400 16px/1.55 var(--sans); -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+img, video { display: block; max-width: 100%; }
+a { color: var(--ink); text-underline-offset: 6px; text-decoration-color: rgba(241, 233, 216, .35); }
+a:hover { color: var(--gold-hi); }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+p, h1, h2, h3, ol, dl, dd, figure { margin: 0; }
+
+.wordmark { font: 600 18px/1 var(--serif); letter-spacing: .32em; color: var(--gold); text-decoration: none; }
+.play { display: inline-flex; align-items: center; justify-content: center; height: 52px; padding: 0 30px; border: 0; border-radius: 2px;
+  background: var(--gold); color: var(--bg); text-decoration: none; font: 500 15px/1 var(--sans); letter-spacing: .03em; cursor: pointer;
+  transition: background-color 140ms ease-out, transform 140ms ease-out; }
+.play:hover { background: var(--gold-hi); color: var(--bg); }
+.play:active { transform: scale(.98); }
+.ctas { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+.ctas .text-link { padding: 14px 0; font-size: 15px; }
+.mono { font-family: var(--mono); font-feature-settings: 'tnum'; }
+
+/* ── 1 · the silence ───────────────────────────────────────────────────────────── */
+.hero { position: relative; height: 100svh; min-height: 560px; overflow: hidden; isolation: isolate; }
+.hero__video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+.hero__shade { position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background:
+    linear-gradient(0deg, rgba(5, 5, 5, .9) 0%, rgba(5, 5, 5, .62) 30%, rgba(5, 5, 5, 0) 58%),
+    radial-gradient(ellipse 120% 95% at 50% 40%, transparent 52%, rgba(5, 5, 5, .9) 100%),
+    radial-gradient(ellipse 75% 70% at 0% 100%, rgba(5, 5, 5, .94) 0%, rgba(5, 5, 5, .55) 45%, transparent 75%); }
+.hero .wordmark { position: absolute; top: clamp(20px, 4vh, 40px); left: var(--gutter); }
+.hero__copy { position: absolute; left: var(--gutter); right: var(--gutter); bottom: clamp(32px, 9vh, 96px); max-width: 46rem; }
+.hero__pre { font: italic 500 clamp(20px, 1.9vw, 28px)/1.2 var(--serif); color: var(--ink-dim); margin-bottom: .55em; }
+.hero h1 { font: 500 clamp(2.5rem, 5.8vw, 5.5rem)/1 var(--serif); letter-spacing: -.012em; text-wrap: balance; }
+.hero h1 em { display: block; }
+.hero .ctas { margin-top: clamp(28px, 4.5vh, 44px); }
+.hero__signin { margin-top: 20px; font-size: 14px; color: var(--ink-dim); }
+.skip { position: absolute; top: clamp(16px, 3.6vh, 34px); right: var(--gutter); padding: 10px 0; border: 0; background: none;
+  color: var(--ink-dim); font: 400 14px var(--sans); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity 300ms ease-out; }
+.intro .skip { opacity: 1; pointer-events: auto; }
+[data-step] { transition: opacity 900ms var(--ease-out), transform 900ms var(--ease-out); }
+.intro [data-step]:not(.shown) { opacity: 0; transform: translateY(10px); animation: failsafe 1ms 4.5s forwards; }
+@keyframes failsafe { to { opacity: 1; transform: none; } }   /* the copy shows even if the script never runs */
+
+/* ── tracks: tall sections whose stage stays pinned while the scroll drives it ───────── */
+.track { position: relative; }
+.stage { position: relative; min-height: 100svh; overflow: hidden; isolation: isolate; }
+.cine .track { height: calc(var(--len) * 1vh); height: calc(var(--len) * 1lvh); }
+.cine .track > .stage { position: sticky; top: 0; height: 100svh; min-height: 0; }
+.shutter { position: absolute; inset: 0; background: var(--bg); opacity: 0; pointer-events: none; z-index: 5; }
+
+/* ── 2 · the instinct ────────────────────────────────────────────────────────────── */
+.instinct .stage { display: grid; }
+.instinct__video, .instinct__still { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 58% 50%; z-index: -2; }
+.instinct__still { opacity: 0; }
+.no-scrub .instinct__video { visibility: hidden; }
+.no-scrub .instinct__still.on { opacity: 1; }
+.instinct .shade { position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(90deg, rgba(5, 5, 5, .86) 0%, rgba(5, 5, 5, .35) 46%, transparent 70%); }
+.instinct__lines { align-self: center; margin-left: var(--gutter); max-width: 34rem; display: grid; }
+.instinct__lines p { grid-area: 1 / 1; font: 500 clamp(2.2rem, 4.6vw, 4.5rem)/1.04 var(--serif); letter-spacing: -.01em; text-wrap: balance; }
+.instinct__lines p + p { font-style: italic; }
+.cine .instinct__lines p { opacity: 0; }
+
+/* ── 3 · inside the machine ──────────────────────────────────────────────────────── */
+.machine .stage, .consequence .stage { display: grid; align-items: center; }
+.machine .stage { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); column-gap: clamp(24px, 4vw, 72px); padding-right: var(--gutter); }
+.mboard { position: relative; width: min(96svh, 58vw); aspect-ratio: 1; margin-left: -3vw; justify-self: start; }
+.mboard img { position: absolute; inset: 0; width: 100%; height: 100%; filter: brightness(.8) contrast(1.06); }
+.mboard svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.arc { fill: none; stroke: var(--ink); stroke-linecap: round; }
+.arc--under { stroke: rgba(5, 5, 5, .72); }
+.arc--blue { stroke: var(--blue); }
+.arc--dash { stroke-dasharray: 14 12; }
+.mboard .dim { position: absolute; inset: 0; background: var(--bg); opacity: 0; }
+.tag { font: 500 34px var(--mono); fill: var(--ink); paint-order: stroke; stroke: var(--bg); stroke-width: 10px; stroke-linejoin: round; }
+.tag--blue { fill: var(--blue); }
+.ring { fill: none; stroke: var(--ink); stroke-width: 4; }
+.ring--under { stroke: rgba(5, 5, 5, .72); stroke-width: 10; }
+.panel { display: grid; gap: clamp(20px, 3.4vh, 34px); max-width: 30rem; }
+.panel__kicker { font: 400 14px/1.4 var(--sans); color: var(--ink-dim); }
+.panel__kicker a { color: var(--ink-dim); }
+.steps { display: grid; min-height: 6.6em; }
+.steps > p { grid-area: 1 / 1; font: 500 clamp(1.9rem, 3vw, 3rem)/1.06 var(--serif); letter-spacing: -.01em; text-wrap: balance;
+  opacity: 0; transform: translateY(8px); transition: opacity 420ms var(--ease-out), transform 420ms var(--ease-out); }
+.steps > p.on { opacity: 1; transform: none; }
+.steps em { font-style: italic; }
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 28px; padding-top: 22px; border-top: 1px solid var(--line); }
+.stats dt { font-size: 13px; color: var(--ink-dim); }
+.stats dd { font: 500 clamp(18px, 1.6vw, 24px)/1.25 var(--mono); font-feature-settings: 'tnum'; margin-top: 4px; }
+.stats dd.blue { color: var(--blue); }
+.stats .wide { grid-column: 1 / -1; }
+.source { font-size: 13px; line-height: 1.5; color: var(--ink-dim); }
+.source a { color: var(--ink-dim); }
+.pv { font: 400 15px/1.6 var(--mono); color: var(--blue); min-height: 1.6em; }
+
+/* ── 4 · the consequence ─────────────────────────────────────────────────────────── */
+.consequence .stage { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); column-gap: clamp(24px, 4vw, 72px); padding-left: var(--gutter); }
+.consequence h2 { font: 500 clamp(2.2rem, 3.8vw, 3.8rem)/1.02 var(--serif); letter-spacing: -.012em; text-wrap: balance; }
+.consequence .mboard { justify-self: end; margin-left: 0; margin-right: -3vw; width: min(96svh, 52vw); }
+.consequence .mboard img { opacity: 0; }
+.consequence .mboard img:first-child { opacity: 1; }
+.plies { list-style: none; padding: 0; display: grid; gap: 4px; font: 400 17px/1.5 var(--mono); }
+.plies li { display: grid; grid-template-columns: 4.2em 1fr auto; gap: 12px; color: var(--ink-dim); transition: color 200ms ease-out; }
+.plies li.on { color: var(--ink); }
+.plies li .score { font-size: 14px; }
+.ply-caption { font: italic 500 clamp(1.4rem, 2vw, 1.9rem)/1.2 var(--serif); min-height: 2.5em; }
+.left { display: grid; gap: clamp(18px, 3vh, 30px); max-width: 28rem; }
+
+/* ── 5 · your game ───────────────────────────────────────────────────────────────── */
+.door { position: relative; min-height: 100svh; display: grid; align-items: center; overflow: hidden; isolation: isolate; padding: 96px var(--gutter); }
+.door__image { position: absolute; inset: 0 0 0 auto; width: min(62vw, 100svh); height: 100%; object-fit: cover; object-position: 62% 50%; z-index: -1;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 34%); mask-image: linear-gradient(90deg, transparent 0%, #000 34%); }
+.door__copy { display: grid; gap: 28px; max-width: 30rem; }
+.door h2 { font: 500 clamp(2.2rem, 3.8vw, 3.8rem)/1.02 var(--serif); letter-spacing: -.012em; text-wrap: balance; }
+.door h2 em { display: block; }
+fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; }
+legend { font-size: 13px; color: var(--ink-dim); margin-bottom: 10px; padding: 0; }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.choices input { position: absolute; opacity: 0; pointer-events: none; }
+.choices label { min-width: 48px; height: 44px; padding: 0 16px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line); border-radius: 2px; cursor: pointer; font: 500 15px var(--sans); color: var(--ink-dim);
+  transition: border-color 140ms ease-out, color 140ms ease-out; }
+.choices input:checked + label { border-color: var(--ink); color: var(--ink); }
+.choices input:focus-visible + label { outline: 2px solid var(--ink); outline-offset: 3px; }
+.door__note { font-size: 14px; color: var(--ink-dim); min-height: 1.5em; }
+
+/* ── 6 · your move ───────────────────────────────────────────────────────────────── */
+.finale { position: relative; height: 100svh; min-height: 600px; overflow: hidden; isolation: isolate; display: grid; grid-template-rows: auto 1fr auto; justify-items: center; text-align: center; padding: clamp(56px, 10vh, 110px) 20px clamp(40px, 8vh, 80px); }
+.finale__image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 58%; z-index: -1; }
+.finale h2 { font: 500 clamp(2.2rem, 4.2vw, 4rem)/1.06 var(--serif); letter-spacing: -.012em; text-wrap: balance; }
+.finale h2 em { display: block; }
+.finale__door { grid-row: 3; display: grid; gap: 22px; justify-items: center; }
+.finale .wordmark { font-size: 26px; letter-spacing: .34em; }
+.finale .ctas { justify-content: center; }
+
+footer { padding: 40px var(--gutter) 56px; border-top: 1px solid var(--line); font-size: 13px; line-height: 1.6; color: var(--ink-dim); display: grid; gap: 6px; }
+footer a { color: var(--ink-dim); }
+footer .mono { font-size: 12px; }
+
+/* phones */
+@media (max-width: 760px) {
+  .cine .track { height: calc(var(--len) * .68vh); height: calc(var(--len) * .68lvh); }
+  .hero .wordmark { font-size: 15px; letter-spacing: .26em; }
+  .hero__copy { bottom: calc(24px + env(safe-area-inset-bottom)); }
+  .hero .ctas, .finale .ctas { flex-direction: column; align-items: stretch; gap: 4px; width: 100%; }
+  .hero .ctas .text-link, .finale .ctas .text-link { text-align: center; }
+  .hero__signin { text-align: center; }
+  .play { height: 54px; }
+  .instinct .shade { background: linear-gradient(0deg, rgba(5, 5, 5, .9) 0%, rgba(5, 5, 5, .4) 42%, transparent 66%); }
+  .instinct__lines { align-self: end; margin: 0 20px calc(40px + env(safe-area-inset-bottom)); }
+  .machine .stage, .consequence .stage { grid-template-columns: 1fr; align-content: start; padding: 0 0 24px; row-gap: 14px; }
+  .mboard, .consequence .mboard { width: 100vw; margin: 0; justify-self: center; }
+  .consequence .mboard { order: -1; }
+  .panel, .left { padding: 0 20px; max-width: none; gap: 14px; }
+  .steps { min-height: 4.4em; }
+  .steps > p { font-size: 1.7rem; }
+  .stats { gap: 10px 20px; padding-top: 14px; }
+  .stats dd { font-size: 17px; }
+  .consequence h2 { font-size: 1.9rem; }
+  .plies { display: none; }
+  .ply-caption { min-height: 2.4em; font-size: 1.3rem; }
+  .door { align-items: end; padding: 0 20px 48px; }
+  .door__image { width: 100%; height: 62%; inset: 0 0 auto 0; object-position: 70% 40%;
+    -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 100%); mask-image: linear-gradient(180deg, #000 55%, transparent 100%); }
+  .door__copy { padding-top: 52svh; }
+  .door .play { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-step], .steps > p, .plies li, .play, .choices label, .skip { transition: none; }
+}
+/* the still cut: everything at rest, nothing pinned or scrubbed */
+.still .steps > p { opacity: 1; transform: none; grid-area: auto; font-size: clamp(1.4rem, 2vw, 1.9rem); }
+.still .steps { gap: 10px; }
+.still .instinct__lines p { grid-area: auto; }
+.still .instinct__video { visibility: hidden; }
+.still .instinct__still.on { opacity: 1; }
+.still .plies { display: grid; }
+</style>
+
+<script>
+  // before first paint: decide the cut (film or stills) and whether the intro plays
+  (function () {
+    var h = document.documentElement, reduce = matchMedia('(prefers-reduced-motion: reduce)').matches, seen = false;
+    try { seen = sessionStorage.getItem('rx-intro') === '1'; } catch (e) {}
+    h.classList.add(reduce ? 'still' : 'cine');
+    if (!reduce && !seen) h.classList.add('intro');
+  })();
+</script>
+
+<main>
+  <section class="hero" id="top" aria-labelledby="hero-title">
+    <video class="hero__video" muted playsinline preload="auto" poster="media/hero-first.webp" src="media/hero.mp4" aria-hidden="true"></video>
+    <div class="hero__shade"></div>
+    <a class="wordmark" href="#top">REXCHESS</a>
+    <button class="skip" type="button">Skip intro</button>
+    <div class="hero__copy">
+      <p class="hero__pre"><span data-step>64 squares.</span> <span data-step>Infinite possibilities.</span></p>
+      <h1 id="hero-title" data-step>Don't just play chess. <em>Outsmart the board.</em></h1>
+      <div class="ctas" data-step>
+        <a class="play" href="#play">Play now</a>
+        <a class="text-link" href="https://github.com/Alae1919/chess-project/blob/main/docs/how-the-ai-works.md">Explore the engine</a>
+      </div>
+      <p class="hero__signin" data-step>Have an account? <a href="#play">Sign in</a></p>
+    </div>
+  </section>
+
+  <section class="track instinct" id="instinct" style="--len: 260" aria-labelledby="instinct-title">
+    <div class="stage">
+      <h2 class="sr" id="instinct-title">The move</h2>
+      <video class="instinct__video" muted playsinline preload="none" poster="media/knight-first.webp" aria-hidden="true"></video>
+      <img class="instinct__still on" src="media/knight-lift.webp" alt="A hand lifting a white knight above the board" loading="lazy">
+      <img class="instinct__still" src="media/knight-down.webp" alt="The knight set down on its new square" loading="lazy">
+      <div class="shade"></div>
+      <div class="instinct__lines">
+        <p>You see a move.</p>
+        <p>The machine sees thousands.</p>
+      </div>
+      <div class="shutter"></div>
+    </div>
+  </section>
+
+  <section class="track machine" id="machine" style="--len: 440" aria-labelledby="machine-title">
+    <div class="stage">
+      <figure class="mboard" aria-label="The recorded position, with every legal move drawn as an arc">
+        <img src="media/board-0.webp" alt="Move 26 of a rated Lichess game, White to play, set on a marble board" loading="lazy">
+        <svg viewBox="0 0 1600 1600" aria-hidden="true"></svg>
+      </figure>
+      <div class="panel">
+        <h2 class="sr" id="machine-title">Inside the machine</h2>
+        <div class="steps" aria-live="off">
+          <p class="on">Move 26. <em>White to play.</em></p>
+          <p><span data-legal></span> legal moves.</p>
+          <p>In the game, White played <em data-played></em>.</p>
+          <p>Each one searched to depth <span data-movedepth></span>. <em>Then ranked.</em></p>
+          <p><span data-played></span> loses to <em data-refute></em>.</p>
+          <p>One remains. <em data-best></em></p>
+          <p>And the line it sees next.</p>
+        </div>
+        <dl class="stats">
+          <div><dt>Legal moves</dt><dd data-stat="legal">–</dd></div>
+          <div><dt>Positions searched <span class="sr">(nodes)</span></dt><dd data-stat="nodes">0</dd></div>
+          <div><dt>Best move</dt><dd class="blue" data-stat="best">–</dd></div>
+          <div><dt>Evaluation <span aria-hidden="true">·</span> pawns, White's side</dt><dd data-stat="eval">–</dd></div>
+          <div class="wide"><dt>The game move</dt><dd data-stat="played">–</dd></div>
+        </dl>
+        <p class="pv" data-pv></p>
+        <p class="source" data-label></p>
+      </div>
+      <div class="shutter"></div>
+    </div>
+  </section>
+
+  <section class="track consequence" id="consequence" style="--len: 380" aria-labelledby="consequence-title">
+    <div class="stage">
+      <div class="left">
+        <h2 id="consequence-title">Every move has a consequence.</h2>
+        <p class="ply-caption" aria-live="off"></p>
+        <ol class="plies"></ol>
+        <p class="source" data-label></p>
+      </div>
+      <figure class="mboard" aria-label="The game move and the engine's reply, move by move">
+        <svg viewBox="0 0 1600 1600" aria-hidden="true"></svg>
+      </figure>
+    </div>
+  </section>
+
+  <section class="door" id="play" aria-labelledby="play-title">
+    <img class="door__image" src="media/king-close.webp" alt="A white marble king waiting on the board" loading="lazy">
+    <form class="door__copy" novalidate>
+      <h2 id="play-title">Play the engine. <em>Then see how it thought.</em></h2>
+      <fieldset>
+        <legend>Level</legend>
+        <div class="choices">
+          <input type="radio" name="level" id="lv1" value="1"><label for="lv1">1</label>
+          <input type="radio" name="level" id="lv2" value="2"><label for="lv2">2</label>
+          <input type="radio" name="level" id="lv3" value="3" checked><label for="lv3">3</label>
+          <input type="radio" name="level" id="lv4" value="4"><label for="lv4">4</label>
+          <input type="radio" name="level" id="lv5" value="5"><label for="lv5">5</label>
+          <input type="radio" name="level" id="lv6" value="6"><label for="lv6">6</label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>You play</legend>
+        <div class="choices">
+          <input type="radio" name="colour" id="cw" value="white" checked><label for="cw">White</label>
+          <input type="radio" name="colour" id="cb" value="black"><label for="cb">Black</label>
+          <input type="radio" name="colour" id="cr" value="random"><label for="cr">Random</label>
+        </div>
+      </fieldset>
+      <div><button class="play" type="submit" id="start">Start game</button></div>
+      <p class="door__note" id="door-note">No account needed. Signed in? You play as yourself.</p>
+    </form>
+  </section>
+
+  <section class="finale" aria-labelledby="finale-title">
+    <img class="finale__image" src="media/king-beam.webp" alt="A single king in a pool of light on a dark board" loading="lazy">
+    <h2 id="finale-title">Every move has a consequence. <em>What's yours?</em></h2>
+    <div class="finale__door">
+      <span class="wordmark" aria-hidden="true">REXCHESS</span>
+      <div class="ctas">
+        <a class="play" href="#play">Play now →</a>
+        <a class="text-link" href="https://github.com/Alae1919/chess-project/blob/main/docs/how-the-ai-works.md">Explore the engine</a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p data-provenance>Engine data recorded from the REXCHESS engine.</p>
+    <p>Position from a rated game in the <a href="https://database.lichess.org/">Lichess open database</a> (CC0). Board renders: Poly Haven “Chess Set” by Riley Queen (CC0). The opening film, the knight footage and the king stills are generated imagery and show no engine data.</p>
+    <p><a href="https://github.com/Alae1919/chess-project">Source code</a> · Prototype of the REXCHESS landing page</p>
+  </footer>
+</main>
+
+<script>
+(function () {
+  'use strict';
+  var html = document.documentElement;
+  var still = html.classList.contains('still');
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var clamp = function (v, a, b) { a = a === undefined ? 0 : a; b = b === undefined ? 1 : b; return Math.min(b, Math.max(a, v)); };
+  var band = function (p, a, b) { return clamp((p - a) / (b - a)); };
+  var fmt = function (n) { return Math.round(n).toLocaleString('en-US'); };
+  var pawns = function (s) {
+    if (s.mate != null) return (s.mate > 0 ? '#' : '#−') + Math.abs(s.mate);
+    var v = s.cp / 100; return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(2);
+  };
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  var el = function (tag, attrs, parent) {
+    var n = document.createElementNS(SVGNS, tag);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  };
+
+  /* ── 1 · the intro ───────────────────────────────────────────────────────── */
+  var heroVideo = $('.hero__video');
+  var steps = $$('.hero [data-step]');
+  function endIntro() {
+    steps.forEach(function (s) { s.classList.add('shown'); });
+    html.classList.remove('intro');
+    try { sessionStorage.setItem('rx-intro', '1'); } catch (e) {}
+    ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (ev) { removeEventListener(ev, endIntro); });
+  }
+  if (still) {
+    heroVideo.removeAttribute('src');
+    heroVideo.setAttribute('poster', 'media/hero-last.webp');
+    heroVideo.load();
+  } else {
+    var playing = heroVideo.play();
+    if (playing && playing.catch) playing.catch(function () { heroVideo.setAttribute('poster', 'media/hero-last.webp'); });
+    if (html.classList.contains('intro')) {
+      [350, 1150, 2000, 2900, 3200].forEach(function (t, i) { setTimeout(function () { if (steps[i]) steps[i].classList.add('shown'); }, t); });
+      setTimeout(endIntro, 3700);
+      ['pointerdown', 'keydown', 'wheel', 'touchstart'].forEach(function (ev) { addEventListener(ev, endIntro, { passive: true }); });
+      $('.skip').addEventListener('click', endIntro);
+    }
+  }
+
+  /* ── the scroll driver: one rAF loop, running only while a pinned scene is on screen ── */
+  var tracks = [];
+  var raf = 0;
+  function tick() {
+    raf = 0;
+    var any = false;
+    tracks.forEach(function (t) {
+      if (!t.on) return;
+      any = true;
+      var run = t.el.offsetHeight - t.stage.offsetHeight;
+      var target = run > 0 ? clamp(-t.el.getBoundingClientRect().top / run) : 0;
+      t.s += (target - t.s) * 0.16;
+      if (Math.abs(target - t.s) < 0.0004) t.s = target;
+      if (t.s !== t.p) { t.p = t.s; t.update(t.s); }
+    });
+    if (any) raf = requestAnimationFrame(tick);
+  }
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) { tracks.forEach(function (t) { if (t.el === e.target) t.on = e.isIntersecting; }); });
+    if (!raf) raf = requestAnimationFrame(tick);
+  }, { rootMargin: '20% 0px 20% 0px' });
+  function drive(section, update) {
+    var t = { el: section, stage: $('.stage', section), update: update, p: -1, s: 0, on: false };
+    if (still) { update(1); return; }
+    tracks.push(t);
+    io.observe(section);
+    update(0);
+  }
+
+  /* ── 2 · the instinct: the knight footage, scrubbed by the scroll ───────────── */
+  var inst = $('#instinct');
+  var kv = $('.instinct__video');
+  var lines = $$('.instinct__lines p');
+  var stills = $$('.instinct__still');
+  var shutter2 = $('.shutter', inst);
+  var kvReady = false, kvWant = 0;
+  var small = Math.min(screen.width, screen.height) <= 600;
+  var kvSrc = small ? 'media/knight-m.mp4' : 'media/knight.mp4';
+  function loadKnight() {
+    kv.addEventListener('error', function () { if (kv.src.indexOf('blob:') === 0) kv.src = kvSrc; }, { once: true });
+    fetch(kvSrc).then(function (r) { return r.ok ? r.blob() : Promise.reject(r.status); })
+      .then(function (b) { kv.src = URL.createObjectURL(b); })
+      .catch(function () { kv.src = kvSrc; });
+  }
+  kv.addEventListener('loadeddata', function () { kvReady = true; seekKnight(); });
+  kv.addEventListener('seeked', seekKnight);
+  function seekKnight() {
+    if (!kvReady || kv.seeking) return;                // coalesce: one seek at a time
+    if (Math.abs(kv.currentTime - kvWant) > 0.02) kv.currentTime = kvWant;
+  }
+  var primed = false;
+  function prime() {                                    // iOS paints a seeked frame only after a play
+    if (primed) return; primed = true;
+    var p = kv.play();
+    if (p && p.then) p.then(function () { kv.pause(); seekKnight(); }).catch(function () { html.classList.add('no-scrub'); });
+  }
+  if (!still) {
+    new IntersectionObserver(function (es, o) { if (es[0].isIntersecting) { loadKnight(); o.disconnect(); } }, { rootMargin: '150% 0px' }).observe(inst);
+    ['pointerdown', 'touchstart', 'wheel', 'keydown'].forEach(function (ev) { addEventListener(ev, prime, { once: true, passive: true }); });
+  }
+  drive(inst, function (p) {
+    kvWant = band(p, 0.03, 0.9) * ((kv.duration || 8) - 0.05);
+    seekKnight();
+    var show = function (a, b) { return band(p, a, a + 0.06) * (1 - band(p, b - 0.06, b)); };
+    lines[0].style.opacity = still ? 1 : show(0.06, 0.5);
+    lines[1].style.opacity = still ? 1 : (p >= 0.995 ? 1 : show(0.55, 1.2));
+    stills[0].classList.toggle('on', p < 0.55);
+    stills[1].classList.toggle('on', p >= 0.55);
+    shutter2.style.opacity = still ? 0 : band(p, 0.9, 1);
+  });
+
+  /* ── 3 and 4 need the recorded data ──────────────────────────────────────────── */
+  Promise.all([fetch('data/showcase.json').then(function (r) { return r.json(); }),
+               fetch('media/squares.json').then(function (r) { return r.json(); })])
+    .then(function (res) { build(res[0], res[1]); })
+    .catch(function () { $$('[data-label]').forEach(function (n) { n.textContent = 'The recorded engine data could not be loaded.'; }); });
+
+  function build(D, S) {
+    var P = function (sq) { return [S[sq][0] * 1600, S[sq][1] * 1600]; };
+    function arcPath(from, to) {
+      var a = P(from), b = P(to);
+      var dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy);
+      var lift = d * 0.34 + 36;
+      return 'M' + a[0].toFixed(1) + ' ' + a[1].toFixed(1) + ' Q' + ((a[0] + b[0]) / 2).toFixed(1) + ' ' + ((a[1] + b[1]) / 2 - lift).toFixed(1) + ' ' + b[0].toFixed(1) + ' ' + b[1].toFixed(1);
+    }
+    // an arc is a dark under-stroke plus the visible stroke, so it reads on light and dark squares alike
+    function arc(parent, from, to, cls, width) {
+      var g = el('g', { opacity: 0 }, parent);
+      var d = arcPath(from, to);
+      var under = el('path', { d: d, class: 'arc arc--under', 'stroke-width': width + 7 }, g);
+      var over = el('path', { d: d, class: 'arc ' + (cls || ''), 'stroke-width': width }, g);
+      return {
+        set: function (o, w) {
+          g.setAttribute('opacity', o.toFixed(3));
+          if (w) { over.setAttribute('stroke-width', w.toFixed(2)); under.setAttribute('stroke-width', (w + 7).toFixed(2)); }
+        },
+      };
+    }
+    function tagAt(svg, sq, text, cls) {
+      var p = P(sq);
+      var t = el('text', { x: p[0], y: p[1] - 58, 'text-anchor': 'middle', class: 'tag ' + (cls || '') }, svg);
+      t.textContent = text;
+      return t;
+    }
+    var label = 'Recorded from the REXCHESS engine (commit ' + D.meta.engineCommit + '), each move searched to depth ' + D.meta.moveDepth + '. ';
+    var src = D.source;
+    $$('[data-label]').forEach(function (n) {
+      n.innerHTML = '';
+      n.appendChild(document.createTextNode(label + 'Position: '));
+      var a = document.createElement('a'); a.href = src.site; a.textContent = src.white + ' (' + src.whiteElo + ') vs ' + src.black + ' (' + src.blackElo + ')';
+      n.appendChild(a);
+      n.appendChild(document.createTextNode(', ' + src.event.toLowerCase() + ', Lichess, ' + src.date.slice(0, 4) + ' (CC0).'));
+    });
+    $('[data-provenance]').textContent = 'Engine data recorded ' + D.meta.generated.slice(0, 10) + ' from the REXCHESS engine at commit ' + D.meta.engineCommit +
+      ' (' + D.meta.eval + ' network ' + D.meta.network.sha256.slice(0, 12) + '…, hash ' + D.meta.hashMb + ' MB): root search to depth ' + D.meta.rootDepth +
+      ', every legal move to depth ' + D.meta.moveDepth + ', ' + D.meta.method + '.';
+
+    var moves = D.moves;                                     // ranked, best first
+    var best = moves[0];
+    var played = moves.filter(function (m) { return m.san === src.played; })[0];
+    $$('[data-legal]').forEach(function (n) { n.textContent = D.position.legalMoves; });
+    $$('[data-played]').forEach(function (n) { n.textContent = played.san; });
+    $$('[data-movedepth]').forEach(function (n) { n.textContent = D.meta.moveDepth; });
+    $$('[data-refute]').forEach(function (n) { n.textContent = played.reply.san; });
+    $$('[data-best]').forEach(function (n) { n.textContent = best.san + '.'; });
+
+    /* ── 3 · inside the machine ─────────────────────────────────────────────── */
+    var machine = $('#machine');
+    var msvg = $('.mboard svg', machine);
+    var drawOrder = moves.slice().sort(function (a, b) { return a.from < b.from ? -1 : a.from > b.from ? 1 : 0; });
+    var mdim = document.createElement('div');
+    mdim.className = 'dim';
+    $('.mboard', machine).insertBefore(mdim, msvg);
+    var arcs = {};
+    drawOrder.forEach(function (m) { arcs[m.uci] = arc(msvg, m.from, m.to, '', 3.2); });
+    var refuteArc = arc(msvg, played.reply.from, played.reply.to, 'arc--dash', 5);
+    var bestArc = arc(msvg, best.from, best.to, 'arc--blue', 7);
+    var pv = D.root.pv.slice(1, 4);
+    var pvArcs = pv.map(function (m, i) { return arc(msvg, m.from, m.to, 'arc--blue' + (i % 2 === 0 ? ' arc--dash' : ''), 5); });
+    var playedTag = tagAt(msvg, played.to, played.san);
+    var refuteTag = tagAt(msvg, played.reply.to, played.reply.san);
+    var bestTag = tagAt(msvg, best.to, best.san, 'tag--blue');
+    [playedTag, refuteTag, bestTag].forEach(function (t) { t.setAttribute('opacity', 0); });
+
+    var dimOrder = moves.slice(1).reverse();                // worst first; the best never dims
+    var playedK = dimOrder.indexOf(played);
+    var D0 = 0.32, D1 = 0.68;
+    var dimAt = function (k) { return D0 + k * ((D1 - D0) / dimOrder.length); };
+    var tPlayed = dimAt(playedK);
+    var mSteps = $$('.steps > p', machine);
+    var stat = function (k) { return $('[data-stat="' + k + '"]', machine); };
+    var pvText = $('[data-pv]', machine);
+    var shutter3 = $('.shutter', machine);
+
+    drive(machine, function (p) {
+      var nodes = 0;
+      drawOrder.forEach(function (m, i) {
+        var show = band(p, 0.1 + i * 0.0036, 0.13 + i * 0.0036);
+        var k = dimOrder.indexOf(m);
+        var dim = k < 0 ? 0 : band(p, dimAt(k), dimAt(k) + 0.02);
+        if (k >= 0) nodes += m.nodes * dim;
+        var isPlayed = m === played;
+        var hi = isPlayed ? band(p, 0.22, 0.26) * (1 - band(p, 0.68, 0.72)) : 0;
+        var isBest = m === best;
+        var op = show * (0.5 + 0.5 * hi) * (1 - 0.9 * dim);
+        if (isBest) op = show * 0.5 * (1 - band(p, 0.7, 0.74));
+        arcs[m.uci].set(op, 3.2 + 3 * hi);
+      });
+      mdim.style.opacity = (0.42 * band(p, 0.08, 0.16)).toFixed(3);
+      var bestOn = band(p, 0.7, 0.75);
+      nodes += best.nodes * bestOn;
+      playedTag.setAttribute('opacity', (band(p, 0.22, 0.26) * (1 - band(p, 0.68, 0.72))).toFixed(3));
+      var ref = band(p, tPlayed, tPlayed + 0.03) * (1 - band(p, 0.68, 0.72));
+      refuteArc.set(ref);
+      refuteTag.setAttribute('opacity', ref.toFixed(3));
+      bestArc.set(bestOn);
+      bestTag.setAttribute('opacity', bestOn.toFixed(3));
+      var shownPv = 0;
+      pvArcs.forEach(function (a, i) {
+        var o = band(p, 0.8 + i * 0.05, 0.84 + i * 0.05);
+        if (o > 0.5) shownPv = i + 1;
+        a.set(o * (i % 2 === 0 ? 0.8 : 1));
+      });
+      pvText.textContent = shownPv ? [best.san].concat(pv.slice(0, shownPv).map(function (m) { return m.san; })).join('  ') : '';
+
+      var stage = p < 0.1 ? 0 : p < 0.22 ? 1 : p < 0.32 ? 2 : p < tPlayed ? 3 : p < 0.7 ? 4 : p < 0.8 ? 5 : 6;
+      mSteps.forEach(function (s, i) { s.classList.toggle('on', still || i === stage); });
+      stat('legal').textContent = p >= 0.1 ? D.position.legalMoves : '–';
+      stat('nodes').textContent = fmt(still ? D.totals.nodes : nodes);
+      stat('best').textContent = bestOn > 0.5 ? best.san : '–';
+      stat('eval').textContent = bestOn > 0.5 ? pawns(best.score) : '–';
+      stat('played').textContent = p >= tPlayed ? played.san + '  ' + pawns(played.score) + ', refuted by ' + played.reply.san : (p >= 0.22 ? played.san : '–');
+      shutter3.style.opacity = still ? 0 : band(p, 0.94, 1);
+    });
+
+    /* ── 4 · the consequence ────────────────────────────────────────────────── */
+    var cons = $('#consequence');
+    var fig = $('.mboard', cons);
+    var csvg = $('svg', fig);
+    var line = D.line;
+    var imgs = [];
+    for (var i = 0; i <= line.length; i++) {
+      var im = document.createElement('img');
+      im.src = 'media/board-' + i + '.webp';
+      im.alt = i === 0 ? 'The position before the game move' : 'The position after ' + line[i - 1].san;
+      im.loading = 'lazy';
+      fig.insertBefore(im, csvg);
+      imgs.push(im);
+    }
+    var list = $('.plies', cons);
+    var caption = $('.ply-caption', cons);
+    var startMove = D.position.fullmove;
+    var white = D.position.sideToMove === 'white';
+    var items = line.map(function (m, k) {
+      var whiteMove = white ? k % 2 === 0 : k % 2 === 1;
+      var num = startMove + Math.floor((k + (white ? 0 : 1)) / 2);
+      var li = document.createElement('li');
+      li.innerHTML = '<span></span><span></span><span class="score"></span>';
+      li.children[0].textContent = num + (whiteMove ? '.' : '…');
+      li.children[1].textContent = m.san;
+      li.children[2].textContent = pawns(m.score);
+      list.appendChild(li);
+      return li;
+    });
+    var cap = function (s) { return s.charAt(0).toUpperCase() + s.slice(1); };
+    var sentences = line.map(function (m, k) {
+      var s = m.captured ? cap(m.piece) + ' takes the ' + m.captured + ' on ' + m.to + '.' : cap(m.piece) + ' to ' + m.to + '.';
+      if (m.check) s += ' Check.';
+      if (k === 0) s = 'The game move. ' + s + ' Score ' + pawns(m.score) + '; best was ' + best.san + ', ' + pawns(best.score) + '.';
+      else s += ' Score ' + pawns(m.score) + '.';
+      return s;
+    });
+    var overlays = line.map(function (m) {
+      var g = el('g', { opacity: 0 }, csvg);
+      var d = arcPath(m.from, m.to);
+      el('path', { d: d, class: 'arc arc--under', 'stroke-width': 12 }, g);
+      el('path', { d: d, class: 'arc', 'stroke-width': 5 }, g);
+      var c = P(m.to);
+      el('ellipse', { cx: c[0], cy: c[1] + 6, rx: 62, ry: 40, class: 'ring ring--under' }, g);
+      el('ellipse', { cx: c[0], cy: c[1] + 6, rx: 62, ry: 40, class: 'ring' }, g);
+      tagAt(g, m.to, m.san);
+      return g;
+    });
+    var n = line.length;
+    drive(cons, function (p) {
+      var x = still ? n - 0.0001 : p * n;
+      var k = Math.min(n - 1, Math.floor(x));
+      var t = x - k;
+      imgs.forEach(function (im, i) { if (i > 0) im.style.opacity = band(x - (i - 1), 0.18, 0.42).toFixed(3); });
+      overlays.forEach(function (g, i) {
+        var o = i === k ? band(t, 0.08, 0.26) * (i === n - 1 ? 1 : 1 - band(t, 0.9, 1)) : 0;
+        g.setAttribute('opacity', o.toFixed(3));
+      });
+      items.forEach(function (li, i) { li.classList.toggle('on', still || i === k); });
+      caption.textContent = sentences[k];
+    });
+  }
+
+  /* ── 5 · the door ───────────────────────────────────────────────────────── */
+  $('.door__copy').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var f = e.target;
+    var level = f.querySelector('input[name="level"]:checked').value;
+    var colour = f.querySelector('input[name="colour"]:checked').value;
+    $('#door-note').textContent = 'Prototype: in the app this opens a game against level ' + level + ', you as ' + colour + '.';
+  });
+})();
+</script>

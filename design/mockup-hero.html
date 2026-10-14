@@ -1,0 +1,93 @@
+<!doctype html>
+<!-- Style-gate mockup (auteur phase 0c): the hero's final frame, static. Throwaway: no animation,
+     fonts from Google for now (the build self-hosts them). Stills are captured from the app's own
+     LuxeBoardScene; the light pool is a page mask until the directed mode adds a real spotlight. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>REXCHESS — hero mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050505;
+    --ivory: #F1E9D8;
+    --ivory-dim: rgba(241, 233, 216, .6);
+    --gold: #c9a45c;          /* the app's gold leaf: wordmark and primary action only */
+    --gold-hi: #e0bd76;
+    --ai-blue: #4F8CFF;       /* engine data only; absent from the hero on purpose */
+    --serif: 'Cormorant Garamond', 'Times New Roman', serif;
+    --sans: 'Jost', system-ui, sans-serif;
+    --gutter: clamp(20px, 6vw, 96px);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--ivory); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+
+  .hero { position: relative; height: 100svh; min-height: 560px; overflow: hidden; isolation: isolate; }
+
+  /* the board, lit only where the light falls */
+  .still { position: absolute; inset: 0; z-index: -2;
+    -webkit-mask-image: radial-gradient(ellipse 50% 82% at 66% 56%, #000 32%, rgba(0,0,0,.55) 60%, rgba(0,0,0,.14) 84%, transparent 100%);
+            mask-image: radial-gradient(ellipse 50% 82% at 66% 56%, #000 32%, rgba(0,0,0,.55) 60%, rgba(0,0,0,.14) 84%, transparent 100%); }
+  .still img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 50%; display: block; }
+
+  /* film grain, static */
+  .hero::after { content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .07;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+
+  .wordmark { position: absolute; top: clamp(20px, 4vh, 40px); left: var(--gutter);
+    font: 600 18px/1 var(--serif); letter-spacing: .32em; color: var(--gold); text-decoration: none; }
+
+  .copy { position: absolute; left: var(--gutter); bottom: clamp(32px, 9vh, 96px); max-width: 44rem; }
+  .pre { font: italic 500 clamp(20px, 1.9vw, 28px)/1.2 var(--serif); color: var(--ivory-dim); margin-bottom: .55em; }
+  h1 { font: 500 clamp(2.4rem, 5.6vw, 5.5rem)/1.0 var(--serif); letter-spacing: -.012em; text-wrap: balance; }
+  h1 em { font-style: italic; display: block; }
+
+  .ctas { display: flex; align-items: center; gap: 28px; margin-top: clamp(28px, 4.5vh, 44px); flex-wrap: wrap; }
+  .play { display: inline-flex; align-items: center; gap: 10px; height: 52px; padding: 0 30px;
+    background: var(--gold); color: var(--bg); border-radius: 2px; text-decoration: none;
+    font: 500 15px/1 var(--sans); letter-spacing: .03em;
+    transition: background-color 140ms ease-out, transform 140ms ease-out; }
+  .play:hover { background: var(--gold-hi); }
+  .play:active { transform: scale(.98); }
+  .engine { color: var(--ivory); font: 400 15px/1 var(--sans); text-decoration: underline;
+    text-decoration-color: rgba(241,233,216,.35); text-underline-offset: 6px; padding: 14px 0; }
+  .signin { margin-top: 22px; font: 400 14px/1.4 var(--sans); color: var(--ivory-dim); }
+  .signin a { color: var(--ivory); }
+  a:focus-visible { outline: 2px solid var(--ivory); outline-offset: 4px; }
+
+  @media (max-width: 640px) {
+    .still { -webkit-mask-image: radial-gradient(ellipse 78% 44% at 50% 33%, #000 34%, rgba(0,0,0,.5) 64%, rgba(0,0,0,.1) 86%, transparent 100%);
+                     mask-image: radial-gradient(ellipse 78% 44% at 50% 33%, #000 34%, rgba(0,0,0,.5) 64%, rgba(0,0,0,.1) 86%, transparent 100%); }
+    .wordmark { font-size: 15px; letter-spacing: .26em; }
+    .copy { right: var(--gutter); bottom: calc(24px + env(safe-area-inset-bottom)); }
+    .ctas { flex-direction: column; align-items: stretch; gap: 4px; }
+    .play { justify-content: center; height: 54px; }
+    .engine { text-align: center; }
+    .signin { text-align: center; margin-top: 10px; }
+  }
+</style>
+</head>
+<body>
+  <section class="hero" aria-labelledby="hero-title">
+    <picture class="still">
+      <source media="(max-width: 640px)" srcset="mockup/hero-390.webp">
+      <img src="mockup/hero-1440.webp" alt="A white marble king alone on a marble chessboard, under a single spotlight">
+    </picture>
+
+    <a class="wordmark" href="/">REXCHESS</a>
+
+    <div class="copy">
+      <p class="pre">64 squares. Infinite possibilities.</p>
+      <h1 id="hero-title">Don't just play chess. <em>Outsmart the board.</em></h1>
+      <div class="ctas">
+        <a class="play" href="#play">Play now</a>
+        <a class="engine" href="/engine">Explore the engine</a>
+      </div>
+      <p class="signin">Have an account? <a href="/login">Sign in</a></p>
+    </div>
+  </section>
+</body>
+</html>

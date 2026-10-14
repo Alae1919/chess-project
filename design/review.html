@@ -1,0 +1,93 @@
+<!doctype html>
+<!-- Local review board for the style gate: the mockup next to the references it took from.
+     Reference screenshots and moodboard images are third-party and git-ignored; this page only works locally. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hero style gate</title>
+<style>
+  :root { --bg: #0b0b0b; --ink: #ece6da; --dim: #a39d92; --line: #2a2825; --gold: #c9a45c; }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--ink); font: 15px/1.55 system-ui, sans-serif; padding: 32px 16px 80px; }
+  main { max-width: 1280px; margin: 0 auto; }
+  h1 { font: 600 28px/1.2 Georgia, serif; margin-bottom: 6px; }
+  h2 { font: 600 20px/1.3 Georgia, serif; margin: 48px 0 14px; padding-top: 18px; border-top: 1px solid var(--line); }
+  p.lede { color: var(--dim); max-width: 70ch; }
+  .frames { display: grid; grid-template-columns: minmax(0, 3.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  figure img { width: 100%; display: block; border: 1px solid var(--line); }
+  figcaption { color: var(--dim); font-size: 13px; margin-top: 6px; }
+  .ref { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 20px; margin-bottom: 26px; align-items: start; }
+  .ref h3 { font: 600 16px/1.3 system-ui, sans-serif; margin-bottom: 6px; }
+  .tag { display: inline-block; font-size: 12px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 99px; color: var(--dim); margin-bottom: 8px; }
+  .tag.taken { color: var(--gold); border-color: var(--gold); }
+  a { color: var(--ink); }
+  ul { padding-left: 18px; color: var(--dim); }
+  @media (max-width: 760px) { .frames, .ref { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Hero style gate</h1>
+  <p class="lede">The hero's final frame as a static mockup, at 1440 and 390 px. The board and king are stills captured
+    from the app's own 3D scene. The light pool is a page mask for now; the directed mode replaces it with a real
+    spotlight. <a href="mockup-hero.html">Open the live mockup</a> and resize it.</p>
+
+  <h2>Mockup</h2>
+  <div class="frames">
+    <figure><img src="mockup/mockup-1440.png" alt="Hero mockup at 1440 by 900"><figcaption>1440 × 900</figcaption></figure>
+    <figure><img src="mockup/mockup-390.png" alt="Hero mockup at 390 by 844"><figcaption>390 × 844</figcaption></figure>
+  </div>
+
+  <h2>References</h2>
+  <div class="ref">
+    <img src="refs/shots/www.apple.com_airpods-pro_-00.png" alt="">
+    <div><span class="tag taken">taken: hero composition</span>
+      <h3><a href="https://www.apple.com/airpods-pro/">apple.com/airpods-pro</a></h3>
+      <p>One object owns the upper two-thirds; the headline is anchored low-left. Here the object is the king under its
+        own light, and the headline sits where the light doesn't reach.</p></div>
+  </div>
+  <div class="ref">
+    <img src="refs/shots/pudding.cool_2017_05_song-repetition_-01.png" alt="">
+    <div><span class="tag taken">taken: scene 4 captions</span>
+      <h3><a href="https://pudding.cool/2017/05/song-repetition/">The Pudding, "Are Pop Lyrics Getting More Repetitive?"</a></h3>
+      <p>Each step changes one thing in the graphic, and the labels sit on the data ("Avg. song", "Cheap Thrills"), not in a
+        legend. In scene 4, each move's caption is written on the board at its destination square.</p></div>
+  </div>
+  <div class="ref">
+    <img src="refs/shots/lusion.co-00.png" alt="">
+    <div><span class="tag">receipt: second-order reflex</span>
+      <h3><a href="https://lusion.co">lusion.co</a></h3>
+      <p>Black with saturated blue on glossy 3D objects is what "tech studio" looks like now. Our blue stays a thin stroke
+        that carries engine data, never a surface.</p></div>
+  </div>
+  <div class="ref">
+    <img src="refs/shots/www.chess.com_-00.png" alt="">
+    <div><span class="tag">receipt: category reflex</span>
+      <h3><a href="https://www.chess.com/">chess.com</a></h3>
+      <p>Flat green board, "#1 site", "250+ million players", one green button. We use no flat board, no audience metric,
+        no green.</p></div>
+  </div>
+  <div class="ref">
+    <img src="refs/shots/lichess.org_-00.png" alt="">
+    <div><span class="tag">receipt: category reflex</span>
+      <h3><a href="https://lichess.org/">lichess.org</a></h3>
+      <p>A grid of time-control cards and live player counts. We use no card grid and no counts.</p></div>
+  </div>
+  <p class="lede">Dropped: igloo.inc (the headless browser captured only its grey loading frame, so nothing is cited from
+    it). The awwwards gallery scraper failed (its markup changed), so these were picked by hand.</p>
+
+  <h2>Moodboard</h2>
+  <figure><img src="moodboard/contact-sheet.png" alt="Moodboard contact sheet, 24 tiles"><figcaption>Queries: "marble bust
+    single hard light black background", "chiaroscuro still life brass object", "editorial serif poster ivory on black".
+    Tile sources in moodboard/MOODBOARD.md.</figcaption></figure>
+  <ul>
+    <li><strong>Palette:</strong> near-black ground with one lit object; the colour lives in the material under the light.</li>
+    <li><strong>Light:</strong> one hard source from above, fast falloff, no fill, no rim glow.</li>
+    <li><strong>Taken:</strong> 06 (the object small in a tall dark frame, under its own cone) for the finale; 12 (the subject
+      cut by the frame edge) for scene 3.</li>
+    <li><strong>Avoid:</strong> 09 (neon on sculpture), 04 (gold ring and marble plinth), the brown backdrops of 14 and 24.</li>
+  </ul>
+</main>
+</body>
+</html>

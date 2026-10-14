@@ -1,0 +1,182 @@
+<!doctype html>
+<!-- Still renderer for the landing: the CC0 Poly Haven chess set (Riley Queen) under one spotlight.
+     Served from the repo root (three.js comes from frontend/node_modules); captured by capture.mjs.
+     ?shot=<name> picks a shot from SHOTS below. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Still renderer</title>
+<style>html, body { margin: 0; height: 100%; background: #050505; overflow: hidden; } canvas { display: block; width: 100vw; height: 100vh; }</style>
+<script type="importmap">
+{ "imports": {
+  "three": "/frontend/node_modules/three/build/three.module.js",
+  "three/addons/": "/frontend/node_modules/three/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const SQ = 0.058;                       // square size in metres, read from the model's piece positions
+// The board's colours are only right (a1 dark, h1 light) with White sitting on the model's -x side, which is
+// not the side the model sets its white pieces on (that layout is mirrored: king on d1). So White looks
+// along +x, the files run a→h along +z, and every piece is placed here rather than where the model left it.
+const square = (name) => {              // 'e4' → board coordinates
+  const f = name.charCodeAt(0) - 97, r = +name[1];
+  return new THREE.Vector3((r - 4.5) * SQ, 0.017, (f - 3.5) * SQ);
+};
+// an offset seen from White's chair: right, up, forward (towards Black)
+const W = (right, up, fwd) => new THREE.Vector3(fwd, up, right);
+
+const START = {
+  piece_rook_white_02: 'a1', piece_knight_white_02: 'b1', piece_bishop_white_02: 'c1', piece_queen_white: 'd1',
+  piece_king_white: 'e1', piece_bishop_white_01: 'f1', piece_knight_white_01: 'g1', piece_rook_white_01: 'h1',
+  piece_rook_black_01: 'a8', piece_knight_black_01: 'b8', piece_bishop_black_01: 'c8', piece_queen_black: 'd8',
+  piece_king_black: 'e8', piece_bishop_black_02: 'f8', piece_knight_black_02: 'g8', piece_rook_black_02: 'h8',
+};
+'abcdefgh'.split('').forEach((f, i) => {
+  START[`piece_pawn_white_0${i + 1}`] = `${f}2`;
+  START[`piece_pawn_black_0${i + 1}`] = `${f}7`;
+});
+
+// Each shot: which pieces stand where, the camera and light (as offsets from the subject square), the focus.
+const SHOTS = {
+  'hero-desktop': {
+    pieces: { piece_king_white: 'e4' }, subject: 'e4',
+    cam: W(-0.10, 0.07, -0.37), look: W(-0.06, 0.045, 0), fov: 26,
+    spot: W(-0.05, 0.8, -0.32), angle: 0.17, penumbra: 0.7, power: 5.5, aperture: 0.04,
+  },
+  'hero-mobile': {
+    pieces: { piece_king_white: 'e4' }, subject: 'e4',
+    cam: W(-0.04, 0.15, -0.40), look: W(0.002, -0.005, 0.02), fov: 34,
+    spot: W(-0.03, 0.8, -0.16), angle: 0.115, penumbra: 0.8, power: 5.5, aperture: 0.03,
+  },
+  'finale-desktop': {
+    pieces: { piece_king_white: 'e4' }, subject: 'e4',
+    cam: W(0.0, 0.40, -0.66), look: W(0, -0.05, 0.08), fov: 30,
+    spot: W(-0.02, 0.9, -0.06), angle: 0.085, penumbra: 0.85, power: 6, aperture: 0.02, boardEnv: 0.004,
+  },
+  'finale-mobile': {
+    pieces: { piece_king_white: 'e4' }, subject: 'e4',
+    cam: W(0.0, 0.46, -0.62), look: W(0, -0.09, 0.05), fov: 40,
+    spot: W(-0.02, 0.9, -0.06), angle: 0.085, penumbra: 0.85, power: 6, aperture: 0.02, boardEnv: 0.004,
+  },
+  'debug-top': {
+    pieces: START, subject: 'e4',
+    cam: W(0.02, 0.62, -0.42), look: W(0.029, -0.017, -0.029), fov: 40,
+    spot: W(0, 1.2, 0), angle: 0.6, penumbra: 0.2, power: 30, aperture: 0,
+  },
+};
+// The machine's view: any position (?fen=…), seen from high above White's side, evenly but dimly lit.
+const PARAMS = new URLSearchParams(location.search);
+function piecesFromFen(fen) {
+  const pools = {};
+  const names = Object.keys(START);
+  const kind = (n) => (n.includes('_white') ? 'w' : 'b') + n.split('_')[1];
+  for (const n of names) (pools[kind(n)] ??= []).push(n);
+  const letter = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' };
+  const placed = {};
+  fen.split(' ')[0].split('/').forEach((row, i) => {
+    let f = 0;
+    for (const ch of row) {
+      if (/\d/.test(ch)) { f += +ch; continue; }
+      const key = (ch === ch.toUpperCase() ? 'w' : 'b') + letter[ch.toLowerCase()];
+      const node = pools[key].shift();
+      if (!node) throw new Error('the set has no spare ' + key);
+      placed[node] = 'abcdefgh'[f] + (8 - i);
+      f++;
+    }
+  });
+  return placed;
+}
+SHOTS.machine = {
+  pieces: PARAMS.get('fen') ? piecesFromFen(PARAMS.get('fen')) : START, subject: 'center',
+  cam: W(0, 0.84, -0.50), look: W(0, -0.03, 0.025), fov: 34,
+  spot: W(-0.06, 1.2, -0.25), angle: 0.36, penumbra: 0.8, power: 11, aperture: 0.003, boardEnv: 0.025,
+};
+const shot = SHOTS[PARAMS.get('shot') ?? 'hero-desktop'];
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050505);
+
+const hdr = await new RGBELoader().loadAsync('/design/sourced/hdri/studio_small_03_1k.hdr');
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromEquirectangular(hdr).texture;
+hdr.dispose();
+
+const gltf = await new GLTFLoader().loadAsync('/design/sourced/model/chess_set/chess_set_2k.gltf');
+const set = gltf.scene;
+set.traverse((o) => {
+  if (!o.isMesh) return;
+  o.castShadow = o.receiveShadow = true;
+  // the environment only gives the materials something to reflect; the spotlight does the lighting
+  o.material.envMapIntensity = o.name === 'board' ? (shot.boardEnv ?? 0.02) : 0.1;
+});
+for (const node of set.children) {
+  if (node.name === 'board') continue;
+  const at = shot.pieces[node.name];
+  node.visible = !!at;
+  if (!at) continue;
+  node.position.copy(square(at));
+  node.rotation.y = Math.PI / 2;        // the model's pieces face along z; ours face along x
+}
+scene.add(set);
+
+const subject = shot.subject === 'center' ? new THREE.Vector3(0, 0.017, 0) : square(shot.subject);
+const spot = new THREE.SpotLight(0xfff1dc, shot.power, 0, shot.angle, shot.penumbra, 2);
+spot.position.copy(subject).add(shot.spot);
+spot.target.position.copy(subject);
+spot.castShadow = true;
+spot.shadow.mapSize.set(4096, 4096);
+spot.shadow.bias = -0.00005;
+spot.shadow.normalBias = 0.0015;
+spot.shadow.radius = 3;
+spot.shadow.camera.near = 0.3;
+spot.shadow.camera.far = 1.5;
+scene.add(spot, spot.target);
+
+const camera = new THREE.PerspectiveCamera(shot.fov, innerWidth / innerHeight, 0.01, 10);
+camera.position.copy(subject).add(shot.cam);
+camera.lookAt(subject.clone().add(shot.look));
+camera.updateMatrixWorld();
+
+// where each square's centre lands in the image (0..1), for page overlays drawn on top of the render
+window.__squares = {};
+for (const f of 'abcdefgh') for (let r = 1; r <= 8; r++) {
+  const v = square(f + r).project(camera);
+  window.__squares[f + r] = [+((v.x + 1) / 2).toFixed(4), +((1 - v.y) / 2).toFixed(4)];
+}
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+composer.addPass(new BokehPass(scene, camera, {
+  focus: camera.position.distanceTo(subject.clone().add(new THREE.Vector3(0, 0.05, 0))),
+  aperture: shot.aperture, maxblur: 0.012,
+}));
+composer.addPass(new OutputPass());
+
+let frames = 0;
+renderer.setAnimationLoop(() => {
+  composer.render();
+  if (++frames === 8) window.__ready = true;   // textures uploaded, shadow map settled
+});
+</script>
+</body>
+</html>
