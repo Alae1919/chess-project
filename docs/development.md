@@ -120,8 +120,28 @@ npm test                                        # watch mode, in a browser windo
 npm run build -- --configuration production     # also type-checks the templates, which the specs don't
 ```
 
-The production build enforces size budgets: 1 MB for the initial bundle and 20 kB for any component's stylesheet. A
-component whose styles outgrow that should be split, or its shared parts moved into `src/styles.scss`.
+The production build enforces size budgets: 1 MB for the initial bundle and 28 kB for any component's stylesheet (it
+warns from 500 kB and 10 kB). A component whose styles outgrow that should be split, or its shared parts moved into
+`src/styles.scss`.
+
+The 3D scene's spec (`luxe-board-scene.spec.ts`) needs WebGL and skips itself in a browser without it.
+
+## Profiling the 3D board
+
+The slow parts of the board are in the graphics driver, not in the JavaScript, so measure in a real browser with a real
+GPU. Software rendering (what headless Chrome falls back to without a GPU) hides the problem; on Windows, launch Chrome
+with `--use-angle=d3d11`.
+
+* In `ng serve`, `ng.getComponent(document.querySelector('app-chess-board-3d')).scene` in the console gives the running
+  scene. `scene.renderer.info.programs` lists the compiled shader programs (about 8 on the game page): a list that
+  grows with each style change means programs are being rebuilt. `scene.setLook('classic-wood')` changes the style.
+* In the browser's Performance panel, `getProgramInfoLog` taking most of a long task is shader compilation on the main
+  thread. It should no longer appear after the first frame.
+* A style change that is instant at first but drops a frame a moment later is a texture upload: the first time a style
+  is shown, its three 1024 px textures are painted and uploaded (up to about 0.8 s on the machine this was measured
+  on, once per style and visit). To see it, record the gaps between `requestAnimationFrame` calls after `setLook`.
+* The GPU driver caches compiled shaders for the session, so only the first cold build of a given shader is slow:
+  rebuilding the same scene in a new WebGL context took 0.5 s against 5 s the first time.
 
 **CI** ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs the backend job (Java 17, a PostgreSQL service) and
 the frontend job (tests, then the production build) on every push to `main` and every pull request. A passing run on
@@ -162,5 +182,6 @@ How the engine works and how it was trained: [how-the-ai-works.md](how-the-ai-wo
 | Login or WebSocket calls fail with `403` from a browser | The page's origin is not in `ALLOWED_ORIGINS` |
 | Maven reports success but the code does not compile in the IDE (or the reverse) | The IDE's Java language server compiles into `chess-engine/target/` and tolerates errors, so Maven can say "Nothing to compile". Run `mvn clean verify` for the real answer |
 | Ratings or games change by themselves after starting the backend | The dev database keeps games from earlier sessions, and the server resumes any online game that was active. Their clocks and abandonment countdowns then play out. Reset with `docker compose -f docker-compose.dev.yml down -v`, which **deletes the dev database** |
+| The 3D board shows up a second or two after the page, or a style takes a moment the first time | The shaders (and a style's textures) are prepared before the board is drawn. This is slower on a cold start and quicker once the driver has cached them. See [Profiling the 3D board](#profiling-the-3d-board) |
 | An online game is called off after 30 seconds | By design: nobody made a first move (`app.first-move-timeout-seconds`). Move faster, or raise it while testing |
 | `Killed` or exit code 137 while building a Docker image | The machine ran out of memory: give Docker more, or add swap on a server |

@@ -157,6 +157,13 @@ An Angular 17 single-page app (standalone components, lazy-loaded routes) in `fr
 * **Boards.** `chess-board` draws the flat board and `chess-board-3d` draws a Three.js scene, both with the same
   interactions: click or drag to move, legal-move highlights, a promotion picker, and stepping back through the moves of
   the game. Mode and style are saved as user preferences.
+* **The 3D scene.** `shared/three/luxe-board-scene.ts` is plain Three.js with no Angular in it: `chess-board-3d` feeds
+  it the position from the store and listens for clicks. Three compiles a shader the first time something using it is
+  drawn, one after the other, which freezes the page for seconds on some GPU drivers. So the scene compiles them all
+  at once without blocking and draws nothing until they are ready. It also keeps a hidden pawn in each style's
+  materials, because a shader program is deleted when the last material using it goes: without them every style change
+  compiled everything again. A style change builds the new look and frees the old one only after the new one has been
+  drawn. How to measure this: [development.md](development.md#profiling-the-3d-board).
 * **Phones.** Phones get a different game screen (a compact player bar, a dock, bottom sheets, a tab bar) selected by
   the breakpoints in `shared/styles/_mq.scss` and `core/utils/viewport.ts`.
 * **Production serving.** nginx serves the compiled files with long caching for the hashed bundles and `no-cache`
@@ -172,3 +179,4 @@ An Angular 17 single-page app (standalone components, lazy-loaded routes) in `fr
 | Network trained offline, shipped as a 386 KB file | No GPU or Python at runtime; integer arithmetic gives identical results on every machine | Retraining is a manual step ([training/README.md](../training/README.md)) |
 | Flyway owns the schema | Changes are reviewed, versioned and repeatable | A migration for every schema change |
 | Games are saved after every change | A crash loses at most the move in flight | One database write per move |
+| The 3D board compiles its shaders before the first frame and keeps a hidden pawn per style | Compiling at first draw froze the page for about 2.5 s on a Windows GPU, and each style change did it again | The board appears a moment after the page, and every style's materials stay in memory while the scene lives |
