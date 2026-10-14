@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { Style3D } from '../../core/models';
 import { makeMarble } from './marble';
+import { PieceMarble } from './piece-marble';
 import { makeWood } from './wood';
 
 type TexSpec =
@@ -19,6 +20,9 @@ export interface Look3D {
   label: string;
   white: THREE.MeshPhysicalMaterialParameters;
   black: THREE.MeshPhysicalMaterialParameters;
+  /** Pieces carved from veined stone instead of a plain colour; their `color` above must then be white */
+  stone?: { white: PieceMarble; black: PieceMarble };
+  /** the rings around the pieces, and the grooves in them */
   trim: number;
   groove: number;
 }
@@ -30,8 +34,13 @@ export const LOOKS_3D: Record<Style3D, Look3D> = {
     dark: { kind: 'marble', base: '#121010', vein: 'rgba(198,160,96,', mott: ['rgba(40,34,28,.5)', 'rgba(0,0,0,.5)'], seed: 5 },
     inlay: 0xd6a94e,
     label: 'rgba(214,169,78,.85)',
-    white: { color: 0xf3cf88, metalness: 1, roughness: 0.16, envMapIntensity: 1.35 },
-    black: { color: 0x0c0b0a, metalness: 0.15, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1.6 },
+    // polished marble pieces: a white stone veined with gold, and a black one (Portoro) the same way
+    white: { color: 0xffffff, metalness: 0, roughness: 0.16, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 1.1 },
+    black: { color: 0xffffff, metalness: 0, roughness: 0.14, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1.5 },
+    stone: {
+      white: { base: 0xf3efe7, cloud: 0xddd4c5, vein: 0xb08d52, vein2: 0x8f8a82, weight: 1.6 },
+      black: { base: 0x0f0e0d, cloud: 0x1f1c19, vein: 0xc8a45a, vein2: 0xe9e3d7 },
+    },
     trim: 0xd6a94e,
     groove: 0x3a2610,
   },

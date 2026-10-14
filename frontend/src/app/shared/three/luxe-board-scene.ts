@@ -4,7 +4,7 @@
 // position / selection from the store and listens for square clicks.
 import * as THREE from 'three';
 import { Piece, PieceType, Square, Style3D } from '../../core/models';
-import { buildFrame, buildPiece, glowPiece, LuxeMaterials, makeLuxeMaterials, PieceLetter } from './luxe-pieces';
+import { buildFrame, buildPiece, glowPiece, hasPieceModel, loadPieceModels, LuxeMaterials, makeLuxeMaterials, PieceLetter, pieceModelsSettled, reshapePiece } from './luxe-pieces';
 import { LOOKS_3D, lookTextures } from './board-looks';
 
 const LETTER: Record<PieceType, PieceLetter> = {
@@ -15,6 +15,11 @@ const LETTER: Record<PieceType, PieceLetter> = {
 const PHONE_PIECE_SIZE = 1.25;
 const REST_Y = 0.1;
 const LIFT_Y = 0.38;
+/**
+ * The pieces stay off the board until their model files have loaded. If that takes longer than this
+ * (a stalled connection), the stand-in lathe pieces are shown instead and swapped when the files arrive.
+ */
+const MODEL_WAIT_MS = 6000;
 const BASE_PITCH = -0.24;
 /** What the camera looks at in the tilted 3D view. */
 const PERSP_TARGET = new THREE.Vector3(0, -0.3, 0.3);
@@ -150,6 +155,9 @@ export class LuxeBoardScene {
   private carryLight: THREE.PointLight | null = null;
   private tweens: Tween[] = [];
   private positioned = false;
+  /** Waiting for the piece models: setPosition only remembers the position until they are in */
+  private modelsPending = false;
+  private modelsTimer = 0;
 
   private raycaster = new THREE.Raycaster();
   private pointer = new THREE.Vector2();
@@ -206,6 +214,17 @@ export class LuxeBoardScene {
 
     this.boardGroup.position.y = -2;
     this.frame();
+
+    // the model files come in after the first frame; until they have, no piece is drawn
+    if (!pieceModelsSettled()) {
+      this.modelsPending = true;
+      this.modelsTimer = window.setTimeout(() => this.revealPieces(), MODEL_WAIT_MS);
+      void loadPieceModels().then((arrived) => {
+        if (this.disposed) return;
+        if (this.modelsPending) this.revealPieces();
+        else if (arrived) this.reshapePieces(); // the wait ran out first: the stand-ins give way to the models
+      });
+    }
   }
 
   /* ── public API ─────────────────────────────────────────────────────────── */
@@ -250,6 +269,7 @@ export class LuxeBoardScene {
   /** Sync the pieces with `squares`, animating small changes (a move) and snapping big ones (a new game). */
   setPosition(squares: Squares, animate = true): void {
     this.lastSquares = squares;
+    if (this.modelsPending) return; // revealPieces() draws the latest position once the models are in
     const desired = new Map<string, { letter: PieceLetter; white: boolean }>();
     for (let r = 0; r < 8; r++) {
       for (let c = 0; c < 8; c++) {
@@ -371,6 +391,7 @@ export class LuxeBoardScene {
 
   dispose(): void {
     this.disposed = true;
+    window.clearTimeout(this.modelsTimer);
     cancelAnimationFrame(this.raf);
     this.listeners.forEach((off) => off());
     this.setArcs([]);
@@ -601,8 +622,33 @@ export class LuxeBoardScene {
 
   /* ── pieces ─────────────────────────────────────────────────────────────── */
 
+  private get pieceSize(): number {
+    return this.opts.tight ? PHONE_PIECE_SIZE : 1;
+  }
+
+  /** The models are in (or we gave up waiting): put the pieces on the board, near rank first. */
+  private revealPieces(): void {
+    window.clearTimeout(this.modelsTimer);
+    this.modelsPending = false;
+    if (!this.lastSquares) return; // nothing to draw yet: the first setPosition will do it directly
+    this.setPosition(this.lastSquares, false);
+    this.pieces.forEach((e) => {
+      const g = e.group;
+      g.scale.setScalar(0.01);
+      this.tween(280, (t) => g.scale.setScalar(0.01 + 0.99 * (1 - Math.pow(1 - t, 3))), undefined, (7 - e.row) * 40 + e.col * 6);
+    });
+  }
+
+  /** Stand every piece that has a model file in its model's shape (they were drawn before the file arrived). */
+  private reshapePieces(): void {
+    this.pieces.forEach((e) => {
+      if (hasPieceModel(e.letter)) reshapePiece(e.group, e.letter, e.white, this.mats, this.pieceSize);
+    });
+    this.applyHighlights(); // the new bodies start without the selection glow
+  }
+
   private addPiece(letter: PieceLetter, white: boolean, row: number, col: number, animated: boolean): PieceEntry {
-    const group = buildPiece(letter, white, this.mats, letter === 'N' ? (white ? 2 : 0) : white ? 1 : -1, this.opts.tight ? PHONE_PIECE_SIZE : 1);
+    const group = buildPiece(letter, white, this.mats, letter === 'N' ? (white ? 2 : 0) : white ? 1 : -1, this.pieceSize);
     const [x, z] = sqCenter(row, col);
     group.position.set(x, REST_Y, z);
     group.userData = { row, col };

@@ -1,8 +1,11 @@
 // src/app/shared/three/luxe-pieces.ts
 // Staunton pieces in gold & black lacquer, built from lathe profiles. Port of the
-// REXCHESS Luxe design's LuxePieces.js.
+// REXCHESS Luxe design's LuxePieces.js. A piece listed in MODELS is sculpted in a .glb
+// file instead; the lathe piece stands in until the file has loaded (or if it never does).
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Look3D } from './board-looks';
+import { applyPieceMarble, PieceMarble } from './piece-marble';
 
 export type PieceLetter = 'P' | 'R' | 'N' | 'B' | 'Q' | 'K';
 
@@ -22,6 +25,8 @@ export interface LuxeMaterials {
   lacquer: THREE.MeshPhysicalMaterial;
   trim: THREE.MeshStandardMaterial;
   groove: THREE.MeshStandardMaterial;
+  /** when set, the bodies are veined stone (gold / lacquer above are then only the plain base) */
+  stone?: { white: PieceMarble; black: PieceMarble };
 }
 
 interface PieceParts {
@@ -118,6 +123,159 @@ const DEF: Record<PieceLetter, PieceDef> = {
   },
 };
 
+/** A piece sculpted in a model file: one untextured mesh, standing on its own plinth. */
+interface PieceModel {
+  url: string;
+  /** How tall the piece stands, in the same units as the lathe pieces (which set the pecking order) */
+  height: number;
+  /**
+   * Where a gold ring goes round the piece, as a fraction of its height. Each is snapped to the widest
+   * point within a few percent of it (a ridge of the plinth or a collar), so it only has to be close.
+   * Only for stretches that are round: a ring takes the widest reach at its height, whatever the side.
+   */
+  rings: number[];
+}
+
+const MODELS: Partial<Record<PieceLetter, PieceModel>> = {
+  P: { url: 'assets/models/pawn.glb', height: 0.68, rings: [0.14, 0.64] },
+  R: { url: 'assets/models/rook.glb', height: 0.85, rings: [0.14, 0.27, 0.81] },
+  N: { url: 'assets/models/knight.glb', height: 1, rings: [0.14] },
+  B: { url: 'assets/models/bishop.glb', height: 1.07, rings: [0.12, 0.56, 0.78] },
+  Q: { url: 'assets/models/queen.glb', height: 1.23, rings: [0.1, 0.64, 0.86] },
+  K: { url: 'assets/models/king.glb', height: 1.44, rings: [0.1, 0.56, 0.79] },
+};
+
+/** Thickness of the gold rings (tube radius), in board units */
+const RING_TUBE = 0.0085;
+/** Heights sampled when looking for the widest point near a ring's height */
+const RING_BINS = 200;
+
+/**
+ * The models face +Z (the knight's muzzle, the bishop's slit, the flat of the king's cross); the lathe
+ * pieces face +X and are turned from there towards the opponent. One quarter-turn lines them up.
+ */
+const MODEL_FRONT_TURN = 1;
+
+const modelGeos: Partial<Record<PieceLetter, PieceParts>> = {};
+let modelsLoading: Promise<boolean> | undefined;
+let modelsSettled = false;
+
+/** The model's mesh, stood on the origin (plinth centred on Y, underside at y = 0) and sized to `height`, with its rings. */
+function prepareModel(root: THREE.Object3D, model: PieceModel): PieceParts {
+  root.updateMatrixWorld(true);
+  let geo: THREE.BufferGeometry | undefined;
+  root.traverse((o) => {
+    if (geo || !(o as THREE.Mesh).isMesh) return;
+    geo = (o as THREE.Mesh).geometry.clone();
+    geo.applyMatrix4(o.matrixWorld);
+  });
+  if (!geo) throw new Error(`${model.url} has no mesh`);
+
+  geo.rotateY((MODEL_FRONT_TURN * PI) / 2);
+  geo.computeBoundingBox();
+  const box = geo.boundingBox as THREE.Box3;
+  const tall = box.max.y - box.min.y;
+
+  // centre on the plinth, not the bounding box: the head reaches out to one side
+  const pos = geo.attributes['position'];
+  const foot = box.min.y + tall * 0.1;
+  const plinth = new THREE.Box3();
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    if (v.y <= foot) plinth.expandByPoint(v);
+  }
+  const mid = plinth.getCenter(v);
+  geo.translate(-mid.x, -box.min.y, -mid.z);
+  geo.scale(model.height / tall, model.height / tall, model.height / tall);
+
+  // generated meshes arrive without normals, and their coarse triangles show as facets in the gold
+  if (!geo.attributes['normal']) {
+    geo.computeVertexNormals();
+    smoothNormals(geo, 2);
+  }
+  return { body: [geo], accent: [], trims: ringsFor(geo, model) };
+}
+
+/** A gold ring at each of the model's `rings`, snapped to the widest point near its height and sized to it. */
+function ringsFor(geo: THREE.BufferGeometry, model: PieceModel): THREE.BufferGeometry[] {
+  const pos = geo.attributes['position'];
+  const reach = new Float32Array(RING_BINS);
+  for (let i = 0; i < pos.count; i++) {
+    const bin = Math.min(RING_BINS - 1, Math.max(0, Math.floor((pos.getY(i) / model.height) * RING_BINS)));
+    reach[bin] = Math.max(reach[bin], Math.hypot(pos.getX(i), pos.getZ(i)));
+  }
+  const span = Math.round(RING_BINS * 0.03);
+  return model.rings.map((at) => {
+    const mid = Math.round(at * RING_BINS);
+    let best = mid;
+    for (let b = Math.max(0, mid - span); b <= Math.min(RING_BINS - 1, mid + span); b++) {
+      if (reach[b] > reach[best]) best = b;
+    }
+    // centred a little inside the widest point, so the ring is half sunk in the stone, not floating on it
+    const ring = new THREE.TorusGeometry(reach[best] - RING_TUBE * 0.25, RING_TUBE, 8, 72);
+    ring.rotateX(PI / 2);
+    ring.translate(0, ((best + 0.5) / RING_BINS) * model.height, 0);
+    return ring;
+  });
+}
+
+/** Blur an indexed mesh's vertex normals into their neighbours', `passes` times: softer shading, same silhouette. */
+function smoothNormals(geo: THREE.BufferGeometry, passes: number): void {
+  const index = geo.index;
+  if (!index) return;
+  const normal = geo.attributes['normal'] as THREE.BufferAttribute;
+  const n = normal.array as Float32Array;
+  const next = new Float32Array(n.length);
+  for (let pass = 0; pass < passes; pass++) {
+    next.set(n);
+    for (let t = 0; t < index.count; t += 3) {
+      const tri = [index.getX(t), index.getX(t + 1), index.getX(t + 2)];
+      for (const a of tri) {
+        for (const b of tri) {
+          if (a === b) continue;
+          next[a * 3] += n[b * 3];
+          next[a * 3 + 1] += n[b * 3 + 1];
+          next[a * 3 + 2] += n[b * 3 + 2];
+        }
+      }
+    }
+    n.set(next);
+    geo.normalizeNormals();
+  }
+}
+
+/**
+ * Fetch the model files (once). Resolves to whether any arrived, so a board that already drew
+ * the lathe pieces knows it should dress them again. A file that fails leaves the lathe piece.
+ */
+export function loadPieceModels(): Promise<boolean> {
+  modelsLoading ??= (async () => {
+    const loader = new GLTFLoader();
+    const letters = Object.keys(MODELS) as PieceLetter[];
+    const arrived = await Promise.all(
+      letters.map(async (letter) => {
+        const model = MODELS[letter] as PieceModel;
+        try {
+          modelGeos[letter] = prepareModel((await loader.loadAsync(model.url)).scene, model);
+          return true;
+        } catch (err) {
+          console.warn(`[luxe-pieces] ${model.url} did not load, keeping the lathe piece`, err);
+          return false;
+        }
+      }),
+    );
+    modelsSettled = true;
+    return arrived.some(Boolean);
+  })();
+  return modelsLoading;
+}
+
+/** True once every model file has either arrived or failed: from then on pieces are drawn the way they will stay. */
+export const pieceModelsSettled = (): boolean => modelsSettled;
+
+export const hasPieceModel = (type: PieceLetter): boolean => !!modelGeos[type];
+
 const cache: Partial<Record<PieceLetter, PieceParts>> = {};
 
 const smoothstep = (a: number, b: number, x: number): number => {
@@ -126,6 +284,9 @@ const smoothstep = (a: number, b: number, x: number): number => {
 };
 
 function geoFor(type: PieceLetter): PieceParts {
+  // checked before the cache: a lathe piece cached before its model arrived must not win
+  const modelled = modelGeos[type];
+  if (modelled) return modelled;
   const hit = cache[type];
   if (hit) return hit;
 
@@ -250,28 +411,54 @@ function geoFor(type: PieceLetter): PieceParts {
   return parts;
 }
 
-export function makeLuxeMaterials(look: Pick<Look3D, 'white' | 'black' | 'trim' | 'groove'>): LuxeMaterials {
+export function makeLuxeMaterials(look: Pick<Look3D, 'white' | 'black' | 'stone' | 'trim' | 'groove'>): LuxeMaterials {
   return {
     gold: new THREE.MeshPhysicalMaterial(look.white),
     lacquer: new THREE.MeshPhysicalMaterial(look.black),
     trim: new THREE.MeshStandardMaterial({ color: look.trim, metalness: 1, roughness: 0.22 }),
     groove: new THREE.MeshStandardMaterial({ color: look.groove, metalness: 0.7, roughness: 0.45 }),
+    stone: look.stone,
   };
 }
+
+/** Counts the pieces built, so each one cuts its marble from a different part of the block */
+let pieceSerial = 0;
 
 /**
  * Build one piece. `facing` is a quarter-turn count about Y: +1 faces the gold (white)
  * side, -1 the opposite side; knights use 2 / 0 so they look sideways along the board.
  */
 export function buildPiece(type: PieceLetter, white: boolean, mats: LuxeMaterials, facing?: number, size = 1): THREE.Group {
-  const p = geoFor(type);
   const group = new THREE.Group();
-  // sized inside its own group: the caller scales `group` to make a piece appear or vanish
+  group.add(buildShape(type, white, mats, size));
+  const f = facing === undefined ? (white ? 1 : -1) : facing;
+  group.rotation.y = (f * PI) / 2;
+  return group;
+}
+
+/**
+ * Give a piece built earlier the shape `buildPiece` would make now (its model has arrived since),
+ * leaving its position, facing and any move in flight alone.
+ */
+export function reshapePiece(group: THREE.Group, type: PieceLetter, white: boolean, mats: LuxeMaterials, size = 1): void {
+  const old = group.children[0];
+  old.traverse((o) => {
+    const mat = (o as THREE.Mesh).material as THREE.Material | undefined;
+    if (mat && mat.userData['body']) mat.dispose();
+  });
+  group.remove(old);
+  group.add(buildShape(type, white, mats, size));
+}
+
+function buildShape(type: PieceLetter, white: boolean, mats: LuxeMaterials, size: number): THREE.Group {
+  const p = geoFor(type);
+  // sized inside its own group: the caller scales the piece's group to make it appear or vanish
   const shape = new THREE.Group();
   shape.scale.setScalar(size);
-  group.add(shape);
   const body = (white ? mats.gold : mats.lacquer).clone();
   body.userData['body'] = true;
+  const stone = white ? mats.stone?.white : mats.stone?.black;
+  if (stone) applyPieceMarble(body, stone, pieceSerial++);
 
   const add = (geo: THREE.BufferGeometry, mat: THREE.Material): void => {
     const m = new THREE.Mesh(geo, mat);
@@ -281,11 +468,8 @@ export function buildPiece(type: PieceLetter, white: boolean, mats: LuxeMaterial
   };
   p.body.forEach((geo) => add(geo, body));
   p.accent.forEach((geo) => add(geo, white ? mats.groove : mats.trim));
-  if (!white) p.trims.forEach((geo) => add(geo, mats.trim));
-
-  const f = facing === undefined ? (white ? 1 : -1) : facing;
-  group.rotation.y = (f * PI) / 2;
-  return group;
+  p.trims.forEach((geo) => add(geo, mats.trim));
+  return shape;
 }
 
 /** Tint a piece's body material (used for selection / hover highlight). */
