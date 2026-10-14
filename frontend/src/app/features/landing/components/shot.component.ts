@@ -10,13 +10,13 @@ import { Shot } from '../landing-media';
   template: `
     @if (shot.video && withVideo) {
       <video #video muted playsinline loop preload="none" aria-hidden="true"
-             [poster]="shot.still + '-1600.webp'" [style.object-position]="shot.focus">
+             [poster]="src" [style.object-position]="focus">
         <source [src]="shot.video.src" [type]="shot.video.type" />
       </video>
     } @else {
-      <img [src]="shot.still + '-1600.webp'" alt="" decoding="async"
-           [attr.srcset]="shot.still + '-800.webp 800w, ' + shot.still + '-1600.webp 1600w'" sizes="100vw"
-           [attr.fetchpriority]="first ? 'high' : 'low'" [style.object-position]="shot.focus" />
+      <img [src]="src" alt="" decoding="async"
+           [attr.srcset]="srcset" sizes="100vw"
+           [attr.fetchpriority]="first ? 'high' : 'low'" [style.object-position]="focus" />
     }
   `,
   styles: [`
@@ -32,6 +32,20 @@ export class ShotComponent {
   @Input() first = false;
 
   @ViewChild('video') private video?: ElementRef<HTMLVideoElement>;
+  private readonly phone = matchMedia('(max-width: 768px)').matches;
+
+  get src(): string {
+    return `${this.shot.still}-${this.shot.widths[1]}.webp`;
+  }
+
+  get srcset(): string {
+    const [small, large] = this.shot.widths;
+    return `${this.shot.still}-${small}.webp ${small}w, ${this.shot.still}-${large}.webp ${large}w`;
+  }
+
+  get focus(): string {
+    return (this.phone && this.shot.phoneFocus) || this.shot.focus;
+  }
   private playing = false;
 
   /** Play the clip while the shot is on screen; stills ignore this */

@@ -21,6 +21,12 @@
   &--king { opacity: 1; visibility: inherit; }
 }
 
+/* V: the floor between the two kings is bright marble, right where the words sit */
+.layer[data-layer=kings]::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(to bottom, transparent 50%, rgba(3, 2, 1, .55) 66%, rgba(3, 2, 1, .88) 84%);
+}
+
 /* a vignette, and darker bands where the words sit */
 .veil {
   position: absolute; inset: 0; pointer-events: none; z-index: 2;
@@ -41,7 +47,7 @@
 .line, .hero__title { text-shadow: 0 2px 30px rgba(0, 0, 0, .6); }
 .copy, .hud { position: absolute; z-index: 4; opacity: 0; visibility: hidden; }
 /* a soft pool of shade behind the words, where the footage behind them is busy */
-.copy--act2::before, .hud--search::before, .hud--lines::before {
+.copy--act2::before, .copy--act3::before, .hud--search::before, .hud--lines::before {
   content: ''; position: absolute; z-index: -1; inset: -9vh -7vw; pointer-events: none;
   background: radial-gradient(closest-side, rgba(3, 2, 1, .62), transparent);
 }

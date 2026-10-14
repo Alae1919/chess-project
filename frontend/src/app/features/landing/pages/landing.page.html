@@ -6,13 +6,16 @@
 
       <!-- ── pictures ───────────────────────────────────────────────── -->
       <div class="layer layer--king" data-layer="king">
-        <app-king-stage [stillsOnly]="lite || still" [focus]="wide ? 0.18 : 0" />
+        <app-king-stage [stillsOnly]="lite || still" />
       </div>
       @for (shot of shots; track shot.id; let first = $first) {
         <div class="layer layer--shot" [attr.data-layer]="shot.id">
           <app-shot [shot]="shot" [first]="first" [withVideo]="!lite && !still" />
         </div>
       }
+      <div class="layer layer--search" data-layer="search">
+        <app-search-stage [stillsOnly]="lite || still" />
+      </div>
       <div class="layer layer--board" data-layer="board">
         <app-duel-board [still]="still" />
       </div>

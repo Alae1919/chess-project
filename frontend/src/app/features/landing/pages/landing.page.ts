@@ -9,9 +9,10 @@ import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { moveLabel } from '../../../core/utils/fen.utils';
 import { KingStageComponent } from '../components/king-stage.component';
+import { SearchStageComponent } from '../components/search-stage.component';
 import { DuelBoardComponent } from '../components/duel-board.component';
 import { ShotComponent } from '../components/shot.component';
-import { SHOTS } from '../landing-media';
+import { Shot, SHOTS } from '../landing-media';
 import {
   formatCount, formatScore, formatTime, Iteration, iterationAt, Line, numberedLine, Score, Showcase,
   ShowcaseService, STORY,
@@ -40,10 +41,14 @@ export function stillTime(t: number): number {
   return t < ACTS[0].rest - 4 ? 0 : ACTS[actAt(t)].rest;
 }
 
+/** When each shot is on screen, on the film's timeline, for the clips that play */
+const SHOT_TIMES: Record<Shot['id'], [number, number]> = { hand: [14, 31], knight: [25, 37], kings: [79, 100] };
+
 /** Values the timeline animates, read on every update and handed to the scenes */
 interface Rig {
   light: number;     // the king's spotlight
-  shot: number;      // close → wide
+  push: number;      // the camera's push toward the king
+  search: number;    // through the search clip: the tree grows, then narrows to one square
   ladder: number;    // through the search's depths
   converge: number;  // the weighed replies narrow to one (the list)
   appear: number;    // the arcs light up on the board
@@ -61,7 +66,7 @@ interface Rig {
 @Component({
   selector: 'app-landing-page',
   standalone: true,
-  imports: [RouterLink, KingStageComponent, DuelBoardComponent, ShotComponent],
+  imports: [RouterLink, KingStageComponent, SearchStageComponent, DuelBoardComponent, ShotComponent],
   templateUrl: './landing.page.html',
   styleUrls: ['./landing.page.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -70,6 +75,7 @@ export class LandingPage implements AfterViewInit, OnDestroy {
   @ViewChild('film', { static: true }) private film!: ElementRef<HTMLElement>;
   @ViewChild('stage', { static: true }) private stage!: ElementRef<HTMLElement>;
   @ViewChild(KingStageComponent, { static: true }) private king!: KingStageComponent;
+  @ViewChild(SearchStageComponent, { static: true }) private searchStage!: SearchStageComponent;
   @ViewChild(DuelBoardComponent, { static: true }) private duel!: DuelBoardComponent;
   @ViewChildren(ShotComponent) private shotViews!: QueryList<ShotComponent>;
 
@@ -103,7 +109,7 @@ export class LandingPage implements AfterViewInit, OnDestroy {
   private trigger?: ScrollTrigger;
   private tl?: gsap.core.Timeline;
   private scroller?: HTMLElement;
-  private rig: Rig = { light: 0.45, shot: 0, ladder: 0, converge: 0, appear: 0, fan: 0, tilt: 0, reply: 0, settle: 0 };
+  private rig: Rig = { light: 0.45, push: 0, search: 0, ladder: 0, converge: 0, appear: 0, fan: 0, tilt: 0, reply: 0, settle: 0 };
   private intro = { v: 0 };
   private viewReady = false;
 
@@ -205,10 +211,11 @@ export class LandingPage implements AfterViewInit, OnDestroy {
         tl.fromTo(`[data-layer=${layer}] app-shot`, { scale: from }, { scale: to, duration: dur }, at);
       };
 
-      // I — the silence before the move: the light comes up, the board out of the dark
+      // I — the silence before the move: the light comes up, the camera moves in on the king
       tl.to('.cue', { autoAlpha: 0, duration: 1.5 }, 0);
       tl.to('[data-copy=hero]', { autoAlpha: 0, y: -30, duration: 4.5, ease: 'power1.in' }, 0.5);
       tl.to(r, { light: 1, duration: 11, ease: 'power1.inOut' }, 0);
+      tl.to(r, { push: 1, duration: 17, ease: 'power1.inOut' }, 0.5);
       tl.fromTo('[data-layer=king]', { scale: 1 }, { scale: 1.06, duration: 17 }, 0);
       fadeIn('[data-copy=act1]', 5);
       fadeOut('[data-copy=act1]', 13);
@@ -223,21 +230,17 @@ export class LandingPage implements AfterViewInit, OnDestroy {
       drift('knight', 25.5, 1.03, 1.1, 12);
       out('hand', 27.5);
 
-      // III — inside the machine: blue light spreads, the search goes deeper, the replies narrow
-      cross('spread', 32, 4);
-      drift('spread', 32, 1.08, 1.15, 12);
+      // III — inside the machine: the search tree grows with the depth, then narrows to one square
+      cross('search', 32, 4);
       out('knight', 34);
       fadeIn('[data-copy=act3]', 33);
       fadeIn('[data-copy=ladder]', 36);
       tl.to(r, { ladder: 1, duration: 14 }, 37);
-      cross('branch', 41, 4);
-      drift('branch', 41, 1.03, 1.1, 12);
-      out('spread', 43);
+      // the clip: its tree grows over the depths, is fully drawn as the replies appear, and narrows with them
+      tl.to(r, { search: 0.5, duration: 15 }, 36);
+      tl.to(r, { search: 1, duration: 7 }, 51.5);
       fadeOut('[data-copy=act3]', 50.5);
       fadeOut('[data-copy=ladder]', 51);
-      cross('converge', 50, 4);
-      drift('converge', 50, 1.12, 1.0, 9);
-      out('branch', 52);
       fadeIn('[data-copy=lines]', 51.5);
       tl.to(r, { converge: 1, duration: 4 }, 55);
 
@@ -246,7 +249,7 @@ export class LandingPage implements AfterViewInit, OnDestroy {
       // the real board starts at the size of the board in the last frame of footage, then settles
       tl.fromTo('[data-layer=board]', { scale: this.wide ? 1.2 : this.narrow ? 1.9 : 1.45 }, { scale: 1, duration: 4.5, ease: 'power2.out' }, 57);
       tl.to(r, { appear: 1, duration: 3 }, 57);
-      out('converge', 59);
+      out('search', 59);
       fadeOut('[data-copy=lines]', 60);
       tl.to(r, { fan: 1, duration: 3.5, ease: 'power1.inOut' }, 61.5);
       tl.to(r, { tilt: 1, duration: 9, ease: 'power1.inOut' }, 61);
@@ -260,9 +263,9 @@ export class LandingPage implements AfterViewInit, OnDestroy {
       fadeOut('[data-copy=reply]', 79);
       out('board', 80, 4);
 
-      // V — your move: the king alone in its pool of light, and the way in
-      tl.to('[data-layer=king]', { autoAlpha: 1, scale: 1, duration: 4, ease: 'power1.inOut' }, 81);
-      tl.fromTo(r, { light: 0, shot: 0.6 }, { light: 1, shot: 1, duration: 12, ease: 'power1.out', immediateRender: false }, 81);
+      // V — your move: the two kings face each other across the board, and the way in
+      cross('kings', 80.5, 4.5);
+      drift('kings', 80.5, 1.1, 1.0, 18.5);
       fadeIn('[data-copy=act5]', 86, 3.5);
       tl.fromTo('.final__mark', { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 3, ease: 'power2.out' }, 89);
       tl.fromTo('.final__cta', { autoAlpha: 0, y: 14 }, { autoAlpha: 1, y: 0, duration: 3, ease: 'power2.out' }, 91);
@@ -300,10 +303,11 @@ export class LandingPage implements AfterViewInit, OnDestroy {
     const t = (this.trigger?.progress ?? 0) * 100;
     const time = this.tl?.time() ?? 0;
 
-    this.king?.set(r.light * this.intro.v, r.shot, time < 21 || time > 79);
-    this.shotViews?.forEach((v, i) => {
-      const at = [[14, 31], [25, 37], [31, 46], [40, 55], [49, 62]][i];
-      v.setPlaying(!!at && time >= at[0] && time <= at[1]);
+    this.king?.set(r.light * this.intro.v, r.push, time < 21);
+    this.searchStage?.set(r.search, time > 30 && time < 60);
+    this.shotViews?.forEach((v) => {
+      const at = SHOT_TIMES[v.shot.id];
+      v.setPlaying(time >= at[0] && time <= at[1]);
     });
     if (this.duel) {
       this.duel.setActive(time > 55 && time < 85);
