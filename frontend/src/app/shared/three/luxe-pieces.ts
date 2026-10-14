@@ -291,10 +291,14 @@ export function buildPiece(type: PieceLetter, white: boolean, mats: LuxeMaterial
 /** Tint a piece's body material (used for selection / hover highlight). */
 export function glowPiece(group: THREE.Object3D, hex: number, intensity: number): void {
   group.traverse((o) => {
-    const mat = (o as THREE.Mesh).material as THREE.MeshPhysicalMaterial | undefined;
-    if (mat && mat.userData['body']) {
-      mat.emissive.setHex(hex);
-      mat.emissiveIntensity = intensity;
+    const raw = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+    // pieces from a glTF file may have several materials, and an unlit one has no emissive colour
+    for (const mat of Array.isArray(raw) ? raw : raw ? [raw] : []) {
+      const m = mat as THREE.MeshPhysicalMaterial;
+      if (m.userData['body'] && m.emissive) {
+        m.emissive.setHex(hex);
+        m.emissiveIntensity = intensity;
+      }
     }
   });
 }

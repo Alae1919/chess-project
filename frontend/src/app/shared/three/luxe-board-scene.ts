@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { Piece, PieceType, Square, Style3D } from '../../core/models';
 import { buildFrame, buildPiece, glowPiece, LuxeMaterials, makeLuxeMaterials, PieceLetter } from './luxe-pieces';
+import { buildModelPiece, PieceModels } from './glb-pieces';
 import { LOOKS_3D, lookTextures } from './board-looks';
 
 const LETTER: Record<PieceType, PieceLetter> = {
@@ -18,6 +19,11 @@ const LIFT_Y = 0.38;
 const BASE_PITCH = -0.24;
 /** What the camera looks at in the tilted 3D view. */
 const PERSP_TARGET = new THREE.Vector3(0, -0.3, 0.3);
+/** The study: the board lies flat on a table, seen from this far above the table (rad), looking at this point */
+const STUDY_ELEVATION = 0.64;
+const STUDY_TARGET = new THREE.Vector3(0, 0.25, 0.1);
+/** Underside of the board's frame: the height of the table it stands on */
+const TABLE_Y = -0.47;
 
 export type Squares = (Piece | null)[][];
 
@@ -53,6 +59,20 @@ export interface SceneOptions {
   hop?: number;
   /** A coloured light that travels with a moving piece and fades once it has landed (off by default) */
   moveLight?: number;
+  /**
+   * `studio` (default): the board is tilted towards the viewer in a dark studio of its own.
+   * `study`: the board lies flat on a table that the page paints behind the (transparent) canvas;
+   * the scene adds what the photo cannot: the board's shadow on the table, and the light of that room.
+   */
+  environment?: 'studio' | 'study';
+}
+
+/** Room the page leaves free for the board, in px from each side of the canvas (panels, bars) */
+export interface SafeArea {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
 }
 
 /** A line of the engine's calculation drawn over the board: from one square to another, at some strength (0..1). */
@@ -68,7 +88,7 @@ const DRAG_THRESHOLD_PX = 6;
 const HELD_Y = 0.75;
 
 /** How far the board may turn sideways (rad) — the camera is framed so the whole frame stays visible within it. */
-const YAW_LIMIT = { interactive: 0.3, still: 0.1, tight: 0.06 };
+const YAW_LIMIT = { interactive: 0.3, still: 0.1, tight: 0.06, study: 0.12 };
 /** Vertical drag distance (px) that takes the view from the 3D angle all the way to straight down. */
 const TOP_DRAG_PX = 180;
 
@@ -136,6 +156,16 @@ export class LuxeBoardScene {
   private boardMaterials: THREE.MeshPhysicalMaterial[] = [];
   private ownedGeometries: THREE.BufferGeometry[] = [];
   private envTexture: THREE.Texture;
+  /** The board lies flat on a table the page paints behind the canvas (see SceneOptions.environment) */
+  private readonly study: boolean;
+  /** What the table needs from the scene: shadows. Built once, freed with the scene. */
+  private tableParts: Array<{ geo: THREE.BufferGeometry; mat: THREE.Material; tex?: THREE.Texture }> = [];
+  private lights: THREE.Light[] = [];
+  /** Pieces from a glTF file, in place of the built-in ones, once they have loaded */
+  private models: PieceModels | null = null;
+  private safe: SafeArea = { left: 0, right: 0, top: 0, bottom: 0 };
+  private viewW = 1;
+  private viewH = 1;
 
   private markers: THREE.Mesh[] = [];
   private dotGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.035, 24);
@@ -188,13 +218,17 @@ export class LuxeBoardScene {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    this.study = opts.environment === 'study';
+    this.renderer.toneMappingExposure = this.study ? 1.05 : 1.15;
+    this.viewW = width;
+    this.viewH = height;
 
     this.look = opts.look ?? 'marble-gold';
     this.mats = makeLuxeMaterials(LOOKS_3D[this.look]);
     this.camera = new THREE.PerspectiveCamera(46, width / height, 0.01, 100);
-    this.envTexture = this.buildLighting();
+    this.envTexture = this.study ? this.buildStudyLighting() : this.buildLighting();
     this.scene.add(this.boardGroup);
+    if (this.study) this.buildTable();
     this.buildBoard();
     this.boardGroup.add(this.pieceGroup);
     if (opts.moveLight !== undefined) {
@@ -204,7 +238,7 @@ export class LuxeBoardScene {
     this.fitCamera();
     this.bindEvents();
 
-    this.boardGroup.position.y = -2;
+    this.boardGroup.position.y = this.study ? 0.9 : -2;
     this.frame();
   }
 
@@ -212,9 +246,32 @@ export class LuxeBoardScene {
 
   resize(width: number, height: number): void {
     if (width < 1 || height < 1) return;
+    this.viewW = width;
+    this.viewH = height;
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.fitCamera();
+  }
+
+  /** The part of the canvas the board may use: the rest is under panels. The camera frames the board inside it. */
+  setSafeArea(area: SafeArea): void {
+    const s = this.safe;
+    if (area.left === s.left && area.right === s.right && area.top === s.top && area.bottom === s.bottom) return;
+    this.safe = { ...area };
+    this.fitCamera();
+  }
+
+  /**
+   * Dress the pieces in models from a glTF file (null: back to the built-in ones). Pieces on the board
+   * are swapped in place, with no animation.
+   */
+  setPieceModels(models: PieceModels | null): void {
+    if (this.disposed || models === this.models) return;
+    this.models = models;
+    this.pieces.forEach((e) => this.disposePiece(e));
+    this.pieces.clear();
+    this.pieceGroup.clear();
+    if (this.lastSquares) this.setPosition(this.lastSquares, false);
   }
 
   setVisible(visible: boolean): void {
@@ -360,13 +417,18 @@ export class LuxeBoardScene {
     this.ownedMaterials = [];
     this.ownedGeometries.forEach((g) => g.dispose());
     this.ownedGeometries = [];
-    this.pieces.forEach((e) => e.group.traverse((o) => {
-      const mat = (o as THREE.Mesh).material as THREE.Material | undefined;
-      if (mat && mat.userData['body']) mat.dispose();
-    }));
+    this.pieces.forEach((e) => this.disposePiece(e));
     this.pieces.clear();
     this.pieceGroup.clear();
     Object.values(this.mats).forEach((m: THREE.Material) => m.dispose());
+  }
+
+  /** A piece's own materials (the geometry is shared by every piece of its kind) */
+  private disposePiece(e: PieceEntry): void {
+    e.group.traverse((o) => {
+      const mat = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      for (const m of Array.isArray(mat) ? mat : mat ? [mat] : []) if (m.userData['body']) m.dispose();
+    });
   }
 
   dispose(): void {
@@ -379,6 +441,10 @@ export class LuxeBoardScene {
     [this.dotGeo, this.ringGeo].forEach((g) => g.dispose());
     [this.dotMat, this.ringMat].forEach((m) => m.dispose());
     this.envTexture.dispose();
+    this.tableParts.forEach((p) => { p.geo.dispose(); p.mat.dispose(); p.tex?.dispose(); });
+    this.tableParts = [];
+    this.lights.forEach((l) => l.dispose());
+    this.lights = [];
     this.renderer.dispose();
     this.renderer.forceContextLoss();
   }
@@ -433,6 +499,99 @@ export class LuxeBoardScene {
     fill.position.set(4, 6, 8);
     this.scene.add(fill);
     return env;
+  }
+
+  /** The light of the room in the photo: a warm lamp on the left, a soft ceiling light, dark wood all around. */
+  private buildStudyLighting(): THREE.Texture {
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    const room = new THREE.Scene();
+    room.background = new THREE.Color(0x070402);
+    const cards: Array<[number, number, number, number, number, [number, number, number]]> = [
+      [-9, 3.5, 3, 3, 5, [7, 4.4, 2]],          // the brass lamp
+      [1, 10, 1, 9, 6, [2.8, 2.3, 1.7]],        // ceiling light
+      [0, 4, -10, 14, 4, [0.9, 0.55, 0.28]],    // shelves behind the table
+      [9, 3, 0, 4, 4, [0.5, 0.34, 0.2]],
+      [0, -3, 0, 14, 10, [0.62, 0.32, 0.13]],   // bounce off the polished table
+    ];
+    const geos: THREE.BufferGeometry[] = [];
+    const mats: THREE.Material[] = [];
+    cards.forEach(([x, y, z, w, h, col]) => {
+      const geo = new THREE.PlaneGeometry(w, h);
+      const mat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
+      mat.color.setRGB(col[0], col[1], col[2]);
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z);
+      m.lookAt(0, 0, 0);
+      room.add(m);
+      geos.push(geo);
+      mats.push(mat);
+    });
+    const env = pmrem.fromScene(room, 0.04).texture;
+    pmrem.dispose();
+    geos.forEach((g) => g.dispose());
+    mats.forEach((m) => m.dispose());
+    this.scene.environment = env;
+
+    const add = <T extends THREE.Light>(l: T): T => {
+      this.scene.add(l);
+      this.lights.push(l);
+      return l;
+    };
+    add(new THREE.AmbientLight(0x3a2416, 0.55));
+    // a pool of warm light from up and to the left, where the lamp is: shadows fall to the right and back
+    const key = add(new THREE.SpotLight(0xffd9a6, 820, 0, 0.62, 0.75, 2));
+    key.position.set(-6, 13, 8);
+    key.target.position.set(0, 0, 0);
+    this.scene.add(key.target);
+    key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.camera.near = 6;
+    key.shadow.camera.far = 34;
+    key.shadow.bias = -0.0004;
+    key.shadow.normalBias = 0.02;
+    // the lamp itself, close to the left side of the board
+    const lamp = add(new THREE.PointLight(0xffb866, 140, 0, 2));
+    lamp.position.set(-9, 2.6, 3);
+    // an edge of warm light from behind, so dark pieces keep their outline
+    const rim = add(new THREE.DirectionalLight(0xffb070, 1.5));
+    rim.position.set(4, 6, -9);
+    const fill = add(new THREE.DirectionalLight(0x9aa6c4, 0.16));
+    fill.position.set(6, 5, 6);
+    return env;
+  }
+
+  /**
+   * The table is the photo behind the canvas: all the scene adds is what the board does to it. A shadow
+   * catcher for the shadows of the lights, and a soft dark halo under the frame, so the board is set on the wood.
+   */
+  private buildTable(): void {
+    const plane = new THREE.PlaneGeometry(60, 60);
+    plane.rotateX(-Math.PI / 2);
+    const shade = new THREE.ShadowMaterial({ color: 0x120600, opacity: 0.6 });
+    const catcher = new THREE.Mesh(plane, shade);
+    catcher.position.y = TABLE_Y;
+    catcher.receiveShadow = true;
+    this.scene.add(catcher);
+    this.tableParts.push({ geo: plane, mat: shade });
+
+    // halo: a blurred dark square, painted once
+    const size = 256;
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const ctx = c.getContext('2d')!;
+    ctx.shadowColor = 'rgba(8,3,0,1)';
+    ctx.shadowBlur = 46;
+    ctx.fillStyle = 'rgba(8,3,0,1)';
+    ctx.fillRect(58, 58, size - 116, size - 116);
+    const tex = new THREE.CanvasTexture(c);
+    const haloGeo = new THREE.PlaneGeometry(13.4, 13.4);
+    haloGeo.rotateX(-Math.PI / 2);
+    const haloMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.55, depthWrite: false, toneMapped: false });
+    const halo = new THREE.Mesh(haloGeo, haloMat);
+    halo.position.y = TABLE_Y + 0.004;
+    halo.renderOrder = 1;
+    this.boardGroup.add(halo);
+    this.tableParts.push({ geo: haloGeo, mat: haloMat, tex });
   }
 
   private buildBoard(): void {
@@ -524,26 +683,59 @@ export class LuxeBoardScene {
   /** How far the board may turn sideways (rad) */
   private get yawLimit(): number {
     if (this.opts.tight) return YAW_LIMIT.tight;
+    if (this.study) return YAW_LIMIT.study;
     return this.opts.interactive ? YAW_LIMIT.interactive : YAW_LIMIT.still;
   }
 
-  /** Back the camera off until the whole frame stays on screen, for both the tilted and the top-down view. */
+  /** What the camera looks at in the tilted view */
+  private get target(): THREE.Vector3 {
+    return this.study ? STUDY_TARGET : PERSP_TARGET;
+  }
+
+  /** How far the board is tilted towards the viewer at rest (the study's board lies flat on its table) */
+  private get basePitch(): number {
+    return this.study ? 0 : BASE_PITCH;
+  }
+
+  /**
+   * Back the camera off until the whole frame stays inside the safe area, for both the tilted and the
+   * top-down view; the safe area's centre is where the board is put on screen.
+   */
   private fitCamera(): void {
+    const W = Math.max(this.viewW, 1);
+    const H = Math.max(this.viewH, 1);
+    const s = this.safe;
+    const margin = 0.03;
+    const xmin = Math.min(-1 + (2 * s.left) / W + margin, -0.2);
+    const xmax = Math.max(1 - (2 * s.right) / W - margin, 0.2);
+    const ymin = Math.min(-1 + (2 * s.bottom) / H + margin, -0.2);
+    const ymax = Math.max(1 - (2 * s.top) / H - margin, 0.2);
+    // the frame's centre goes to the middle of the safe area: the view is slid sideways and up by that much
+    const cx = (xmin + xmax) / 2;
+    const cy = (ymin + ymax) / 2;
+    if (Math.abs(cx) < 1e-4 && Math.abs(cy) < 1e-4) this.camera.clearViewOffset();
+    else this.camera.setViewOffset(W, H, (-cx * W) / 2, (cy * H) / 2, W, H);
+
     // phones look down more steeply: the far ranks get taller, so a finger can find them
-    const dir = new THREE.Vector3(0, 9.6, this.opts.tight ? 3.8 : 9.4).normalize();
-    const target = PERSP_TARGET;
+    const dir = this.study
+      ? new THREE.Vector3(0, Math.sin(STUDY_ELEVATION), Math.cos(STUDY_ELEVATION))
+      : new THREE.Vector3(0, 9.6, this.opts.tight ? 3.8 : 9.4).normalize();
+    const target = this.target;
     const E = 4.97; // frame half-width, bevel included
     const yawMax = this.yawLimit;
-    const pitches = this.opts.interactive
-      ? [BASE_PITCH]
-      : [BASE_PITCH - 0.03, BASE_PITCH + 0.03];
+    const base = this.basePitch;
+    const pitches = this.opts.interactive || this.study
+      ? [base]
+      : [base - 0.03, base + 0.03];
 
     const pts: THREE.Vector3[] = [];
     for (const pitch of pitches) {
       for (const yaw of [-yawMax, 0, yawMax]) {
         const euler = new THREE.Euler(pitch, yaw, 0, 'XYZ');
-        for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (const y of [-0.3, 1.6]) {
-          pts.push(new THREE.Vector3(sx * E, y, sz * E).applyEuler(euler));
+        for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+          // flat on a table, the tall pieces are on the far side of the board: the near corners need less height
+          const ys = this.study ? (sz < 0 ? [-0.3, 1.55] : [-0.3, 0.9]) : [-0.3, 1.6];
+          for (const y of ys) pts.push(new THREE.Vector3(sx * E, y, sz * E).applyEuler(euler));
         }
       }
     }
@@ -552,7 +744,7 @@ export class LuxeBoardScene {
       this.camera.updateProjectionMatrix();
       return pts.every((p) => {
         const v = p.clone().project(this.camera);
-        return Math.abs(v.x) <= 0.97 && Math.abs(v.y) <= 0.97;
+        return v.x >= xmin && v.x <= xmax && v.y >= ymin && v.y <= ymax;
       });
     };
 
@@ -591,7 +783,8 @@ export class LuxeBoardScene {
     const t = this.topT;
     this.camera.position.lerpVectors(this.perspPos, new THREE.Vector3(0, this.topDist, 0), t);
     this.camera.up.lerpVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1), t).normalize();
-    this.camera.lookAt(PERSP_TARGET.x * (1 - t), PERSP_TARGET.y * (1 - t), PERSP_TARGET.z * (1 - t));
+    const tg = this.target;
+    this.camera.lookAt(tg.x * (1 - t), tg.y * (1 - t), tg.z * (1 - t));
     this.camera.updateMatrixWorld();
 
     // seen from straight above, the glossy marble mirrors the bright ceiling light — tone the reflections down
@@ -602,7 +795,10 @@ export class LuxeBoardScene {
   /* ── pieces ─────────────────────────────────────────────────────────────── */
 
   private addPiece(letter: PieceLetter, white: boolean, row: number, col: number, animated: boolean): PieceEntry {
-    const group = buildPiece(letter, white, this.mats, letter === 'N' ? (white ? 2 : 0) : white ? 1 : -1, this.opts.tight ? PHONE_PIECE_SIZE : 1);
+    const size = this.opts.tight ? PHONE_PIECE_SIZE : 1;
+    const group = this.models
+      ? buildModelPiece(this.models, letter, white, size)
+      : buildPiece(letter, white, this.mats, letter === 'N' ? (white ? 2 : 0) : white ? 1 : -1, size);
     const [x, z] = sqCenter(row, col);
     group.position.set(x, REST_Y, z);
     group.userData = { row, col };
@@ -946,8 +1142,9 @@ export class LuxeBoardScene {
     if (this.intro) {
       this.introT = Math.min(this.introT + 0.014, 1);
       const e = 1 - Math.pow(1 - this.introT, 3);
-      this.boardGroup.rotation.x = BASE_PITCH * e * (1 - this.topT);
-      this.boardGroup.position.y = -2 * (1 - e);
+      this.boardGroup.rotation.x = this.basePitch * e * (1 - this.topT);
+      // the study's board is set down on its table; the studio's rises into view
+      this.boardGroup.position.y = (this.study ? 0.9 : -2) * (1 - e);
       if (this.introT >= 1) this.intro = false;
     }
 
@@ -955,7 +1152,7 @@ export class LuxeBoardScene {
     this.pitch += (this.targetPitch - this.pitch) * k;
     this.yaw += (this.flipYaw + (this.dragYaw + this.parallaxYaw) * (1 - this.topT) - this.yaw) * k;
     if (!this.intro) {
-      this.boardGroup.rotation.x = (BASE_PITCH + this.pitch) * (1 - this.topT);
+      this.boardGroup.rotation.x = (this.basePitch + this.pitch) * (1 - this.topT);
     }
 
     if (this.topT !== this.topTarget) {
