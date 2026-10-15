@@ -161,7 +161,7 @@ export class HomePage implements OnInit {
     control?.setValue(!control.value);
   }
 
-  /** "Maître (≈ 2550) · Blancs · Rapide 10′", or what the other modes have to say */
+  /** "Maître (≈ 2550) · Blancs" against the AI (no clock), "Blancs · Rapide 10′" otherwise, or what the other modes have to say */
   get summary(): string {
     if (this.selectedMode === 'online') return 'Classé ou amical · en temps réel';
     if (this.selectedMode === 'saved') {

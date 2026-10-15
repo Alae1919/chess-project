@@ -138,13 +138,21 @@ describe('HomePage', () => {
     expect(navigate).toHaveBeenCalledWith(['/home'], { queryParams: { mode: 'saved' } });
   });
 
-  it('sums up the chosen settings above the start button', () => {
+  it('sums up the chosen settings above the start button, without a clock against the AI', () => {
     page.selectMode('ai');
     page.selectDifficulty(5);
     page.selectColor('black');
     page.selectTime('rapid');
 
-    expect(page.summary).toBe('Maître (≈ 2550) · Noirs · Rapide 10′');
+    expect(page.summary).toBe('Maître (≈ 2550) · Noirs');
+  });
+
+  it('keeps the clock in the summary of a game that has one', () => {
+    page.selectMode('local');
+    page.selectColor('black');
+    page.selectTime('rapid');
+
+    expect(page.summary).toBe('Noirs · Rapide 10′');
   });
 });
 
