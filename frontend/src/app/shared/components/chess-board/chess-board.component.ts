@@ -378,12 +378,18 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
     const row = (sq: Square) => (this.flipped ? 7 - sq.row : sq.row);
     const dx = (col(from) - col(to)) * cell;
     const dy = (row(from) - row(to)) * cell;
-    el.style.zIndex = '30';   // over the other pieces on the way
+    // Over the other pieces on the way. The square is raised too, not only the piece: a square under the
+    // pointer is brightened by a filter, which makes it a layer of its own that the squares drawn after it
+    // would paint over, and the piece would be invisible on the way (the pointer rests on the square just
+    // clicked, so this is what happened to the player's own moves).
+    const square = el.parentElement;
+    el.style.zIndex = '30';
+    if (square) square.style.zIndex = '30';
     const run = el.animate(
       [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0, 0)' }],
       { duration: MOVE_SLIDE_MS, easing: 'cubic-bezier(.45, .05, .25, 1)' },
     );
-    run.onfinish = run.oncancel = () => { el.style.zIndex = ''; };
+    run.onfinish = run.oncancel = () => { el.style.zIndex = ''; if (square) square.style.zIndex = ''; };
   }
 
   private pieceElAt(sq: Square): HTMLElement | null {
