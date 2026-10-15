@@ -35,7 +35,7 @@ export type RematchState = 'idle' | 'pending' | 'declined';
 
       <dl class="stats m-only" *ngIf="moves !== null">
         <div><dt>coups</dt><dd>{{ moves }}</dd></div>
-        <div><dt>cadence</dt><dd>{{ clock }}</dd></div>
+        <div *ngIf="clock"><dt>cadence</dt><dd>{{ clock }}</dd></div>
         <div><dt>adversaire</dt><dd>{{ opponent }}</dd></div>
       </dl>
 

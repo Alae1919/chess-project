@@ -122,12 +122,15 @@ public class GamePersistenceService {
             }
         }
 
+        // Against the AI there is no clock, whatever the request says
         var tc = req.timeControl();
-        entity.setTimeControlType(TimeControlKind.valueOf(tc.type()));
-        entity.setTimeControlInitialMs(tc.initialMs());
-        entity.setTimeControlIncrementMs(tc.incrementMs());
-        entity.setWhiteTimeRemainingMs(tc.initialMs());
-        entity.setBlackTimeRemainingMs(tc.initialMs());
+        long initialMs   = isAiMode ? 0 : tc.initialMs();
+        long incrementMs = isAiMode ? 0 : tc.incrementMs();
+        entity.setTimeControlType(isAiMode ? TimeControlKind.unlimited : TimeControlKind.valueOf(tc.type()));
+        entity.setTimeControlInitialMs(initialMs);
+        entity.setTimeControlIncrementMs(incrementMs);
+        entity.setWhiteTimeRemainingMs(initialMs);
+        entity.setBlackTimeRemainingMs(initialMs);
 
         if (req.fen() != null && !req.fen().isBlank()) {
             entity.setCurrentFen(req.fen());

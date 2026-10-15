@@ -21,6 +21,9 @@ import { isPhoneViewport, isStudioViewport } from '../../../core/utils/viewport'
 import { AI_LEVEL_ELO, AI_LEVEL_LABELS, aiLevelLabel } from '../../../core/utils/ai-levels';
 
 type TimeChoice = 'blitz' | 'rapid' | 'classical';
+
+/** Games against the AI are not timed */
+const NO_CLOCK: TimeControl = { type: 'unlimited', initialMs: 0, incrementMs: 0 };
 type RuleKey = 'enableUndo' | 'confirmMoves' | 'showLegalMoves' | 'realTimeAnalysis' | 'soundEnabled';
 
 /** The game still going, as the "Reprendre" card shows it */
@@ -170,7 +173,7 @@ export class HomePage implements OnInit {
     const clock = `${time.label} ${time.mins}`;
     if (this.selectedMode === 'ai') {
       const i = this.selectedDifficulty - 1;
-      return `${AI_LEVEL_LABELS[i]} (≈ ${AI_LEVEL_ELO[i]}) · ${color} · ${clock}`;
+      return `${AI_LEVEL_LABELS[i]} (≈ ${AI_LEVEL_ELO[i]}) · ${color}`;
     }
     return `${color} · ${clock}`;
   }
@@ -213,7 +216,8 @@ export class HomePage implements OnInit {
       mode: this.selectedMode,
       aiDifficulty: this.selectedDifficulty,
       playerColor: this.selectedColor,
-      timeControl: this.timeControls[this.selectedTime],
+      // no clock against the AI
+      timeControl: this.selectedMode === 'ai' ? NO_CLOCK : this.timeControls[this.selectedTime],
       ...this.optionsForm.value,
     };
     this.store.dispatch(GameActions.createGame({ options }));

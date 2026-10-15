@@ -16,9 +16,10 @@ import {
   selectReviewedCheck,
   selectIsLoading,
   selectPendingPromotion,
+  selectViewedMove,
 } from '../../../store/game/game.selectors';
 import { GameActions } from '../../../store/game/game.actions';
-import { Piece, PieceType, Square, Style2D } from '../../../core/models';
+import { Move, Piece, PieceType, Square, Style2D } from '../../../core/models';
 import { isPlayableStatus } from '../../../core/utils/game-status.utils';
 import { DRAG_THRESHOLD_PX, dropVerdict, sameSquare } from '../../../core/utils/drag-drop.utils';
 
@@ -26,6 +27,9 @@ import { DRAG_THRESHOLD_PX, dropVerdict, sameSquare } from '../../../core/utils/
 const SOLID_PIECES: Record<PieceType, string> = {
   king: '♚︎', queen: '♛︎', rook: '♜︎', bishop: '♝︎', knight: '♞︎', pawn: '♟︎',
 };
+
+/** How long a piece takes to slide to its new square */
+const MOVE_SLIDE_MS = 700;
 
 /** A piece being carried: where it is on the board (px from the board's corner) and where it came from */
 interface Carried {
@@ -59,6 +63,8 @@ interface Carried {
               [class.selected]="isSelected(sq, vm.selected)"
               [class.hint]="isLegalMove(sq, vm.legalMoves) && !hasPiece(sq, vm.board)"
               [class.capture]="isLegalMove(sq, vm.legalMoves) && hasPiece(sq, vm.board)"
+              [class.last-from]="isLastFrom(sq, vm.viewedMove)"
+              [class.last-to]="isLastTo(sq, vm.viewedMove)"
               [class.in-check]="isKingInCheck(sq, vm)"
               [class.drop-target]="isDropTarget(sq, vm)"
               (click)="onSquareClick(sq, vm)"
@@ -125,6 +131,8 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
     reviewedCheck: this.store.select(selectReviewedCheck),
     loading: this.store.select(selectIsLoading),
     promoting: this.store.select(selectPendingPromotion),
+    // the move that led to the board shown (the last one, unless looking back)
+    viewedMove: this.store.select(selectViewedMove),
   }).pipe(tap((vm) => this.onStore(vm)));
 
   /** The piece being dragged, once the pointer has moved far enough to call it a drag */
@@ -184,6 +192,7 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
     this.endListening();
     this.carried = null;
     this.dropped = null;
+    this.draggedMove = false;
     this.press = { from: sq, piece, x: e.clientX, y: e.clientY, id: e.pointerId };
     this.listen(window, 'pointermove', (ev: PointerEvent) => this.onPointerMove(ev));
     this.listen(window, 'pointerup', (ev: PointerEvent) => this.onPointerUp(ev));
@@ -252,6 +261,7 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
 
   /** Legal: play it, and keep the piece on its new square until the board catches up */
   private sendOff(from: Square, to: Square, vm: any): void {
+    this.draggedMove = true;
     this.dropped = { from, to, board: vm.board, waiting: false };
     this.slideTo(to);
     this.submit(from, to, vm);
@@ -262,6 +272,7 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
     const c = this.carried;
     if (!c) return;
     this.dropped = null;
+    this.draggedMove = false;
     this.slideTo(c.from);
     setTimeout(() => { if (this.carried === c) this.carried = null; }, 200);
   }
@@ -278,6 +289,7 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
   /** Every store change: settle a piece that was let go, once the game has answered */
   private onStore(vm: any): void {
     this.latest = vm;
+    this.watchForArrival(vm);
     const d = this.dropped;
     if (!d || !this.carried) return;
 
@@ -295,6 +307,64 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
       // sent, answered, and the board did not change: the move was refused
       this.returnPiece();
     }
+  }
+
+  /* ── a move played by someone else (or by a tap) slides into place ──────── */
+
+  /** The game and its move count at the last store change, to tell one new move from anything else */
+  private shown: { id?: string; moves: number } | null = null;
+  /** The move on its way was dragged by the player: the piece is already on its square, nothing to slide */
+  private draggedMove = false;
+
+  // One change of the store reaches the view model in several emissions (each selector in turn), so this
+  // reads the move from the game itself rather than from the other parts of the model.
+  private watchForArrival(vm: any): void {
+    const was = this.shown;
+    const game = vm.game;
+    const moves: number = game?.moves?.length ?? 0;
+    this.shown = { id: game?.id, moves };
+    if (!was || !game || was.id !== game.id || moves !== was.moves + 1) return;
+    const dragged = this.draggedMove;
+    this.draggedMove = false;
+    if (dragged || vm.reviewing !== null) return;
+    this.slideIn(game.moves[moves - 1]);
+  }
+
+  /** The piece that just arrived travels from its old square to its new one (and the rook, when castling) */
+  private slideIn(move: Move): void {
+    const castles = move.piece?.type === 'king' && Math.abs(move.to.col - move.from.col) === 2;
+    const rook = castles
+      ? { from: { row: move.to.row, col: move.to.col > move.from.col ? 7 : 0 },
+          to:   { row: move.to.row, col: move.to.col > move.from.col ? move.to.col - 1 : move.to.col + 1 } }
+      : null;
+    // wait for the board to be drawn with the piece on its new square
+    setTimeout(() => {
+      this.glide(move.from, move.to);
+      if (rook) this.glide(rook.from, rook.to);
+    }, 0);
+  }
+
+  private glide(from: Square, to: Square): void {
+    const cell = this.cellSize();
+    const el = this.pieceElAt(to);
+    if (!el || !cell || typeof el.animate !== 'function') return;
+    const col = (sq: Square) => (this.flipped ? 7 - sq.col : sq.col);
+    const row = (sq: Square) => (this.flipped ? 7 - sq.row : sq.row);
+    const dx = (col(from) - col(to)) * cell;
+    const dy = (row(from) - row(to)) * cell;
+    el.style.zIndex = '30';   // over the other pieces on the way
+    const run = el.animate(
+      [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0, 0)' }],
+      { duration: MOVE_SLIDE_MS, easing: 'cubic-bezier(.45, .05, .25, 1)' },
+    );
+    run.onfinish = run.oncancel = () => { el.style.zIndex = ''; };
+  }
+
+  private pieceElAt(sq: Square): HTMLElement | null {
+    const row = this.flipped ? 7 - sq.row : sq.row;
+    const col = this.flipped ? 7 - sq.col : sq.col;
+    const cells = this.host.nativeElement.querySelectorAll('.board-grid .sq');
+    return cells[row * 8 + col]?.querySelector<HTMLElement>('.piece') ?? null;
   }
 
   private submit(from: Square, to: Square, vm: any): void {
@@ -366,6 +436,10 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
   isSelected(sq: Square, selected: Square | null): boolean {
     return !!selected && selected.row === sq.row && selected.col === sq.col;
   }
+
+  /** The square the last move started from, and the one it ended on */
+  isLastFrom(sq: Square, move: Move | null): boolean { return !!move && sameSquare(move.from, sq); }
+  isLastTo(sq: Square, move: Move | null): boolean { return !!move && sameSquare(move.to, sq); }
 
   isLegalMove(sq: Square, legalMoves: Square[]): boolean {
     return (legalMoves ?? []).some((m) => m.row === sq.row && m.col === sq.col);

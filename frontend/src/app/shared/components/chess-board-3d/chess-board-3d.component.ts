@@ -104,6 +104,9 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
           look: this.look,
           tight: this.tight,
           environment: this.environment,
+          // slow enough to follow, with a lower hop
+          moveMs: 850,
+          hop: 0.7,
           canDrag: (sq) => this.canDrag(sq),
           onDragStart: (sq) => this.zone.run(() => this.store.dispatch(GameActions.selectSquare({ square: sq }))),
           onDrop: (from, to) => this.zone.run(() => this.onDrop(from, to)),

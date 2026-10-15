@@ -64,7 +64,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * Test order: each nested class is independent (no shared game state).
  */
-@SpringBootTest(classes = ChessApplication.class)
+@SpringBootTest(classes = ChessApplication.class, properties = "chess.ai.min-reply-ms=0")
 @AutoConfigureMockMvc
 @WithMockUser(username = "user")
 @DisplayName("GameController Integration Tests")
