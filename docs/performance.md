@@ -82,4 +82,13 @@ with its window shown. Each figure is the range over two runs.
 | 2026-10-15 | phase 4 | MacBook, `mvn spring-boot:run`, `move-latency.mjs`, level 1 | API | `/ai-move` p50 624 → 40 ms, p95 645 → 81 ms (the 600 ms pause is now the page's, with no server thread asleep) · `/moves` p50 35 ms |
 | 2026-10-15 | phase 4 | `ng serve`, 2D and 3D boards | interaction | selecting a piece: no request (was one round trip per piece, 89–121 ms); the move shows on the board at once and is taken back if refused; a new game is not fetched a second time after it is created |
 
+### After phase 5 (backend)
+
+| Date | Commit | Where | Measure | Result |
+|---|---|---|---|---|
+| 2026-10-15 | phase 5 | MacBook (heavily loaded: load average ~300), `mvn spring-boot:run`, `move-latency.mjs`, level 1, 2 games | API | `/moves` p50 35 → 21 ms · `/ai-move` p50 40 → 26 ms · `/legal-moves` p50 18 → 5 ms (no user or game row read to authorise it) |
+| 2026-10-15 | phase 5 | same | auth cache | 148 hits for 1 miss: one user read per minute instead of two or three queries per request |
+| 2026-10-15 | phase 5 | `MovePersistenceCostTest` | saving a move | 4 statements, the same at move 20 as at move 2 (it loaded every earlier move before) |
+| 2026-10-15 | phase 5 | dev database, `EXPLAIN` | indexes | match history uses `idx_games_*_status_updated`; name search can use `idx_users_username_lower` (the table is too small for the planner to bother yet) |
+
 Production numbers come once the dashboard has a day of data.

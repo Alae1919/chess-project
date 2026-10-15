@@ -80,7 +80,7 @@ public class SecurityConfig {
             .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
     }
 
-    /** The authenticated principal; controllers resolve the caller from its username. */
+    /** The principal of a password login (requests after it carry a token, and an {@link AuthUser}). */
     static UserDetails toUserDetails(UserEntity u) {
         return User.withUsername(u.getUsername())
             .password(u.getPasswordHash())

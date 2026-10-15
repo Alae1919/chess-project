@@ -15,6 +15,7 @@ import com.chess.persistence.entity.*;
 import com.chess.infrastructure.persistence.GameMetadata;
 import com.chess.infrastructure.persistence.GameStore;
 import com.chess.persistence.repository.EloHistoryRepository;
+import com.chess.persistence.repository.GameMoveRepository;
 import com.chess.persistence.repository.GameRepository;
 import com.chess.persistence.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -31,11 +32,14 @@ public class GamePersistenceService {
     private final UserRepository       userRepo;
     private final EloHistoryRepository eloRepo;
     private final GameStore            gameStore;
+    private final GameMoveRepository   moveRepo;
 
     public GamePersistenceService(GameRepository gameRepo,
                                    UserRepository userRepo,
                                    EloHistoryRepository eloRepo,
-                                   GameStore gameStore) {
+                                   GameStore gameStore,
+                                   GameMoveRepository moveRepo) {
+        this.moveRepo   = moveRepo;
         this.gameRepo   = gameRepo;
         this.userRepo   = userRepo;
         this.eloRepo    = eloRepo;
@@ -161,8 +165,9 @@ public class GamePersistenceService {
     public void persistMove(UUID dbGameId, String uciMove, String newFen, String colorPlayed) {
         var game = gameRepo.findById(dbGameId).orElseThrow();
         // 1-based half-move count, taken from what is stored: a session rebuilt from a bare
-        // position has forgotten the earlier moves
-        int moveNumber = game.getMoves().size() + 1;
+        // position has forgotten the earlier moves. One indexed lookup, not every earlier move
+        // loaded to be counted (this runs inside the game's turn lock, on every move).
+        int moveNumber = moveRepo.lastMoveNumber(dbGameId) + 1;
 
         String norm = uciMove.toLowerCase();
         int fromFile = norm.charAt(0) - 'a', fromRank = norm.charAt(1) - '1';
@@ -237,7 +242,8 @@ public class GamePersistenceService {
             game.setTurnStartedAt(s.turnStartedAt()); // lets a restart charge the time it was down
         });
 
-        game.getMoves().add(moveEntity);
+        // inserted on its own: adding it to game.getMoves() would load the whole collection first
+        moveRepo.save(moveEntity);
         gameRepo.save(game);
     }
 

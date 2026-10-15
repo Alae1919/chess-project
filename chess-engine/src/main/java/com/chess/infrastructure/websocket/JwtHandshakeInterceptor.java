@@ -48,7 +48,7 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
             UUID userId   = UUID.fromString(claims.getSubject());
             String path   = request.getURI().getPath();
             String gameId = path.substring(path.lastIndexOf('/') + 1);
-            gameAccess.requirePlayer(gameId, userId);
+            gameAccess.requireSeats(gameId, userId);
 
             attributes.put("userId", userId.toString());
             return true;

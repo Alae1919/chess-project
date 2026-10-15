@@ -1,5 +1,6 @@
 package com.chess.api.controller;
 
+import com.chess.security.AuthUser;
 import com.chess.api.dto.InvitationDto;
 import com.chess.application.InvitationService;
 import com.chess.application.UserService;
@@ -33,7 +34,7 @@ public class InvitationController {
     public InvitationDto.InvitationResponse sendInvitation(
             @Valid @RequestBody InvitationDto.SendInvitationRequest req,
             @AuthenticationPrincipal UserDetails userDetails) {
-        UUID userId = userService.getUserIdByUsername(userDetails.getUsername());
+        UUID userId = AuthUser.idOf(userDetails, userService::getUserIdByUsername);
         return invitationService.sendInvitation(userId, req);
     }
 
@@ -41,7 +42,7 @@ public class InvitationController {
     @Operation(summary = "List pending received invitations")
     public List<InvitationDto.InvitationResponse> getPendingInvitations(
             @AuthenticationPrincipal UserDetails userDetails) {
-        UUID userId = userService.getUserIdByUsername(userDetails.getUsername());
+        UUID userId = AuthUser.idOf(userDetails, userService::getUserIdByUsername);
         return invitationService.getPendingInvitations(userId);
     }
 
@@ -51,7 +52,7 @@ public class InvitationController {
             @PathVariable UUID invitationId,
             @Valid @RequestBody InvitationDto.RespondRequest req,
             @AuthenticationPrincipal UserDetails userDetails) {
-        UUID userId = userService.getUserIdByUsername(userDetails.getUsername());
+        UUID userId = AuthUser.idOf(userDetails, userService::getUserIdByUsername);
         return invitationService.respondToInvitation(userId, invitationId, req.response());
     }
 
@@ -61,7 +62,7 @@ public class InvitationController {
     public void cancelInvitation(
             @PathVariable UUID invitationId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        UUID userId = userService.getUserIdByUsername(userDetails.getUsername());
+        UUID userId = AuthUser.idOf(userDetails, userService::getUserIdByUsername);
         invitationService.cancelInvitation(userId, invitationId);
     }
 }

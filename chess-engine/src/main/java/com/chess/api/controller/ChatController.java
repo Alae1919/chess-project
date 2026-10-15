@@ -1,5 +1,6 @@
 package com.chess.api.controller;
 
+import com.chess.security.AuthUser;
 import com.chess.api.dto.ChatDto;
 import com.chess.application.ChatService;
 import com.chess.application.GameAccess;
@@ -39,7 +40,7 @@ public class ChatController {
             @PathVariable UUID gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
         gameAccess.requirePlayer(gameId.toString(),
-            userService.getUserIdByUsername(userDetails.getUsername()));
+            AuthUser.idOf(userDetails, userService::getUserIdByUsername));
         return chatService.getMessages(gameId);
     }
 
@@ -49,7 +50,7 @@ public class ChatController {
             @PathVariable UUID gameId,
             @Valid @RequestBody ChatDto.SendMessageRequest req,
             @AuthenticationPrincipal UserDetails userDetails) {
-        UUID userId = userService.getUserIdByUsername(userDetails.getUsername());
+        UUID userId = AuthUser.idOf(userDetails, userService::getUserIdByUsername);
         gameAccess.requirePlayer(gameId.toString(), userId);
         var message = chatService.send(gameId, userId, userDetails.getUsername(), req.content());
         wsManager.broadcast(gameId.toString(), "CHAT_MESSAGE", message);

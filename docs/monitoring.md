@@ -43,7 +43,9 @@ A new timing goes on both lists.
 | `chess_ai_search_seconds` | Time to choose an AI move, by `level` and `source` (`book` or `search`) |
 | `chess_ai_searches_active` | AI searches running now |
 | `chess_move_persist_seconds` | Saving one move (inside the game's turn lock: it delays the answer) |
-| `chess_analysis_seconds` | An evaluation, by `outcome` (`ok`, `busy`, `error`) |
+| `chess_analysis_seconds` | An evaluation, by `outcome` (`ok`, `cached`, `busy`, `error`) |
+| `chess_engine_wait_seconds` | Time a search waited for a free core (one search per core, `EngineCpuGate`), by `kind` (`ai`, `analysis`) |
+| `cache_gets_total`, `cache_size` | The in-memory caches, by `cache` (`auth-users`, `analysis`) and `result` (`hit`, `miss`) |
 | `chess_ws_broadcast_seconds` | Sending one game event to every socket on the game |
 | `chess_ws_rtt_seconds` | Round trip of the keepalive ping, by `socket`: the network between server and players |
 | `chess_ws_open`, `chess_games_live` | Open sockets, game sessions in memory |
