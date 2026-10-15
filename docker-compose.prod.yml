@@ -60,7 +60,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 6
-      start_period: 40s
+      # it took 103 s on a laptop's Docker: 40 s left a slow start reported unhealthy, and
+      # `up --wait` (the deploy) then gave up on it
+      start_period: 90s
 
   frontend:
     build:
@@ -88,6 +90,7 @@ services:
     ports:
       - "80:80"     # Let's Encrypt validation, and the redirect to https
       - "443:443"
+      - "443:443/udp" # HTTP/3 (QUIC): one round trip less to connect, and no stall when a packet is lost
     environment:
       - SITE_ADDRESS=${SITE_ADDRESS:?Set SITE_ADDRESS in .env (your domain, e.g. chess.example.com)}
     volumes:

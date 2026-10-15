@@ -166,8 +166,12 @@ An Angular 17 single-page app (standalone components, lazy-loaded routes) in `fr
   drawn. How to measure this: [development.md](development.md#profiling-the-3d-board).
 * **Phones.** Phones get a different game screen (a compact player bar, a dock, bottom sheets, a tab bar) selected by
   the breakpoints in `shared/styles/_mq.scss` and `core/utils/viewport.ts`.
-* **Production serving.** nginx serves the compiled files with long caching for the hashed bundles and `no-cache`
-  for `index.html`, and proxies `/api` and `/ws` to the backend.
+* **Production serving.** nginx serves the compiled files and proxies `/api` and `/ws` to the backend over kept-alive
+  connections. Anything whose URL names one exact version is cached by browsers for a year: the bundles and the
+  images and fonts the stylesheets use (a hash in their name), and files under `assets/` that the app asks for with
+  their content hash (`assetUrl()`, `?v=...`). `index.html` and unversioned files are checked on every load, so a
+  deploy shows at once while unchanged files stay cached. The build writes a `.gz` of every text file and model, which
+  nginx sends as it is; Caddy compresses the rest (the API's JSON) with zstd or gzip, and speaks HTTP/3.
 
 ## Decisions worth knowing about
 

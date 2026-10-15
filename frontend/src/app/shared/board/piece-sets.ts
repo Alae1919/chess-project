@@ -1,6 +1,7 @@
 // src/app/shared/board/piece-sets.ts
 // The piece sets the flat board can draw. The files are in assets/pieces/<id>/ (see the README there).
 import { Piece, PieceSet } from '../../core/models';
+import { assetUrl } from '../../core/assets/asset-url';
 
 export interface PieceSetOption {
   id: PieceSet;
@@ -20,9 +21,9 @@ export const isPieceSet = (v: unknown): v is PieceSet => PIECE_SETS.some((s) => 
 
 const LETTER: Record<Piece['type'], string> = { king: 'K', queen: 'Q', rook: 'R', bishop: 'B', knight: 'N', pawn: 'P' };
 
-/** The image of a piece in an image set: "/assets/pieces/classic/wN.svg" for a white knight */
+/** The image of a piece in an image set: "/assets/pieces/classic/wN.svg?v=…" for a white knight */
 export function pieceImageUrl(set: PieceSet, piece: Pick<Piece, 'color' | 'type'>): string {
-  return `/assets/pieces/${set}/${piece.color === 'white' ? 'w' : 'b'}${LETTER[piece.type]}.svg`;
+  return assetUrl(`/assets/pieces/${set}/${piece.color === 'white' ? 'w' : 'b'}${LETTER[piece.type]}.svg`);
 }
 
 /** All twelve images of a set, to load ahead of the first game */

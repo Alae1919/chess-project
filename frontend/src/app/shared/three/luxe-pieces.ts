@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { Look3D } from './board-looks';
 import { applyPieceMarble, PieceMarble } from './piece-marble';
+import { assetUrl } from '../../core/assets/asset-url';
 
 export type PieceLetter = 'P' | 'R' | 'N' | 'B' | 'Q' | 'K';
 
@@ -137,12 +138,12 @@ interface PieceModel {
 }
 
 const MODELS: Partial<Record<PieceLetter, PieceModel>> = {
-  P: { url: 'assets/models/pawn.glb', height: 0.68, rings: [0.14, 0.64] },
-  R: { url: 'assets/models/rook.glb', height: 0.85, rings: [0.14, 0.27, 0.81] },
-  N: { url: 'assets/models/knight.glb', height: 1, rings: [0.14] },
-  B: { url: 'assets/models/bishop.glb', height: 1.07, rings: [0.12, 0.56, 0.78] },
-  Q: { url: 'assets/models/queen.glb', height: 1.23, rings: [0.1, 0.64, 0.86] },
-  K: { url: 'assets/models/king.glb', height: 1.44, rings: [0.1, 0.56, 0.79] },
+  P: { url: assetUrl('assets/models/pawn.glb'), height: 0.68, rings: [0.14, 0.64] },
+  R: { url: assetUrl('assets/models/rook.glb'), height: 0.85, rings: [0.14, 0.27, 0.81] },
+  N: { url: assetUrl('assets/models/knight.glb'), height: 1, rings: [0.14] },
+  B: { url: assetUrl('assets/models/bishop.glb'), height: 1.07, rings: [0.12, 0.56, 0.78] },
+  Q: { url: assetUrl('assets/models/queen.glb'), height: 1.23, rings: [0.1, 0.64, 0.86] },
+  K: { url: assetUrl('assets/models/king.glb'), height: 1.44, rings: [0.1, 0.56, 0.79] },
 };
 
 /** Thickness of the gold rings (tube radius), in board units */

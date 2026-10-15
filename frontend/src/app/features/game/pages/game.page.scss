@@ -613,8 +613,8 @@ $m-chrome: 290px;
    The photo is the page's background; the canvas over it is transparent and draws the board,
    its pieces and their shadows. Swap the photo for another one (same file names) to change the room. */
 .arena--study {
-  --plate: url('/assets/game/study-2000.webp');
-  @media (max-width: 1000px) { --plate: url('/assets/game/study-1000.webp'); }
+  --plate: url('../../../../assets/game/study-2000.webp');
+  @media (max-width: 1000px) { --plate: url('../../../../assets/game/study-1000.webp'); }
   background: #0b0907;
 
   &::before {

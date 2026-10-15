@@ -44,3 +44,5 @@ Thumbs.db
 *.py
 
 ._*
+# Written before every build by scripts/asset-hashes.mjs
+/src/app/core/assets/asset-hashes.generated.ts

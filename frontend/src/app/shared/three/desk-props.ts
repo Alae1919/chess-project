@@ -3,6 +3,7 @@
 // about 4.5 cm). A model that does not load is left out; the desk is complete without it.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { assetUrl } from '../../core/assets/asset-url';
 
 export interface DeskProp {
   id: 'lamp' | 'books' | 'mug';
@@ -30,9 +31,9 @@ export interface DeskProp {
  * its knight turned towards the board and its handle towards the player, as in the picture.
  */
 export const DESK_PROPS: DeskProp[] = [
-  { id: 'lamp', url: 'assets/desk/props/lamp.glb', size: { height: 10 }, at: [-8.6, -4.6], turn: Math.PI, axis: [0.3, 1], flame: 0.74 },
-  { id: 'books', url: 'assets/desk/props/books.glb', size: { width: 7 }, at: [8.4, -8], turn: -0.5 },
-  { id: 'mug', url: 'assets/desk/props/mug.glb', size: { height: 2.3 }, at: [7.2, 4.1], turn: -0.35, axis: [0, 0.06] },
+  { id: 'lamp', url: assetUrl('assets/desk/props/lamp.glb'), size: { height: 10 }, at: [-8.6, -4.6], turn: Math.PI, axis: [0.3, 1], flame: 0.74 },
+  { id: 'books', url: assetUrl('assets/desk/props/books.glb'), size: { width: 7 }, at: [8.4, -8], turn: -0.5 },
+  { id: 'mug', url: assetUrl('assets/desk/props/mug.glb'), size: { height: 2.3 }, at: [7.2, 4.1], turn: -0.35, axis: [0, 0.06] },
 ];
 
 export interface LoadedProp {

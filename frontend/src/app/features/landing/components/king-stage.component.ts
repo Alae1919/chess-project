@@ -1,6 +1,7 @@
 // src/app/features/landing/components/king-stage.component.ts
 import { AfterViewInit, ChangeDetectionStrategy, Component, ElementRef, inject, Input, OnDestroy, ViewChild } from '@angular/core';
 import { ramp, ScrubVideo } from './scrub-video';
+import { assetUrl, stillSources } from '../../../core/assets/asset-url';
 
 /** The camera's push toward the king, and stills of its first and last frames */
 const MEDIA = {
@@ -21,12 +22,10 @@ const MEDIA = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <img class="frame frame--start" alt="" decoding="async" fetchpriority="high"
-         [src]="media.start + '-2560.webp'"
-         [attr.srcset]="media.start + '-1280.webp 1280w, ' + media.start + '-2560.webp 2560w'" sizes="100vw" />
+         [src]="startStill.src" [attr.srcset]="startStill.srcset" sizes="100vw" />
     @if (stillsOnly) {
       <img class="frame frame--end" #end alt="" decoding="async" loading="lazy"
-           [src]="media.end + '-2560.webp'"
-           [attr.srcset]="media.end + '-1280.webp 1280w, ' + media.end + '-2560.webp 2560w'" sizes="100vw" />
+           [src]="endStill.src" [attr.srcset]="endStill.srcset" sizes="100vw" />
     } @else {
       <video class="frame" #video muted playsinline preload="none" aria-hidden="true" disablepictureinpicture></video>
     }
@@ -48,7 +47,8 @@ export class KingStageComponent implements AfterViewInit, OnDestroy {
   @ViewChild('end') private endImg?: ElementRef<HTMLImageElement>;
   @ViewChild('video') private videoEl?: ElementRef<HTMLVideoElement>;
 
-  readonly media = MEDIA;
+  readonly startStill = stillSources(MEDIA.start, [1280, 2560]);
+  readonly endStill = stillSources(MEDIA.end, [1280, 2560]);
   private hostEl = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private state = { light: 0, push: 0, active: false };
   private scrub?: ScrubVideo;
@@ -56,7 +56,7 @@ export class KingStageComponent implements AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
     this.paint();
     const v = this.videoEl?.nativeElement;
-    if (v) this.scrub = new ScrubVideo(v, MEDIA.video, () => this.hostEl.classList.add('is-live'));
+    if (v) this.scrub = new ScrubVideo(v, assetUrl(MEDIA.video), () => this.hostEl.classList.add('is-live'));
   }
 
   /** light: 0 dark … 1 full spotlight; push: 0 the first frame … 1 the last; active: on screen */

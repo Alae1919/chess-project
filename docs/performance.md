@@ -47,4 +47,12 @@ Record the date, the commit, where it ran and the numbers. Leave earlier rows: t
 | 2026-10-15 | `1d606f2` + monitoring | Same, app on `ng serve` (development build), desktop, one game | browser timings | 3D first frame 10.4 s cold · desk assets 5.9 s · game start 1.5 s · piece selection 89–121 ms · move round trip 112 ms · AI reply 659 ms |
 | 2026-10-15 | `1d606f2` + monitoring | `ng build --configuration production` | bundle sizes | initial 465 kB raw, 133 kB transferred; three.js chunk 620 kB raw, 137 kB transferred |
 
+### After phase 2 (caching and delivery)
+
+| Date | Commit | Where | Measure | Result |
+|---|---|---|---|---|
+| 2026-10-15 | phase 2 | prod stack on a laptop (Caddy, nginx 1.28), `/login` | second visit | 19 files, 0 bytes downloaded (all from the browser's cache); 300 bytes for the `index.html` check. Before: every file under `/assets` revalidated, and downloaded again after each deploy |
+| 2026-10-15 | phase 2 | same | compression | build `.gz` files: 5.9 MB → 3.5 MB (lamp.glb 1.37 MB → 0.97 MB); API JSON zstd |
+| 2026-10-15 | phase 2 | same | fonts | 3 variable-font files from the site (Jost 27 kB, Cormorant 38 kB + 39 kB italic) instead of a Google Fonts stylesheet and its files from two other origins |
+
 Production numbers come once the dashboard has a day of data.

@@ -3,9 +3,10 @@
 // and the room behind it (a 360° picture, far enough away not to need parallax). Both are pictures that arrive after
 // the scene is built, so the scene starts with stand-ins and swaps them in.
 import * as THREE from 'three';
+import { assetUrl } from '../../core/assets/asset-url';
 
-export const DESK_PANO_URL = 'assets/desk/room-pano.webp';
-export const DESK_WOOD_URL = 'assets/desk/desk-wood.webp';
+export const DESK_PANO_URL = assetUrl('assets/desk/room-pano.webp');
+export const DESK_WOOD_URL = assetUrl('assets/desk/desk-wood.webp');
 
 /** The desk top, in board units (1 unit is about 4.5 cm): sides, the edge nearest the player, and the far edge behind the board */
 const DESK = { halfWidth: 38, near: 42, far: -10 };

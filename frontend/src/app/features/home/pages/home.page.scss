@@ -13,8 +13,8 @@
 $plate-ratio: 1.3395;
 
 :host {
-  --plate: url('/assets/game/study-board-2000.webp');
-  @media (max-width: 1000px) { --plate: url('/assets/game/study-board-1000.webp'); }
+  --plate: url('../../../../assets/game/study-board-2000.webp');
+  @media (max-width: 1000px) { --plate: url('../../../../assets/game/study-board-1000.webp'); }
   /* what is left of the screen under the navbar */
   --stage-h: calc(100vh - 62px);
   --stage-h: calc(100dvh - 62px);

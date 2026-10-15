@@ -8,7 +8,8 @@ COPY . .
 RUN npm run build -- --configuration production
 
 # Stage 2: Serve the application using Nginx
-FROM nginx:alpine
+# 1.28 or later: nginx.conf's upstream re-resolves the backend's address (`server ... resolve`)
+FROM nginx:1.28-alpine
 # Copy the built files
 # Angular 17 'application' builder outputs to dist/rexchess/browser
 # If using older builders, it might be just dist/rexchess

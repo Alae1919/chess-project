@@ -3,10 +3,17 @@
   "version": "1.0.0",
   "scripts": {
     "ng": "ng",
+    "assets:hash": "node scripts/asset-hashes.mjs",
+    "prestart": "npm run assets:hash",
     "start": "ng serve",
+    "prebuild": "npm run assets:hash",
     "build": "ng build",
+    "postbuild": "node scripts/precompress.mjs",
+    "prewatch": "npm run assets:hash",
     "watch": "ng build --watch --configuration development",
+    "pretest": "npm run assets:hash",
     "test": "ng test",
+    "pretest:ci": "npm run assets:hash",
     "test:ci": "ng test --watch=false --browsers=ChromeHeadless"
   },
   "private": true,

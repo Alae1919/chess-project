@@ -29,6 +29,22 @@ file that targets `localhost:8080`: see [docs/development.md](../docs/developmen
 
 The production build fails if the initial bundle exceeds 1 MB or a component's stylesheet exceeds 20 kB.
 
+Before `start`, `build` and the tests, `npm run assets:hash` writes `src/app/core/assets/asset-hashes.generated.ts`
+(a content hash of every file under `src/assets`; not committed). After `build`, `scripts/precompress.mjs` writes a
+`.gz` next to each text file and model of the build, which nginx serves as it is. Running `ng` directly skips the
+first step: if the build cannot find `asset-hashes.generated`, run `npm run assets:hash`.
+
+## Assets and caching
+
+Browsers keep anything whose URL names one exact version for a year, and check everything else on every load
+([nginx.conf](nginx.conf)). So:
+
+* **From code**, load a file under `src/assets` through `assetUrl('assets/...')` (`core/assets/asset-url.ts`), which
+  adds its content hash (`?v=...`). A photo in two widths: `stillSources(stem, [small, large])`.
+* **From a stylesheet**, use a relative `url('../../assets/...')`: the build copies the file to `media/` with a hash in
+  its name. An absolute `/assets/...` URL would not be versioned.
+* **Fonts** are in `src/assets/fonts` and declared in `src/styles.scss`, the same way.
+
 ## Routes
 
 | Path | Page | Sign-in needed |

@@ -127,6 +127,7 @@ describe('standing a model on the desk', () => {
   it('lists its models by ids that are all different, each with a file under the desk assets', () => {
     const ids = DESK_PROPS.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
-    DESK_PROPS.forEach((p) => expect(p.url).toMatch(/^assets\/desk\/props\/.+\.glb$/));
+    // versioned (see assetUrl): the hash is there only for a file that exists
+    DESK_PROPS.forEach((p) => expect(p.url).toMatch(/^assets\/desk\/props\/.+\.glb\?v=[0-9a-f]{10}$/));
   });
 });

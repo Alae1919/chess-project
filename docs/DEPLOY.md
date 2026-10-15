@@ -9,7 +9,7 @@ machine, with HTTPS from a free Let's Encrypt certificate.
                               + proxy)  └─ /api, /ws                   the server's disk)
 ```
 
-Only Caddy is reachable from the internet (ports 80 and 443). Everything else lives on Docker's internal network.
+Only Caddy is reachable from the internet (ports 80 and 443, and 443 over UDP for HTTP/3). Everything else lives on Docker's internal network.
 
 **Why one server and not several containers behind a load balancer (ECS, Fargate)?** The live games, the matchmaking
 queue and the WebSocket connections are kept in the backend's memory. Two backends would each know about
@@ -33,7 +33,7 @@ In the EC2 console, **Launch instance**:
 | Type | `t3.small` (2 vCPU, 2 GB). The AI is CPU-bound; if several people play the strongest level at once, go up to `t3.medium` |
 | Key pair | create one and keep the `.pem` file safe: it is the only way in |
 | Storage | 20 GiB gp3 |
-| Security group | inbound **80** and **443** from anywhere (`0.0.0.0/0`), inbound **22** from **your IP only** |
+| Security group | inbound TCP **80** and **443** and UDP **443** (HTTP/3) from anywhere (`0.0.0.0/0`), inbound TCP **22** from **your IP only** |
 
 Do not open 5432 (Postgres) or 8080 (the backend): nothing outside the server should reach them.
 
@@ -225,6 +225,7 @@ them to an S3 bucket by attaching an IAM role that may write to the bucket and a
 | Symptom | Likely cause |
 |---|---|
 | The browser says the connection timed out | the security group does not allow 80 and 443, or the Elastic IP is not associated |
+| DevTools shows `h2`, never `h3` | the security group does not allow UDP 443. Nothing breaks: browsers stay on HTTP/2 |
 | The certificate is not issued (`docker compose logs caddy` shows ACME errors) | the DNS record does not point at the server yet, or port 80 is closed: Let's Encrypt validates over port 80 |
 | Login says "forbidden" or the page loads but nothing works | `ALLOWED_ORIGINS` does not match the address in the browser. It must be exactly `https://` plus the site name |
 | `502 Bad Gateway` | the backend is not healthy: `docker compose -f docker-compose.prod.yml logs backend` |

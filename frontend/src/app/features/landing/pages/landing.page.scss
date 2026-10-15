@@ -38,7 +38,7 @@
 /* film grain */
 .grain {
   position: absolute; inset: -60px; pointer-events: none; z-index: 3; opacity: .2; mix-blend-mode: soft-light;
-  background-image: url("/assets/landing/grain.svg");
+  background-image: url("../../../../assets/landing/grain.svg");
   animation: grain .8s steps(4) infinite;
 }
 @keyframes grain { 25% { transform: translate(-22px, 14px); } 50% { transform: translate(18px, -26px); } 75% { transform: translate(-30px, 18px); } }

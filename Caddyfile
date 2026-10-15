@@ -23,6 +23,11 @@
 		}
 	}
 
+	# Compress what nginx sent uncompressed, the API's JSON above all: zstd for browsers that take
+	# it, gzip for the rest. Files nginx already sends compressed (the .gz the build writes) and
+	# images and video are passed through as they are.
+	encode zstd gzip
+
 	# Game WebSockets are upgraded and streamed through as they are; nginx does the routing
 	reverse_proxy frontend:80
 }

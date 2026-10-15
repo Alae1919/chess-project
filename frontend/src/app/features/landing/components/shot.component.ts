@@ -1,6 +1,7 @@
 // src/app/features/landing/components/shot.component.ts
 import { ChangeDetectionStrategy, Component, ElementRef, Input, ViewChild } from '@angular/core';
 import { Shot } from '../landing-media';
+import { assetUrl, stillSources } from '../../../core/assets/asset-url';
 
 /** One shot of footage: its still, and its video clip when it has one and the visitor can afford it. */
 @Component({
@@ -11,7 +12,7 @@ import { Shot } from '../landing-media';
     @if (shot.video && withVideo) {
       <video #video muted playsinline loop preload="none" aria-hidden="true"
              [poster]="src" [style.object-position]="focus">
-        <source [src]="shot.video.src" [type]="shot.video.type" />
+        <source [src]="videoSrc" [type]="shot.video.type" />
       </video>
     } @else {
       <img [src]="src" alt="" decoding="async"
@@ -35,12 +36,15 @@ export class ShotComponent {
   private readonly phone = matchMedia('(max-width: 768px)').matches;
 
   get src(): string {
-    return `${this.shot.still}-${this.shot.widths[1]}.webp`;
+    return stillSources(this.shot.still, this.shot.widths).src;
   }
 
   get srcset(): string {
-    const [small, large] = this.shot.widths;
-    return `${this.shot.still}-${small}.webp ${small}w, ${this.shot.still}-${large}.webp ${large}w`;
+    return stillSources(this.shot.still, this.shot.widths).srcset;
+  }
+
+  get videoSrc(): string {
+    return this.shot.video ? assetUrl(this.shot.video.src) : '';
   }
 
   get focus(): string {
