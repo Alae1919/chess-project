@@ -54,9 +54,9 @@ one again ends all of that user's sessions.
 |---|---|---|
 | POST | `/api/games` | Create a game. Returns `201` and the game |
 | GET | `/api/games/{id}` | The game's full state |
-| GET | `/api/games/{id}/legal-moves` | Legal moves for the side to move, as UCI strings |
+| GET | `/api/games/{id}/legal-moves` | Legal moves for the side to move, as UCI strings. Every game object carries them too (`legalMoves`), which is what the web app uses |
 | POST | `/api/games/{id}/moves` | Play a move: `{"move": "e2e4"}`. Returns the game |
-| POST | `/api/games/{id}/ai-move` | Let the AI play its move. `409 ai-busy` if it is already thinking |
+| POST | `/api/games/{id}/ai-move` | Let the AI play its move, answered as soon as it is found (the web app waits until 600 ms have passed before showing it). `409 ai-busy` if it is already thinking |
 | POST | `/api/games/{id}/resign` | Resign |
 | POST | `/api/games/{id}/draw-offer` | Offer a draw (accepts one the opponent already offered) |
 | POST | `/api/games/{id}/draw-offer/accept` | Accept the opponent's offer |

@@ -11,7 +11,6 @@ import com.chess.persistence.entity.GameEntity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -32,17 +31,13 @@ public class GameController {
     private final WebSocketSessionManager wsManager;
     private final GameAccess gameAccess;
     private final AnalysisService analysis;
-    /** The AI never answers faster than this, so its move can be followed (0 turns the pause off) */
-    private final long aiMinReplyMs;
 
     public GameController(GameApplicationService engineService,
             GamePersistenceService persistService,
             UserService userService,
             WebSocketSessionManager wsManager,
             GameAccess gameAccess,
-            AnalysisService analysis,
-            @Value("${chess.ai.min-reply-ms:600}") long aiMinReplyMs) {
-        this.aiMinReplyMs   = aiMinReplyMs;
+            AnalysisService analysis) {
         this.analysis       = analysis;
         this.engineService  = engineService;
         this.persistService = persistService;
@@ -117,10 +112,10 @@ public class GameController {
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
         requirePlayer(gameId, userDetails);
-        long startedAt = System.nanoTime();
+        // answered as soon as the move is found: the page waits a moment before showing it, so it can be
+        // followed, without a server thread sleeping meanwhile (see AI_MIN_REPLY_MS in game.effects.ts)
         var r = engineService.playAiMove(gameId);
         var game = persistService.toFullGameDto(gameId, r);
-        pauseUntilMinReply(startedAt);
         wsManager.broadcast(gameId, game.result() != null ? "GAME_OVER" : "MOVE_MADE", game);
         return game;
     }
@@ -250,16 +245,5 @@ public class GameController {
     /** The stored game if the caller plays in it: 404 for unknown ids, 403 for anyone else. */
     private GameEntity requirePlayer(String gameId, UserDetails userDetails) {
         return gameAccess.requirePlayer(gameId, callerId(userDetails));
-    }
-
-    /** Holds a quick AI answer back until {@code aiMinReplyMs} have passed since the request started. */
-    private void pauseUntilMinReply(long startedAtNanos) {
-        long waitMs = aiMinReplyMs - (System.nanoTime() - startedAtNanos) / 1_000_000;
-        if (waitMs <= 0) return;
-        try {
-            Thread.sleep(waitMs);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 }

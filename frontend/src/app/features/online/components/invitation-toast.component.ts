@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { Component, inject, OnInit, OnDestroy, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Store } from '@ngrx/store';
 import { interval, Subscription } from 'rxjs';
@@ -63,6 +63,7 @@ import { GameInvitation } from '../../../core/models';
 })
 export class InvitationToastComponent implements OnInit, OnDestroy {
   private store = inject(Store);
+  private zone = inject(NgZone);
   private timerSub?: Subscription;
 
   invitations: GameInvitation[] = [];
@@ -77,12 +78,19 @@ export class InvitationToastComponent implements OnInit, OnDestroy {
       this.invitations = inv.filter((i) => new Date(i.expiresAt).getTime() > Date.now());
     });
     this.store.select(selectRespondingTo).subscribe((ids) => (this.responding = ids));
-    this.timerSub = interval(1000).subscribe(() => {
-      this.now = Date.now();
-      // Remove expired toasts from display
-      this.invitations = this.invitations.filter(
-        (i) => new Date(i.expiresAt).getTime() > this.now
-      );
+    // The countdown only matters while a toast is up. The timer runs outside Angular, so the seconds without one
+    // don't wake the whole app; a second with one comes back in to redraw it.
+    this.zone.runOutsideAngular(() => {
+      this.timerSub = interval(1000).subscribe(() => {
+        if (!this.invitations.length) return;
+        this.zone.run(() => {
+          this.now = Date.now();
+          // Remove expired toasts from display
+          this.invitations = this.invitations.filter(
+            (i) => new Date(i.expiresAt).getTime() > this.now
+          );
+        });
+      });
     });
   }
 

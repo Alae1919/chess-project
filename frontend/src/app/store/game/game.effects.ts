@@ -2,8 +2,8 @@
 import { Injectable, inject } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { Action, Store } from '@ngrx/store';
-import { EMPTY, interval, of, Subscription } from 'rxjs';
-import { catchError, concatMap, exhaustMap, filter, map, switchMap, take, takeUntil, tap, withLatestFrom } from 'rxjs/operators';
+import { EMPTY, interval, of, Subscription, timer } from 'rxjs';
+import { catchError, concatMap, delayWhen, distinctUntilChanged, exhaustMap, filter, map, switchMap, take, takeUntil, tap, withLatestFrom } from 'rxjs/operators';
 import { GameActions } from './game.actions';
 import { isPlayableStatus } from '../../core/utils/game-status.utils';
 import { needsPromotionChoice } from '../../core/utils/promotion.utils';
@@ -15,6 +15,12 @@ import { WebSocketService } from '../../core/services/websocket.service';
 import { NavigationEnd, Router } from '@angular/router';
 import { TelemetryService, timed } from '../../core/telemetry/telemetry.service';
 import { errorMessage } from '../../core/utils/error-message';
+
+/**
+ * The AI's move is shown no sooner than this after it was asked for, so the player sees it come rather than
+ * finding it already played. The server answers as soon as it has the move; the wait is the page's.
+ */
+export const AI_MIN_REPLY_MS = 600;
 
 /** The server refused because the AI is already working out this game's move. */
 function isAiBusy(error: any): boolean {
@@ -48,6 +54,8 @@ export class GameEffects {
   private wsService = inject(WebSocketService);
   private router = inject(Router);
   private telemetry = inject(TelemetryService);
+  /** When the AI's move may be shown (performance.now()): AI_MIN_REPLY_MS after it was asked for */
+  private aiShowAt = 0;
 
   createGame$ = createEffect(() =>
     this.actions$.pipe(
@@ -117,8 +125,9 @@ export class GameEffects {
           this.wsService.connect(game.id);
           this.wsSub?.unsubscribe(); // loadGameSuccess fires more than once per game
           this.wsSub = this.wsService.messages$.subscribe((event) => {
+            // the AI's move may come over the socket before the HTTP answer: it waits just the same
             if (event.type === 'MOVE_MADE')
-              this.store.dispatch(GameActions.receiveMove({ game: this.gameService.mapGame(event.payload) }));
+              this.afterAiPause(() => this.store.dispatch(GameActions.receiveMove({ game: this.gameService.mapGame(event.payload) })));
             if (event.type === 'CHAT_MESSAGE')
               this.store.dispatch(GameActions.receiveChatMessage({ message: event.payload as any }));
             if (event.type === 'DRAW_OFFERED' || event.type === 'DRAW_DECLINED')
@@ -130,7 +139,7 @@ export class GameEffects {
             if (event.type === 'OPPONENT_RECONNECTED')
               this.store.dispatch(GameActions.opponentReconnected());
             if (event.type === 'GAME_OVER')
-              this.store.dispatch(GameActions.gameOver({ game: this.gameService.mapGame(event.payload) }));
+              this.afterAiPause(() => this.store.dispatch(GameActions.gameOver({ game: this.gameService.mapGame(event.payload) })));
           });
         })
       ),
@@ -229,7 +238,8 @@ export class GameEffects {
     this.actions$.pipe(
       ofType(GameActions.selectSquare),
       withLatestFrom(this.store.select(selectCurrentGame)),
-      filter(([, game]) => !!game),
+      // a game carries its legal moves, and the reducer has them already: only a game without asks the server
+      filter(([, game]) => !!game && !Array.isArray(game.legalMoves)),
       switchMap(([{ square }, game]) =>
         this.gameService.getLegalMoves(game!.id, square).pipe(
           timed(this.telemetry, 'legal.select'),
@@ -263,17 +273,19 @@ export class GameEffects {
       withLatestFrom(this.store.select(selectCurrentGame)),
       filter(([, game]) => !!game),
       // exhaustMap: while the server is searching, a second request only repeats the work
-      exhaustMap(([, game]) =>
-        this.gameService.getAiMove(game!.id).pipe(
+      exhaustMap(([, game]) => {
+        this.aiShowAt = performance.now() + AI_MIN_REPLY_MS;
+        return this.gameService.getAiMove(game!.id).pipe(
           timed(this.telemetry, 'ai.reply'),
+          delayWhen(() => timer(Math.max(0, this.aiShowAt - performance.now()))),
           map((updatedGame) => GameActions.aIMoveSuccess({ game: updatedGame })),
           // Already searching (a request from before a reload, say): its move arrives on its
           // own, over the socket, so there is nothing to report
           catchError((error) => isAiBusy(error)
             ? EMPTY
             : of(GameActions.aIMoveFailure({ error: errorMessage(error) })))
-        )
-      )
+        );
+      })
     )
   );
 
@@ -396,12 +408,22 @@ export class GameEffects {
     )
   );
 
-  /** Tick the timer every second while a game is active */
+  /**
+   * Tick the timer every second while a game is in play, and only then: a timer running on every page woke the
+   * whole app (change detection) every second for nothing.
+   */
   timer$ = createEffect(() =>
-    interval(1000).pipe(
-      withLatestFrom(this.store.select(selectCurrentGame)),
-      filter(([, game]) => isPlayableStatus(game?.status)),
-      map(() => GameActions.tickTimer())
+    this.store.select(selectCurrentGame).pipe(
+      map((game) => isPlayableStatus(game?.status)),
+      distinctUntilChanged(),
+      switchMap((playing) => (playing ? interval(1000).pipe(map(() => GameActions.tickTimer())) : EMPTY))
     )
   );
+
+  /** Runs `show` once the AI's move may be shown (at once if no AI move is pending) */
+  private afterAiPause(show: () => void): void {
+    const wait = this.aiShowAt - performance.now();
+    if (wait > 0) setTimeout(show, wait);
+    else show();
+  }
 }

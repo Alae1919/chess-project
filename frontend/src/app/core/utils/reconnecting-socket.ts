@@ -28,12 +28,18 @@ export interface ReconnectingSocketOptions {
   create?: (url: string) => SocketLike;
   baseDelayMs?: number;
   maxDelayMs?: number;
+  /** 0…1, for the jitter of the delays (tests pass a constant) */
+  random?: () => number;
 }
 
 /**
  * A WebSocket that comes back by itself: after an unexpected close it retries with
  * a growing delay (reset by every successful connection), asks for a fresh URL each
  * time, and never has two sockets open or connecting at once. {@link close} stops it.
+ *
+ * The delays are jittered (between half and all of the step), so the players a server restart cut off do not all
+ * come back in the same instant. When the browser comes back online, or the tab is shown again, it tries at once
+ * rather than waiting out the delay: that is when the player is looking.
  */
 export class ReconnectingSocket {
   private socket: SocketLike | null = null;
@@ -50,19 +56,37 @@ export class ReconnectingSocket {
 
   constructor(private readonly options: ReconnectingSocketOptions) {
     this.base = options.baseDelayMs ?? 1000;
-    this.max = options.maxDelayMs ?? 30_000;
+    this.max = options.maxDelayMs ?? 15_000;
     this.delay = this.base;
   }
+
+  /** Back online, or the tab shown again: try now rather than at the end of the delay */
+  private readonly retryNow = (): void => {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    if (!this.wanted || this.socket || this.preparing || !this.timer) return;
+    clearTimeout(this.timer);
+    this.timer = null;
+    this.delay = this.base;
+    this.attempt();
+  };
 
   /** Connects, and keeps reconnecting until {@link close}. Does nothing if already running. */
   open(): void {
     if (this.wanted) return;
     this.wanted = true;
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', this.retryNow);
+      document.addEventListener('visibilitychange', this.retryNow);
+    }
     this.setState('connecting');
     this.attempt();
   }
 
   close(): void {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('online', this.retryNow);
+      document.removeEventListener('visibilitychange', this.retryNow);
+    }
     this.wanted = false;
     this.everOpened = false;
     this.droppedAt = null;
@@ -125,7 +149,7 @@ export class ReconnectingSocket {
   private retryLater(): void {
     if (!this.wanted) return;
     this.setState('reconnecting');
-    const wait = this.delay;
+    const wait = Math.round(this.delay * (0.5 + 0.5 * (this.options.random ?? Math.random)()));
     this.delay = Math.min(this.delay * 2, this.max);
     this.timer = setTimeout(() => { this.timer = null; this.attempt(); }, wait);
   }

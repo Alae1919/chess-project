@@ -30,6 +30,13 @@ export interface GameState {
   isLoading: boolean;
   isAiThinking: boolean;
   error: string | null;
+  /**
+   * The game as the server last confirmed it, while a move of the player's is on its way: `currentGame` already
+   * shows the move (see gameAfter), and goes back to this if the server refuses it.
+   */
+  confirmedGame: Game | null;
+  /** The id of the game `createGame` has just returned: the game page takes it as it is rather than fetching it again */
+  freshGameId: string | null;
 }
 
 export const initialGameState: GameState = {
@@ -49,4 +56,6 @@ export const initialGameState: GameState = {
   isLoading: false,
   isAiThinking: false,
   error: null,
+  confirmedGame: null,
+  freshGameId: null,
 };

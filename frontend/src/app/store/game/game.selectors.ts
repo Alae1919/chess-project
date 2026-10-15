@@ -11,6 +11,11 @@ import { GameState } from './game.state';
 const selectGameFeature = createFeatureSelector<GameState>('game');
 
 export const selectCurrentGame       = createSelector(selectGameFeature, (s) => s.currentGame);
+
+/** The game createGame has just returned, if it is still the one in the store (see GameState.freshGameId) */
+export const selectFreshGame = createSelector(selectGameFeature, (s) =>
+  s.currentGame && s.currentGame.id === s.freshGameId ? s.currentGame : null
+);
 export const selectSavedGames        = createSelector(selectGameFeature, (s) => s.savedGames);
 export const selectSelectedSquare    = createSelector(selectGameFeature, (s) => s.selectedSquare);
 export const selectLegalMoves        = createSelector(selectGameFeature, (s) => s.legalMoves);

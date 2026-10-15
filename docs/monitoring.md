@@ -25,8 +25,8 @@ name, a number in ms, the route's template (`/game/:id`, never a game's id) and 
 |---|---|
 | `LCP`, `INP`, `CLS`, `TTFB`, `FCP` | [Web Vitals](https://web.dev/articles/vitals), per route |
 | `move.roundtrip` | The player's move, from sending it to the server's answer |
-| `ai.reply` | Asking the AI to move, to its move arriving. Includes the server's 600 ms minimum for now |
-| `legal.select` | Selecting a piece, to its legal moves arriving |
+| `ai.reply` | Asking the AI to move, to the server's answer (the page then waits until 600 ms have passed before showing the move) |
+| `legal.select` | Selecting a piece, to its legal moves arriving. Only for a game that came without its list of legal moves: otherwise there is no request |
 | `game.start` | "Start a game", to the game page being shown |
 | `game.firstFrame` | The 3D board's first frame. `cold` for the first board since the page loaded, `warm` after |
 | `desk.assets` | The desk's room, wood and props, from asking for them to all being in |

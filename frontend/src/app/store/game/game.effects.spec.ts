@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideMockActions } from '@ngrx/effects/testing';
 import { Action } from '@ngrx/store';
@@ -10,7 +10,7 @@ import { WebSocketService } from '../../core/services/websocket.service';
 import { Game } from '../../core/models';
 import { makeChatMessage, makeGame } from '../../testing/game-fixtures';
 import { GameActions } from './game.actions';
-import { GameEffects, squareOf } from './game.effects';
+import { AI_MIN_REPLY_MS, GameEffects, squareOf } from './game.effects';
 import { selectAnalysis, selectBoard, selectCurrentGame, selectMovableColor } from './game.selectors';
 
 describe('GameEffects', () => {
@@ -202,6 +202,18 @@ describe('GameEffects', () => {
   });
 
   describe('requestAiMove$', () => {
+    it("holds a quick answer back until the AI's pause is over, so its move can be followed", fakeAsync(() => {
+      const game = makeGame();
+      gameService.getAiMove.and.returnValue(of(game));
+      const out = collect(effects.requestAiMove$);
+
+      actions$.next(GameActions.requestAIMove());
+      tick(AI_MIN_REPLY_MS - 1);
+      expect(out).toEqual([]);
+      tick(1);
+      expect(out).toEqual([GameActions.aIMoveSuccess({ game })]);
+    }));
+
     it('does not start a second request while one is running', () => {
       const first = new Subject<Game>();
       gameService.getAiMove.and.returnValue(first);

@@ -39,6 +39,7 @@ describe('ReconnectingSocket', () => {
       create: (url) => { const s = new FakeSocket(url); sockets.push(s); return s; },
       baseDelayMs: 1000,
       maxDelayMs: 8000,
+      random: () => 1, // no jitter: the delays below are exact
     });
   }
 
@@ -58,6 +59,36 @@ describe('ReconnectingSocket', () => {
     expect(opens).toEqual([false]);
   });
 
+  it('tries again at once when the browser is back online, without waiting out the delay', fakeAsync(() => {
+    const socket = makeSocket();
+    socket.open();
+    last().accept();
+    last().drop();                       // retry planned in 1s
+    expect(sockets.length).toBe(1);
+    window.dispatchEvent(new Event('online'));
+    expect(sockets.length).toBe(2);
+    tick(1000);
+    expect(sockets.length).toBe(2);      // the planned retry was called off
+    socket.close();
+  }));
+
+  it('spreads its retries: between half and all of each delay', fakeAsync(() => {
+    const socket = new ReconnectingSocket({
+      url: () => 'ws://x/game',
+      onMessage: () => undefined,
+      create: (url) => { const s = new FakeSocket(url); sockets.push(s); return s; },
+      baseDelayMs: 1000,
+      random: () => 0,
+    });
+    socket.open();
+    last().drop();
+    tick(499);
+    expect(sockets.length).toBe(1);
+    tick(1);
+    expect(sockets.length).toBe(2);
+    socket.close();
+  }));
+
   it('says how long the socket was down when it is back', fakeAsync(() => {
     let now = 0;
     spyOn(performance, 'now').and.callFake(() => now);
@@ -68,6 +99,7 @@ describe('ReconnectingSocket', () => {
       onOpen: (_reconnected, downMs) => downs.push(downMs),
       create: (url) => { const s = new FakeSocket(url); sockets.push(s); return s; },
       baseDelayMs: 1000,
+      random: () => 1,
     });
     socket.open();
     last().accept();

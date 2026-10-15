@@ -63,4 +63,11 @@ Record the date, the commit, where it ran and the numbers. Leave earlier rows: t
 | 2026-10-15 | phase 3 | `ng serve`, desktop, landing | first load | stills and act I's clip only; act III's clip once act II is passed, three.js and the 6 piece models approaching act IV. Before: all of it, 7.9 MB of video included, at once |
 | 2026-10-15 | phase 3 | `ng serve`, desktop, desk view | 3D first frame | ~2.4–3 s for the first board of a page load, after the home page prefetched the files (was 10.4 s); ~1.6–2 s for the next board, with no request at all (desk files 1159 → 91 ms; what is left is room lighting ~0.3 s and shader compilation ~0.6 s on the GPU) |
 
+### After phase 4 (moves)
+
+| Date | Commit | Where | Measure | Result |
+|---|---|---|---|---|
+| 2026-10-15 | phase 4 | MacBook, `mvn spring-boot:run`, `move-latency.mjs`, level 1 | API | `/ai-move` p50 624 → 40 ms, p95 645 → 81 ms (the 600 ms pause is now the page's, with no server thread asleep) · `/moves` p50 35 ms |
+| 2026-10-15 | phase 4 | `ng serve`, 2D and 3D boards | interaction | selecting a piece: no request (was one round trip per piece, 89–121 ms); the move shows on the board at once and is taken back if refused; a new game is not fetched a second time after it is created |
+
 Production numbers come once the dashboard has a day of data.

@@ -51,6 +51,7 @@ import {
   selectPendingPromotion,
   selectNotice,
   selectOpponentAway,
+  selectFreshGame,
 } from '../../../store/game/game.selectors';
 
 const VIEW_KEY = 'rex_board_view';
@@ -234,7 +235,10 @@ export class GamePage implements OnInit, OnDestroy, AfterViewChecked {
     this.closeSheet();
     this.boardFlipped = false;
     this.flippedByPlayer = false;
-    this.store.dispatch(GameActions.loadGame({ gameId: id }));
+    // A game just created came back whole from the server a moment ago: take it as it is (the socket, the chat and
+    // the AI's first move follow loadGameSuccess just the same) rather than fetching it a second time
+    this.store.select(selectFreshGame).pipe(take(1)).subscribe((fresh) =>
+      this.store.dispatch(fresh?.id === id ? GameActions.loadGameSuccess({ game: fresh }) : GameActions.loadGame({ gameId: id })));
   }
 
   /** The game whose orientation was last chosen, and whether the player turned the board since. */

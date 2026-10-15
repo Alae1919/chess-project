@@ -115,6 +115,8 @@ export interface Game {
   result?: GameResult;
   opening?: string;
   fen?: string;
+  /** Every legal move of the side to move, in UCI ("e2e4", "e7e8q"): selecting a piece needs no request */
+  legalMoves?: string[];
   /** Who has an unanswered draw offer on the table */
   drawOfferedBy?: PieceColor | null;
   createdAt: Date;

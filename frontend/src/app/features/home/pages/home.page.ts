@@ -115,7 +115,8 @@ export class HomePage implements OnInit {
   ngOnInit(): void {
     // the player is about to start a game: have its board ready by then
     this.boardPrefs.effectiveMode$.pipe(take(1)).subscribe((mode) => prefetchGame(mode));
-    this.store.dispatch(GameActions.loadSavedGames());
+    // a guest has no saved games: asking would only earn a 401
+    if (this.auth.isLoggedIn) this.store.dispatch(GameActions.loadSavedGames());
     // The "Parties" tab is this page with ?mode=saved
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       if (params.get('mode') === 'saved') this.selectMode('saved');

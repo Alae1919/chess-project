@@ -2,6 +2,8 @@
 import { ActionReducer, createReducer, on } from '@ngrx/store';
 import { isPlayableStatus } from '../../core/utils/game-status.utils';
 import { needsPromotionChoice } from '../../core/utils/promotion.utils';
+import { legalTargets } from '../../core/utils/legal-moves.utils';
+import { gameAfter } from '../../core/utils/apply-move.utils';
 import { GameActions } from './game.actions';
 import { GameState, initialGameState } from './game.state';
 
@@ -31,8 +33,10 @@ const reducer = createReducer(
     isLoading: true, error: null,
   })),
 
-  on(GameActions.createGameSuccess, GameActions.loadGameSuccess, (state, { game }) => ({
-    ...state, currentGame: game, isLoading: false,
+  // the server's own account of the game: nothing shown ahead of it is left to take back
+  on(GameActions.createGameSuccess, GameActions.loadGameSuccess, (state, { game, type }) => ({
+    ...state, currentGame: game, confirmedGame: null, isLoading: false,
+    freshGameId: type === GameActions.createGameSuccess.type ? game.id : null,
   })),
 
   // A failed request is told to the player (the notice), not just kept in the store
@@ -40,10 +44,14 @@ const reducer = createReducer(
     ...state, isLoading: false, error, notice: error,
   })),
 
-  // The previous piece's moves must not pass for this one's while they load
-  on(GameActions.selectSquare, (state, { square }) => ({
-    ...state, selectedSquare: square, legalMoves: [], legalMovesReady: false,
-  })),
+  // The piece's moves come from the game's own list, at once. A game without one (older payloads) asks the
+  // server, and the previous piece's moves must not pass for this one's while they load.
+  on(GameActions.selectSquare, (state, { square }) => {
+    const targets = legalTargets(state.currentGame?.legalMoves, square);
+    return targets
+      ? { ...state, selectedSquare: square, legalMoves: targets, legalMovesReady: true }
+      : { ...state, selectedSquare: square, legalMoves: [], legalMovesReady: false };
+  }),
 
   on(GameActions.clearSelection, (state) => ({
     ...state, selectedSquare: null, legalMoves: [], legalMovesReady: false,
@@ -55,11 +63,17 @@ const reducer = createReducer(
   ),
 
   // A pawn reaching the last rank waits for the player to pick its piece
-  on(GameActions.submitMove, (state, { move }) =>
-    needsPromotionChoice(move)
-      ? { ...state, pendingPromotion: move }
-      : { ...state, pendingPromotion: null, notice: null, isLoading: true }
-  ),
+  // Otherwise the move shows at once (the board, the side to move), and the server confirms it or not
+  on(GameActions.submitMove, (state, { move }) => {
+    if (needsPromotionChoice(move)) return { ...state, pendingPromotion: move };
+    const game = state.currentGame;
+    const sent = { ...state, pendingPromotion: null, notice: null, isLoading: true };
+    if (!game || state.reviewPly !== null || !isPlayableStatus(game.status)) return sent;
+    return {
+      ...sent, currentGame: gameAfter(game, move), confirmedGame: state.confirmedGame ?? game,
+      selectedSquare: null, legalMoves: [], legalMovesReady: false,
+    };
+  }),
 
   // Looking back at the game: the board shows an earlier position and nothing can be moved on it
   on(GameActions.stepReview, (state, { delta }) => reviewAt(state, (state.reviewPly ?? movesPlayed(state)) + delta)),
@@ -71,15 +85,27 @@ const reducer = createReducer(
   })),
 
   // A move arriving over the socket may be the AI's: its search is over
-  on(GameActions.submitMoveSuccess, GameActions.receiveMove,
+  // A socket event older than what is on the board (it waited for the AI's pause while the answer came) is dropped
+  on(GameActions.receiveMove, (state, { game }) =>
+    state.currentGame?.id === game.id && (game.moves?.length ?? 0) < (state.currentGame.moves?.length ?? 0)
+      ? state
+      : ({
+        ...state, currentGame: game, confirmedGame: null, isLoading: false, isAiThinking: false,
+        selectedSquare: null, legalMoves: [], legalMovesReady: false, hint: null,
+      })
+  ),
+
+  on(GameActions.submitMoveSuccess,
     (state, { game }) => ({
-      ...state, currentGame: game, isLoading: false, isAiThinking: false,
+      ...state, currentGame: game, confirmedGame: null, isLoading: false, isAiThinking: false,
       selectedSquare: null, legalMoves: [], legalMovesReady: false, hint: null,
     })
   ),
 
+  // Refused: the move shown at once is taken back
   on(GameActions.submitMoveFailure, (state, { error }) => ({
-    ...state, isLoading: false, error, notice: error,
+    ...state, currentGame: state.confirmedGame ?? state.currentGame, confirmedGame: null,
+    isLoading: false, error, notice: error,
     selectedSquare: null, legalMoves: [], legalMovesReady: false,
   })),
 

@@ -385,7 +385,53 @@ describe('gameReducer', () => {
     });
   });
 
+  describe("the player's move, before the server answers", () => {
+    const e2e4 = { from: { row: 6, col: 4 }, to: { row: 4, col: 4 }, piece: { type: 'pawn' as const, color: 'white' as const } };
+    const live = () => {
+      const game = makeGame();
+      return withGame({ currentGame: { ...game, status: 'active', currentTurn: 'white' } });
+    };
+
+    it('shows at once: the piece on its square, the other side to move', () => {
+      const next = gameReducer(live(), GameActions.submitMove({ move: e2e4 as any }));
+
+      expect(next.currentGame!.board.squares[4][4]).toEqual(e2e4.piece);
+      expect(next.currentGame!.board.squares[6][4]).toBeNull();
+      expect(next.currentGame!.currentTurn).toBe('black');
+      expect(next.confirmedGame).not.toBeNull();
+      expect(next.isLoading).toBeTrue();
+    });
+
+    it('is taken back if the server refuses it', () => {
+      const before = live();
+      const sent = gameReducer(before, GameActions.submitMove({ move: e2e4 as any }));
+      const refused = gameReducer(sent, GameActions.submitMoveFailure({ error: 'illegal' }));
+
+      expect(refused.currentGame!.board).toEqual(before.currentGame!.board);
+      expect(refused.currentGame!.currentTurn).toBe('white');
+      expect(refused.confirmedGame).toBeNull();
+    });
+
+    it("gives way to the server's game once it answers", () => {
+      const sent = gameReducer(live(), GameActions.submitMove({ move: e2e4 as any }));
+      const server = { ...makeGame(), id: 'from-server' };
+      const done = gameReducer(sent, GameActions.submitMoveSuccess({ game: server }));
+
+      expect(done.currentGame).toBe(server);
+      expect(done.confirmedGame).toBeNull();
+    });
+  });
+
   describe('legal moves of the selected piece', () => {
+    it("takes them from the game's own list at once, with no request to wait for", () => {
+      const state = withGame({ currentGame: { ...makeGame(), legalMoves: ['g1f3', 'g1h3', 'e2e4'] } });
+
+      const next = gameReducer(state, GameActions.selectSquare({ square: { row: 7, col: 6 } }));
+
+      expect(next.legalMoves).toEqual([{ row: 5, col: 5 }, { row: 5, col: 7 }]);
+      expect(next.legalMovesReady).toBeTrue();
+    });
+
     it('forgets the moves of the previous piece as soon as another one is picked', () => {
       const state = withGame({ selectedSquare: { row: 6, col: 4 }, legalMoves: [{ row: 4, col: 4 }], legalMovesReady: true });
 

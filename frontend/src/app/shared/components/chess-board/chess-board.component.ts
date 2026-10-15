@@ -1,5 +1,5 @@
 // src/app/shared/components/chess-board/chess-board.component.ts
-import { Component, ElementRef, inject, Input, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, inject, Input, NgZone, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Store } from '@ngrx/store';
 import { combineLatest, tap } from 'rxjs';
@@ -106,6 +106,8 @@ interface Carried {
 export class ChessBoardComponent implements OnInit, OnDestroy {
   private store = inject(Store);
   private host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private zone = inject(NgZone);
+  private cdr = inject(ChangeDetectorRef);
 
   /** When true, the board is shown from Black's point of view */
   @Input() flipped = false;
@@ -220,9 +222,13 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
     this.dropped = null;
     this.draggedMove = false;
     this.press = { from: sq, piece, x: e.clientX, y: e.clientY, id: e.pointerId };
-    this.listen(window, 'pointermove', (ev: PointerEvent) => this.onPointerMove(ev));
-    this.listen(window, 'pointerup', (ev: PointerEvent) => this.onPointerUp(ev));
-    this.listen(window, 'pointercancel', () => this.cancelDrag());
+    // Outside Angular: a pointer moves dozens of times a second, and each event inside it would check the whole
+    // app for changes. A move redraws this board alone (onPointerMove); letting go comes back in.
+    this.zone.runOutsideAngular(() => {
+      this.listen(window, 'pointermove', (ev: PointerEvent) => this.onPointerMove(ev));
+      this.listen(window, 'pointerup', (ev: PointerEvent) => this.zone.run(() => this.onPointerUp(ev)));
+      this.listen(window, 'pointercancel', () => this.zone.run(() => this.cancelDrag()));
+    });
   }
 
   private onPointerMove(e: PointerEvent): void {
@@ -231,8 +237,9 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
 
     if (!this.carried) {
       if (Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_THRESHOLD_PX) return;
-      // picked up: select it so its legal moves load and show
-      if (!sameSquare(this.latest?.selected, press.from)) this.store.dispatch(GameActions.selectSquare({ square: press.from }));
+      // picked up: select it so its legal moves show
+      if (!sameSquare(this.latest?.selected, press.from))
+        this.zone.run(() => this.store.dispatch(GameActions.selectSquare({ square: press.from })));
       this.carried = { piece: press.piece, from: press.from, x: 0, y: 0, settling: false };
     }
     e.preventDefault();
@@ -246,6 +253,8 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
       this.carried.y = e.clientY - wrap.top - lift;
     }
     this.over = this.squareAt(e.clientX, e.clientY);
+    // only this board shows the piece in hand
+    this.cdr.detectChanges();
   }
 
   private onPointerUp(e: PointerEvent): void {
