@@ -27,6 +27,8 @@ const MODEL_WAIT_MS = 6000;
 const COMPILE_WAIT_MS = 8000;
 /** The desk view waits this long for its pictures (the room, the wood) before it is drawn without them */
 const DESK_WAIT_MS = 8000;
+/** The desk model's top lies this far under the wood laid on it (units), so that the two do not fight over the same pixels */
+const DESK_TOP_GAP = 0.012;
 /** How much the room behind the desk is blurred, as the background of a photograph is (0..1) */
 const DESK_BLUR = 0.025;
 const BASE_PITCH = -0.24;
@@ -744,14 +746,18 @@ export class LuxeBoardScene {
 
   /** Stand a prop on the desk. The lamp also becomes the light of the room: a flame inside it, and the lamp light moved to it. */
   private placeProp(p: LoadedProp): void {
-    p.object.position.set(p.spec.at[0], TABLE_Y, p.spec.at[1]);
+    const [x, z] = p.spec.at;
+    // the desk hangs from its top, a hair under the wood laid on it; the rest stand on their base
+    const y = TABLE_Y + (p.spec.rise ?? 0) - (p.spec.hangs ? p.height + DESK_TOP_GAP : 0);
+    p.object.position.set(x, y, z);
     this.scene.add(p.object);
     this.deskProps.push(p.object);
+    if (p.top) this.deskParts?.fit({ x0: x + p.top.x0, x1: x + p.top.x1, z0: z + p.top.z0, z1: z + p.top.z1 });
     if (p.spec.id !== 'lamp') return;
 
     const flame = new THREE.Vector3(p.spec.at[0], TABLE_Y + p.height * (p.spec.flame ?? 0.72), p.spec.at[1]);
     this.lampLight?.position.copy(flame);
-    if (this.lampLight) this.lampLight.intensity = 45; // less than the photo's guess: this one is near the board, and its glint on the varnish blows out
+    if (this.lampLight) this.lampLight.intensity = 34; // less than the photo's guess: this one is near the board, and its glint on the varnish blows out
 
     const core = new THREE.SphereGeometry(p.height * 0.022, 12, 8);
     const coreMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.72, 0.36).multiplyScalar(3) });

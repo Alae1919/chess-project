@@ -1,12 +1,12 @@
 # Models on the desk
 
-`lamp.glb` and `mug.glb` were generated from reference pictures (`design/refs/desk/props/lamp-a.png`, `lamp-b.png`,
-`mug-b.png`) and are the project's own. Textures reduced to 1024 px and converted to WebP, unused data removed
-(`tools/desk-assets/optimize-props.sh`).
+Every model here was generated from reference pictures (`design/refs/desk/props/`) and is the project's own: the
+lamp, the mug, the books, the desk, the bookcase, the man in his wing chair and the plant. No third-party model is
+shipped, so none needs an attribution.
 
-`books.glb` is from Sketchfab, licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/). The file here is a
-changed copy: textures reduced to 1024 px and converted to WebP, unused data removed; the shape is untouched.
+Each file was made lighter for the web with `tools/desk-assets/optimize-props.sh`: textures reduced to 1024 px (2048 for
+the man, whose face is seen close up) and converted to WebP, unused data removed, and for the pieces that are seen from
+afar or in part (the desk, the bookcase, the books, the man, the plant) fewer triangles.
 
-| File | Title | Author | Source |
-|---|---|---|---|
-| `books.glb` | Stack Of Old Books | Arjun Perayil (inzanebeast) | https://sketchfab.com/3d-models/stack-of-old-books-c6ca6667fd7d4381bd184874dcf44075 |
+The desk is in the scene for its edge and its shadow: its top is covered by a photograph of walnut (`../desk-wood.webp`,
+made from the user's own generated picture).

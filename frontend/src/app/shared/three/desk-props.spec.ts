@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { DESK_PROPS, disposeProp, standOnBase } from './desk-props';
+import { DESK_PROPS, disposeProp, flatTop, standOnBase } from './desk-props';
 
 /** A model as a file would give it: any size, any place, any units */
 const model = (): THREE.Object3D => {
@@ -128,5 +128,103 @@ describe('standing a model on the desk', () => {
     const ids = DESK_PROPS.map((p) => p.id);
     expect(new Set(ids).size).toBe(ids.length);
     DESK_PROPS.forEach((p) => expect(p.url).toMatch(/^assets\/desk\/props\/.+\.glb$/));
+  });
+
+  describe('a piece of the room behind the desk', () => {
+    it('neither casts nor takes the desk\'s shadows', () => {
+      const root = model();
+      standOnBase(root, { size: { height: 10 }, turn: 0, set: true });
+      root.traverse((o) => {
+        if ((o as THREE.Mesh).isMesh) {
+          expect(o.castShadow).toBeFalse();
+          expect(o.receiveShadow).toBeFalse();
+        }
+      });
+    });
+
+    it('lights itself with its own picture, in a warm tone, when the lamps do not reach it', () => {
+      const root = model();
+      const mesh = root.children[0] as THREE.Mesh;
+      const map = new THREE.Texture();
+      (mesh.material as THREE.MeshPhysicalMaterial).map = map;
+      standOnBase(root, { size: { height: 10 }, turn: 0, glow: 0.5 });
+      const mat = mesh.material as THREE.MeshPhysicalMaterial;
+      expect(mat.emissiveMap).toBe(map);
+      expect(mat.emissiveIntensity).toBe(0.5);
+      expect(mat.emissive.r).toBeGreaterThan(mat.emissive.b);
+    });
+
+    it('does not glow without being asked to, or without a picture to glow with', () => {
+      const root = model();
+      standOnBase(root, { size: { height: 10 }, turn: 0 });
+      expect(((root.children[0] as THREE.Mesh).material as THREE.MeshPhysicalMaterial).emissiveMap).toBeNull();
+      const bare = model();
+      standOnBase(bare, { size: { height: 10 }, turn: 0, glow: 0.5 });
+      expect(((bare.children[0] as THREE.Mesh).material as THREE.MeshPhysicalMaterial).emissiveMap).toBeNull();
+    });
+
+    it('can be turned left for right, still standing on its base with its footprint centred', () => {
+      /** a block with a knob on its +x side */
+      const lopsided = (): THREE.Object3D => {
+        const block = new THREE.BoxGeometry(10, 4, 4);
+        const knob = new THREE.BoxGeometry(1, 1, 1);
+        knob.translate(5.5, 0, 0);
+        const root = new THREE.Group();
+        [block, knob].forEach((g) => root.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial())));
+        return root;
+      };
+      const plain = standOnBase(lopsided(), { size: { width: 10 }, turn: 0 }).object;
+      const mirrored = standOnBase(lopsided(), { size: { width: 10 }, turn: 0, mirror: true }).object;
+      plain.updateMatrixWorld(true);
+      mirrored.updateMatrixWorld(true);
+      const knobX = (o: THREE.Object3D): number => new THREE.Box3().setFromObject(o.children[0].children[1]).getCenter(new THREE.Vector3()).x;
+      expect(knobX(plain)).toBeGreaterThan(4);
+      expect(knobX(mirrored)).toBeCloseTo(-knobX(plain), 6);
+      const box = new THREE.Box3().setFromObject(mirrored);
+      expect(box.min.y).toBeCloseTo(0, 6);
+      expect(box.getCenter(new THREE.Vector3()).x).toBeCloseTo(0, 6);
+    });
+  });
+});
+
+describe('finding the flat top of a desk model', () => {
+  /** A desk: a top slab, a lip a hair lower around it, two legs, and a low footstool off to the -x side that pulls the middle of the model that way */
+  const desk = (): THREE.Object3D => {
+    const slab = new THREE.BoxGeometry(20, 1, 10);
+    slab.translate(2, 49.5, 0); // x from -8 to 12, the highest level of the model: 50
+    const lip = new THREE.BoxGeometry(21, 0.4, 11);
+    lip.translate(2, 49.4, 0); // its top is at 49.6: 0.8 % of the height under the slab's
+    const leg = new THREE.BoxGeometry(2, 49, 8);
+    const stool = new THREE.BoxGeometry(13, 1, 4);
+    stool.translate(-12.5, 0.5, 0); // x from -19 to -6
+    const root = new THREE.Group();
+    [slab, lip, leg.clone().translate(-7, 24.5, 0), leg.translate(11, 24.5, 0), stool].forEach((g) => root.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial())));
+    return root;
+  };
+
+  it('is the slab\'s top face: the rounded edge a little lower and the tops of the legs are left out', () => {
+    const top = flatTop(desk(), 50)!;
+    expect(top.x0).toBeCloseTo(-8, 6);
+    expect(top.x1).toBeCloseTo(12, 6);
+    expect(top.z0).toBeCloseTo(-5, 6);
+    expect(top.z1).toBeCloseTo(5, 6);
+  });
+
+  it('follows the desk when it is turned about the vertical', () => {
+    // the model is 31.5 wide (the stool to the lip), so this keeps its size; its slab sits to the +x side of its middle
+    const stood = standOnBase(desk(), { size: { width: 31.5 }, turn: 0 });
+    const plain = flatTop(stood.object, stood.height)!;
+    expect((plain.x0 + plain.x1) / 2).toBeGreaterThan(4);
+    const turned = standOnBase(desk(), { size: { width: 31.5 }, turn: Math.PI });
+    const top = flatTop(turned.object, turned.height)!;
+    expect((top.x0 + top.x1) / 2).toBeCloseTo(-(plain.x0 + plain.x1) / 2, 5);
+    expect(top.x1 - top.x0).toBeCloseTo(20, 5);
+  });
+
+  it('is nowhere on a model with no upward-facing surface at its highest level', () => {
+    const cone = new THREE.ConeGeometry(2, 10, 12);
+    const root = new THREE.Group();
+    root.add(new THREE.Mesh(cone, new THREE.MeshStandardMaterial()));
+    expect(flatTop(root, 10)).toBeNull();
   });
 });
