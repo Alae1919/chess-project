@@ -91,10 +91,16 @@ function loadModel(url: string): Promise<THREE.Group> {
   let model = models.get(url);
   if (!model) {
     model = new GLTFLoader().loadAsync(url).then((gltf) => gltf.scene);
-    model.catch(() => models.delete(url)); // the next scene tries again
+    // the next scene tries again (unless the cache was emptied meanwhile and a newer load took this place)
+    model.catch(() => { if (models.get(url) === model) models.delete(url); });
     models.set(url, model);
   }
   return model;
+}
+
+/** Forget the models already fetched, so that the next scene fetches them again. For specs: the cache outlives each one. */
+export function forgetDeskModels(): void {
+  models.clear();
 }
 
 /**

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { DESK_PROPS, disposeProp, flatTop, loadDeskProps, standOnBase } from './desk-props';
+import { DESK_PROPS, disposeProp, flatTop, forgetDeskModels, loadDeskProps, standOnBase } from './desk-props';
 
 /** A model as a file would give it: any size, any place, any units */
 const model = (): THREE.Object3D => {
@@ -190,6 +190,11 @@ describe('standing a model on the desk', () => {
 });
 
 describe('loading the props', () => {
+  // the models are cached for the page's life, and other specs' scenes fill that cache with the real files: start
+  // from an empty one, and leave it empty so that the fake models below do not reach those specs
+  beforeEach(forgetDeskModels);
+  afterEach(forgetDeskModels);
+
   it('fetches each model once per page load, and gives every scene copies of its own that share its geometry', async () => {
     const load = spyOn(GLTFLoader.prototype, 'loadAsync').and.callFake(async () => ({ scene: model() } as any));
     const first = await loadDeskProps();
