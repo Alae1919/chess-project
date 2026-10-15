@@ -572,6 +572,20 @@ $m-chrome: 290px;
 .menu__half { width: 20px; flex-shrink: 0; text-align: center; font: 600 23px/1 var(--serif); color: var(--gold); }
 
 /* ══ Dock under the board: what a player reaches for most ════════════════ */
+.dock__view { position: relative; display: flex; }
+.view-menu {
+  position: absolute; bottom: calc(100% + 16px); left: 50%; transform: translateX(-50%); z-index: 4; min-width: 220px;
+  display: flex; flex-direction: column; gap: 2px; padding: 8px; border-radius: 14px;
+  background: rgba(16, 11, 8, .84); border: 1px solid rgba(255, 214, 150, .16);
+  backdrop-filter: blur(16px) saturate(1.15); box-shadow: 0 14px 40px rgba(0, 0, 0, .5);
+  button {
+    min-height: 40px; padding: 0 14px; border: 0; border-radius: 9px; background: transparent; color: var(--text);
+    font: 500 16px var(--serif); text-align: left; cursor: pointer;
+    &:hover { background: rgba(255, 214, 150, .1); }
+  }
+  &__hint { margin: 6px 6px 2px; padding-top: 8px; border-top: 1px solid rgba(255, 214, 150, .12); font: 400 12.5px/1.5 var(--sans, system-ui); color: rgba(240, 225, 200, .62); }
+}
+
 .dock {
   position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 3;
   display: flex; gap: 4px; padding: 6px; border-radius: 16px; max-width: calc(100% - 32px);

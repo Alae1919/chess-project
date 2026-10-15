@@ -20,6 +20,7 @@ import { GameActions } from '../../../store/game/game.actions';
 import { Piece, Square, Style3D } from '../../../core/models';
 import { isPlayableStatus } from '../../../core/utils/game-status.utils';
 import { dropVerdict, DropVerdict } from '../../../core/utils/drag-drop.utils';
+import { DeskPreset } from '../../three/desk-camera';
 import { initialSquares, LuxeBoardScene, SafeArea, Squares } from '../../three/luxe-board-scene';
 
 /**
@@ -70,8 +71,12 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
   @Input() tight = false;
   /** Cover the whole of the parent (which must be positioned) instead of keeping the `aspect` shape */
   @Input() fill = false;
-  /** `study`: the board lies flat on a table that the page paints behind the canvas (read once, at creation) */
-  @Input() environment: 'studio' | 'study' = 'studio';
+  /**
+   * `study`: the board lies flat on a table that the page paints behind the canvas.
+   * `desk`: the same, with the table and the room drawn by the scene, and a camera that can move around the board.
+   * (read once, at creation)
+   */
+  @Input() environment: 'studio' | 'study' | 'desk' = 'studio';
   /** Where the board may go on a canvas that panels float over; the camera frames the board inside it */
   @Input() safeArea: SafeArea | null = null;
 
@@ -167,6 +172,11 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
       this.reportedTopView = undefined;
       if (!echo) this.scene?.setTopView(this.topView);
     }
+  }
+
+  /** Desk view only: send the camera to a named view */
+  setView(preset: DeskPreset | 'reset'): void {
+    this.scene?.setView(preset);
   }
 
   ngOnDestroy(): void {

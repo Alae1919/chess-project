@@ -94,6 +94,39 @@ The flat 2D board and the top view keep the plain dark background.
   frees the old one for the same reason. What is left is painting a style's textures the first time it is shown (up to
   about 0.8 s on that machine, once per style and visit).
 
+### The desk view (wide screens)
+
+The study's photo can only be right for one camera, so on wide screens the page asks for `environment: 'desk'`
+instead: the scene draws the desk and the room itself, and the player can move the camera around the board. Phones keep
+the photo and a fixed camera.
+
+* **The desk** is a real surface (`shared/three/desk-environment.ts`): a plane of walnut at the height of the board's
+  underside, with a varnish sheen, taking the shadows of the lights. Its far edge sinks into a soft shadow, and the room
+  shows beyond it.
+* **The room** is a 360 degree picture (`assets/desk/room-pano.webp`), used both as the background (slightly blurred, like
+  the background of a photograph) and, through PMREM, as the light and reflections on the board. Far enough away not to need
+  parallax. Nothing is drawn until the room and the wood have arrived (8 s at most), so the page's own photo stays
+  visible until then; until they have, the materials are compiled against a plain stand-in reflection map of the same size,
+  so the real one swaps in without compiling everything again.
+* **The camera** (`shared/three/desk-camera.ts`, plain numbers, specs in `desk-camera.spec.ts`) goes round the board: turn
+  15 degrees either way, rise from 25 to 69 degrees (more of the same slides into the top-down view), zoom 0.85 to 1.15,
+  shift 1.6 squares sideways and 1 forward. Everything is clamped there, because beyond it the room behind the desk would
+  show its edges. Drag on the bare desk (or the board) to turn and rise, drag with the right button or Shift to shift, wheel or
+  pinch to zoom, Ctrl + arrows to turn (plus Shift to shift), double-click the desk to come back. Pressing a piece of the
+  player's still picks it up instead. The "Vue" button in the dock holds the named views. Playing Black turns the board on the
+  desk, not the camera, so the room stays where it is.
+* **The board's wood.** On the desk the `classic-wood` style wears photographs instead of painted wood (`assets/desk/wood-*.webp`:
+  maple squares, rosewood squares, a dark walnut frame, graded towards the reference's colours; `board-looks.ts` holds
+  the list, so another style can be given photographs the same way). They come in with the room and the board is dressed
+  in them once (`dress()`), before the first frame. Each square shows its own 512 px piece of the plank, the grain
+  always running down the files. The gold lettering lies on the frame and turns against the board, so it reads the
+  same way for Black. No style was added: the backend only accepts the three it knows.
+* **The pictures** are made by `tools/desk-assets/prepare.py` from the raw images in `design/` (the panorama is turned so
+  the man sits left of centre, lowered 10 degrees and lifted a little; the desk wood is flattened and made to tile). To
+  change the room or the wood, replace the raw file and run it; nothing needs it at run time.
+* **Looking at it:** `node tools/demo-video/desk-shots.mjs` (Docker dev stack up) photographs the first view, the
+  named views, the mouse and wheel, a piece dragged across the board and the menu, into `tools/demo-video/out/desk/`.
+
 ## In production
 
 The [`Dockerfile`](Dockerfile) builds the app and serves it with nginx ([`nginx.conf`](nginx.conf)), which also proxies `/api`

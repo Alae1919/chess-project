@@ -60,6 +60,69 @@ describe('LuxeBoardScene', () => {
     for (const look of LOOKS) expect(() => sceneIn(look).dispose()).withContext(look).not.toThrow();
   });
 
+  describe('in the desk view', () => {
+    const deskIn = (): LuxeBoardScene => {
+      const canvas = document.createElement('canvas');
+      canvas.style.cssText = 'width: 320px; height: 240px';
+      document.body.appendChild(canvas);
+      canvases.push(canvas);
+      const scene = new LuxeBoardScene(canvas, { interactive: true, look: 'classic-wood', environment: 'desk' });
+      scene.setPosition(initialSquares(), false);
+      return scene;
+    };
+
+    it('is built and disposed without failing, whether or not its pictures have arrived', async () => {
+      needsWebGL();
+      const early = deskIn();
+      expect(() => early.dispose()).not.toThrow(); // the pictures are still on their way
+      const late = deskIn();
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(() => late.dispose()).not.toThrow();
+    });
+
+    it('sends the camera to a named view, and back', () => {
+      needsWebGL();
+      const scene = deskIn();
+      const goal = () => (scene as unknown as { deskGoal: { yaw: number; elev: number } }).deskGoal;
+      scene.setView('side');
+      expect(goal().yaw).toBeGreaterThan(0);
+      scene.setView('low');
+      expect(goal().elev).toBeLessThan(0.64);
+      scene.setView('reset');
+      expect(goal().yaw).toBe(0);
+      expect(goal().elev).toBeCloseTo(0.64, 9);
+      scene.dispose();
+    });
+
+    it('tells the page when the overhead view is asked for, and when a view takes it back', () => {
+      needsWebGL();
+      const reported: boolean[] = [];
+      const canvas = document.createElement('canvas');
+      canvas.style.cssText = 'width: 320px; height: 240px';
+      document.body.appendChild(canvas);
+      canvases.push(canvas);
+      const scene = new LuxeBoardScene(canvas, { interactive: true, environment: 'desk', onTopViewChange: (t) => reported.push(t) });
+      scene.setView('overhead');
+      scene.setView('player');
+      scene.setView('low'); // already out of the overhead view: nothing to report
+      expect(reported).toEqual([true, false]);
+      scene.dispose();
+    });
+
+    it('ignores the named views when the camera is fixed (the photo view)', () => {
+      needsWebGL();
+      const canvas = document.createElement('canvas');
+      canvas.style.cssText = 'width: 320px; height: 240px';
+      document.body.appendChild(canvas);
+      canvases.push(canvas);
+      const reported: boolean[] = [];
+      const scene = new LuxeBoardScene(canvas, { interactive: true, environment: 'study', onTopViewChange: (t) => reported.push(t) });
+      expect(() => scene.setView('overhead')).not.toThrow();
+      expect(reported).toEqual([]);
+      scene.dispose();
+    });
+  });
+
   it('can be disposed while its shaders are still compiling, and nothing fails afterwards', async () => {
     needsWebGL();
     const scene = sceneIn('marble-gold');

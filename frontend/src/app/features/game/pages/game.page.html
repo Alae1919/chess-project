@@ -165,7 +165,7 @@
           <app-chess-board-3d
             *ngIf="bv.mode === '3d'; else flatBoard" #board3d
             [interactive]="true" [aspect]="boardAspect" [tight]="compact" [flipped]="boardFlipped"
-            [fill]="fill" environment="study" [safeArea]="safeArea"
+            [fill]="fill" [environment]="deskScene ? 'desk' : 'study'" [safeArea]="safeArea"
             [look]="bv.prefs.style3d" [topView]="topView" (topViewChange)="setTopView($event)" />
           <ng-template #flatBoard>
             <app-chess-board [flipped]="boardFlipped" [boardStyle]="bv.prefs.style2d" />
@@ -498,7 +498,17 @@
             [attr.aria-pressed]="vm.analysis" [class.dock__btn--on]="vm.analysis">
       <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 010 16z" fill="currentColor" stroke="none"/></svg>Analyse
     </button>
-    <button type="button" class="dock__btn" *ngIf="(boardView$ | async)?.mode === '3d'" (click)="toggleView()"
+    <div class="dock__view" *ngIf="deskScene && (boardView$ | async)?.mode === '3d'">
+      <button type="button" class="dock__btn" (click)="viewMenuOpen = !viewMenuOpen"
+              [attr.aria-expanded]="viewMenuOpen" [class.dock__btn--on]="viewMenuOpen">
+        <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5h3l1.5-2h7l1.5 2h3v10H4z"/><circle cx="12" cy="13.5" r="3.2"/></svg>Vue
+      </button>
+      <div class="view-menu" *ngIf="viewMenuOpen" role="menu">
+        <button type="button" role="menuitem" *ngFor="let v of views" (click)="setBoardView(v.id)">{{ v.label }}</button>
+        <p class="view-menu__hint">Glisser : tourner · Clic droit : décaler<br>Molette : zoom · Double-clic : recentrer</p>
+      </div>
+    </div>
+    <button type="button" class="dock__btn" *ngIf="!deskScene && (boardView$ | async)?.mode === '3d'" (click)="toggleView()"
             [attr.aria-pressed]="topView" [class.dock__btn--on]="topView">
       <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>{{ topView ? 'Vue 3D' : 'Vue du dessus' }}
     </button>

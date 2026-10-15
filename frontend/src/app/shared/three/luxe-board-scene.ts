@@ -5,7 +5,9 @@
 import * as THREE from 'three';
 import { Piece, PieceType, Square, Style3D } from '../../core/models';
 import { buildFrame, buildPiece, disposeLuxeMaterials, glowPiece, hasPieceModel, loadPieceModels, LuxeMaterials, makeLuxeMaterials, PieceLetter, pieceModelsSettled, reshapePiece } from './luxe-pieces';
-import { LOOKS_3D, lookTextures } from './board-looks';
+import { fitSquare, hasPhotoWoods, loadPhotoWoods, LOOKS_3D, lookTextures, photoWoodsReady } from './board-looks';
+import { DESK_HOME, DESK_PRESETS, DeskPreset, DeskView, deskOffset, easeView, nudge, orbitDrag, panDrag, sameView, zoomBy } from './desk-camera';
+import { buildDesk, DESK_PANO_URL, DESK_WOOD_URL, DeskParts, loadPicture, roomEnvironment, standInEnvironment } from './desk-environment';
 
 const LETTER: Record<PieceType, PieceLetter> = {
   king: 'K', queen: 'Q', rook: 'R', bishop: 'B', knight: 'N', pawn: 'P',
@@ -22,6 +24,10 @@ const LIFT_Y = 0.38;
 const MODEL_WAIT_MS = 6000;
 /** Longest the board waits for its shaders to compile before drawing anyway (a driver that never reports them done) */
 const COMPILE_WAIT_MS = 8000;
+/** The desk view waits this long for its pictures (the room, the wood) before it is drawn without them */
+const DESK_WAIT_MS = 8000;
+/** How much the room behind the desk is blurred, as the background of a photograph is (0..1) */
+const DESK_BLUR = 0.025;
 const BASE_PITCH = -0.24;
 /** What the camera looks at in the tilted 3D view. */
 const PERSP_TARGET = new THREE.Vector3(0, -0.3, 0.3);
@@ -75,8 +81,10 @@ export interface SceneOptions {
    * `studio` (default): the board is tilted towards the viewer in a dark studio of its own.
    * `study`: the board lies flat on a table that the page paints behind the (transparent) canvas;
    * the scene adds what the photo cannot: the board's shadow on the table, and the light of that room.
+   * `desk`: the same table and room, but drawn by the scene itself (a desk surface and a 360° room), so the camera
+   * can move around the board: turn, rise, come closer, shift (see desk-camera.ts).
    */
-  environment?: 'studio' | 'study';
+  environment?: 'studio' | 'study' | 'desk';
 }
 
 /** Room the page leaves free for the board, in px from each side of the canvas (panels, bars) */
@@ -102,7 +110,7 @@ const DRAG_THRESHOLD_PX = 6;
 const HELD_Y = 0.75;
 
 /** How far the board may turn sideways (rad) — the camera is framed so the whole frame stays visible within it. */
-const YAW_LIMIT = { interactive: 0.3, still: 0.1, tight: 0.06, study: 0.08 };
+const YAW_LIMIT = { interactive: 0.3, still: 0.1, tight: 0.06, study: 0.08, desk: 0.1 };
 /** Vertical drag distance (px) that takes the view from the 3D angle all the way to straight down. */
 const TOP_DRAG_PX = 180;
 
@@ -164,14 +172,31 @@ export class LuxeBoardScene {
   private mats!: LuxeMaterials;
   /** Everything buildBoard() adds to the board group, so a style change can swap it out */
   private boardParts: THREE.Object3D[] = [];
+  /** The desk's lettering, which turns against the board so as to stay readable (see frame()) */
+  private labels: THREE.Object3D[] = [];
   private lastSquares: Squares | null = null;
   private ownedMaterials: THREE.Material[] = [];
   /** Marble materials (squares + frame) whose reflections are dimmed in the top view */
   private boardMaterials: THREE.MeshPhysicalMaterial[] = [];
   private ownedGeometries: THREE.BufferGeometry[] = [];
   private envTexture: THREE.Texture;
-  /** The board lies flat on a table the page paints behind the canvas (see SceneOptions.environment) */
+  /** The board lies flat on a table (see SceneOptions.environment): the page's photo, or the scene's own desk */
   private readonly study: boolean;
+  /** The table and the room are the scene's own, and the camera moves around the board */
+  private readonly desk: boolean;
+  private deskParts: DeskParts | null = null;
+  /** The room and the wood have arrived (or we gave up waiting): until then the desk view draws nothing */
+  private deskReady = true;
+  private deskTimer = 0;
+  private panoTexture: THREE.Texture | null = null;
+  /** Where the camera is, where the player has sent it, and the distance it was framed at */
+  private deskView: DeskView = { ...DESK_HOME };
+  private deskGoal: DeskView = { ...DESK_HOME };
+  private deskDist = 14;
+  private readonly deskTarget = new THREE.Vector3();
+  /** Fingers on the canvas, to tell a pinch from a drag */
+  private touches = new Map<number, { x: number; y: number }>();
+  private pinchDist = 0;
   /** What the table needs from the scene: shadows. Built once, freed with the scene. */
   private tableParts: Array<{ geo: THREE.BufferGeometry; mat: THREE.Material; tex?: THREE.Texture }> = [];
   private lights: THREE.Light[] = [];
@@ -223,7 +248,7 @@ export class LuxeBoardScene {
   private dragYaw = 0;
   private parallaxYaw = 0;
   private flipYaw = 0;
-  private drag = { down: false, moved: false, x: 0, y: 0 };
+  private drag = { down: false, moved: false, x: 0, y: 0, pan: false };
   /** The piece in the player's hand: pressed, and carried once the pointer has moved far enough */
   private held: { entry: PieceEntry; from: Square; x: number; y: number; id: number; active: boolean } | null = null;
   /** The square under the carried piece */
@@ -241,7 +266,8 @@ export class LuxeBoardScene {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.study = opts.environment === 'study';
+    this.desk = opts.environment === 'desk';
+    this.study = opts.environment === 'study' || this.desk;
     this.renderer.toneMappingExposure = this.study ? 1.05 : 1.15;
     this.viewW = width;
     this.viewH = height;
@@ -262,6 +288,12 @@ export class LuxeBoardScene {
     this.bindEvents();
 
     this.boardGroup.position.y = this.study ? 0.9 : -2;
+    if (this.desk) {
+      // nothing is drawn until the room and the wood are in: until then the page's own photo of the room shows
+      this.deskReady = false;
+      this.deskTimer = window.setTimeout(() => (this.deskReady = true), DESK_WAIT_MS);
+      void this.loadDesk();
+    }
     this.keepLooksWarm();
     this.frame(); // arms the loop; nothing is drawn until the shaders are compiled
     // a tick on, so that the pieces the caller is about to set are compiled with the rest
@@ -314,9 +346,32 @@ export class LuxeBoardScene {
     if (top) this.dragYaw = 0; // look straight down the files, not at a sideways angle
   }
 
+  /**
+   * Desk view only: send the camera to a named view (the others keep their fixed camera). `overhead` is the
+   * top-down slide, and the page is told about it as after a drag. Anything else comes back from it.
+   */
+  setView(preset: DeskPreset | 'reset'): void {
+    if (!this.desk) return;
+    if (preset === 'overhead') {
+      this.topTarget = 1;
+      this.opts.onTopViewChange?.(true);
+      return;
+    }
+    this.deskGoal = { ...(DESK_PRESETS[preset === 'reset' ? 'player' : preset]) };
+    if (this.topTarget !== 0) {
+      this.topTarget = 0;
+      this.opts.onTopViewChange?.(false);
+    }
+  }
+
   /** Re-dress the board and pieces in another style, keeping the position, selection and camera. */
   setLook(look: Style3D): void {
     if (look === this.look || this.disposed) return;
+    this.dress(look);
+  }
+
+  /** Put the board and its pieces into `look`'s clothes, replacing whatever they wear (the same look too: its photographs may have come in) */
+  private dress(look: Style3D): void {
     // The old look is freed only after the new one has been drawn: a shader program is deleted the moment the
     // last material using it goes, and the new materials (the same programs, other colours) would compile it again.
     const free = this.retireBoard();
@@ -447,6 +502,7 @@ export class LuxeBoardScene {
     const pieces = [...this.pieces.values()];
     const mats = this.mats;
     this.boardParts = [];
+    this.labels = [];
     this.sqMeshes = [];
     this.boardMaterials = [];
     this.sqTextures = [];
@@ -492,6 +548,10 @@ export class LuxeBoardScene {
     this.disposeBoard();
     [this.dotGeo, this.ringGeo].forEach((g) => g.dispose());
     [this.dotMat, this.ringMat].forEach((m) => m.dispose());
+    window.clearTimeout(this.deskTimer);
+    this.deskParts?.dispose();
+    this.panoTexture?.dispose();
+    this.scene.background = null;
     this.envTexture.dispose();
     this.tableParts.forEach((p) => { p.geo.dispose(); p.mat.dispose(); p.tex?.dispose(); });
     this.tableParts = [];
@@ -578,7 +638,8 @@ export class LuxeBoardScene {
       geos.push(geo);
       mats.push(mat);
     });
-    const env = pmrem.fromScene(room, 0.04).texture;
+    // the desk's room is a picture that arrives later: a stand-in of the same kind keeps the shaders valid for it
+    const env = this.desk ? standInEnvironment(this.renderer) : pmrem.fromScene(room, 0.04).texture;
     pmrem.dispose();
     geos.forEach((g) => g.dispose());
     mats.forEach((m) => m.dispose());
@@ -614,19 +675,52 @@ export class LuxeBoardScene {
     return env;
   }
 
+  /** Bring in the room behind the desk and the wood of its top, then let the scene be drawn. */
+  private async loadDesk(): Promise<void> {
+    const looks = (Object.keys(LOOKS_3D) as Style3D[]).filter(hasPhotoWoods);
+    const [pano, wood] = await Promise.all([loadPicture(DESK_PANO_URL), loadPicture(DESK_WOOD_URL), ...looks.map(loadPhotoWoods)]);
+    if (this.disposed) {
+      pano?.dispose();
+      wood?.dispose();
+      return;
+    }
+    // the board is wearing painted wood, and has photographs to wear instead
+    if (photoWoodsReady(this.look)) this.dress(this.look);
+    if (wood) this.deskParts?.setWood(wood, this.renderer.capabilities.getMaxAnisotropy());
+    if (pano) {
+      pano.mapping = THREE.EquirectangularReflectionMapping;
+      pano.colorSpace = THREE.SRGBColorSpace;
+      this.panoTexture = pano;
+      this.scene.background = pano;
+      this.scene.backgroundBlurriness = DESK_BLUR;
+      const env = roomEnvironment(this.renderer, pano);
+      this.envTexture.dispose();
+      this.envTexture = env;
+      this.scene.environment = env;
+    }
+    window.clearTimeout(this.deskTimer);
+    this.deskReady = true;
+  }
+
   /**
    * The table is the photo behind the canvas: all the scene adds is what the board does to it. A shadow
    * catcher for the shadows of the lights, and a soft dark halo under the frame, so the board is set on the wood.
    */
   private buildTable(): void {
-    const plane = new THREE.PlaneGeometry(60, 60);
-    plane.rotateX(-Math.PI / 2);
-    const shade = new THREE.ShadowMaterial({ color: 0x120600, opacity: 0.6 });
-    const catcher = new THREE.Mesh(plane, shade);
-    catcher.position.y = TABLE_Y;
-    catcher.receiveShadow = true;
-    this.scene.add(catcher);
-    this.tableParts.push({ geo: plane, mat: shade });
+    if (this.desk) {
+      // the desk is a surface of its own: it takes the shadows itself
+      this.deskParts = buildDesk(TABLE_Y);
+      this.scene.add(this.deskParts.object);
+    } else {
+      const plane = new THREE.PlaneGeometry(60, 60);
+      plane.rotateX(-Math.PI / 2);
+      const shade = new THREE.ShadowMaterial({ color: 0x120600, opacity: 0.6 });
+      const catcher = new THREE.Mesh(plane, shade);
+      catcher.position.y = TABLE_Y;
+      catcher.receiveShadow = true;
+      this.scene.add(catcher);
+      this.tableParts.push({ geo: plane, mat: shade });
+    }
 
     // halo: a blurred dark square, painted once
     const size = 256;
@@ -651,7 +745,8 @@ export class LuxeBoardScene {
   private buildBoard(): void {
     const bg = this.boardGroup;
     const look = LOOKS_3D[this.look];
-    const tex = lookTextures(this.look);
+    const tex = lookTextures(this.look, this.desk);
+    const maxAniso = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
     const add = <T extends THREE.Object3D>(o: T): T => {
       bg.add(o);
       this.boardParts.push(o);
@@ -666,7 +761,8 @@ export class LuxeBoardScene {
     add(frame);
 
     // inlay lines
-    const goldMat = new THREE.MeshStandardMaterial({ color: look.inlay, metalness: 1, roughness: 0.22 });
+    // (on the desk the lines are lit a little from within: a gold inlay is brighter than the room's light makes it)
+    const goldMat = new THREE.MeshStandardMaterial({ color: look.inlay, metalness: 1, roughness: 0.22, emissive: this.desk ? look.inlay : 0, emissiveIntensity: 0.2 });
     this.ownedMaterials.push(goldMat);
     ([[4.1, 0.035], [4.78, 0.025]] as Array<[number, number]>).forEach(([d, t]) => {
       ([[0, -d, 2 * d + t, t], [0, d, 2 * d + t, t], [-d, 0, t, 2 * d + t], [d, 0, t, 2 * d + t]] as Array<[number, number, number, number]>).forEach(([x, z, w, dd]) => {
@@ -686,11 +782,8 @@ export class LuxeBoardScene {
         const light = (r + c) % 2 === 0;
         const tx = (light ? tex.light : tex.dark).clone();
         tx.needsUpdate = true;
-        tx.repeat.set(0.25, 0.25);
-        tx.offset.set(Math.random() * 0.75, Math.random() * 0.75);
-        // a quarter turn keeps wood grain from running the same way on every square
-        tx.center.set(0.5, 0.5);
-        tx.rotation = Math.floor(Math.random() * 4) * (Math.PI / 2);
+        fitSquare(tx, !!tex.photo);
+        tx.anisotropy = maxAniso; // the squares are seen at a slant
         this.sqTextures.push(tx);
         const mat = new THREE.MeshPhysicalMaterial({ map: tx, color: 0xffffff, roughness: 0.16, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.06 });
         this.ownedMaterials.push(mat);
@@ -714,17 +807,38 @@ export class LuxeBoardScene {
   }
 
   private addLabel(text: string, x: number, y: number, z: number): void {
+    const desk = this.desk;
+    const size = desk ? 128 : 64;
     const c = document.createElement('canvas');
-    c.width = 64;
-    c.height = 64;
+    c.width = c.height = size;
     const ctx = c.getContext('2d')!;
     ctx.fillStyle = LOOKS_3D[this.look].label;
-    ctx.font = 'italic 500 40px "Cormorant Garamond", serif';
+    ctx.font = desk ? `600 ${size * 0.7}px "Cormorant Garamond", serif` : 'italic 500 40px "Cormorant Garamond", serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(text, 32, 32);
+    ctx.fillText(text, size / 2, size / 2);
     const tex = new THREE.CanvasTexture(c);
+    tex.anisotropy = 4;
+    if (desk) tex.colorSpace = THREE.SRGBColorSpace; // the lettering is gold, not a washed-out cream
     this.sqTextures.push(tex);
+
+    if (desk) {
+      // on the desk the letters lie on the frame, like lettering cut into it (an upright card would stand half
+      // inside the frame), and keep their reading direction when the board is turned for Black
+      const geo = new THREE.PlaneGeometry(0.42, 0.42);
+      geo.rotateX(-Math.PI / 2);
+      this.ownedGeometries.push(geo);
+      const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 });
+      this.ownedMaterials.push(mat);
+      const label = new THREE.Mesh(geo, mat);
+      label.position.set(x, y + 0.01, z);
+      label.renderOrder = 2;
+      this.boardGroup.add(label);
+      this.boardParts.push(label);
+      this.labels.push(label);
+      return;
+    }
+
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
     this.ownedMaterials.push(mat);
     const sprite = new THREE.Sprite(mat);
@@ -737,13 +851,20 @@ export class LuxeBoardScene {
   /** How far the board may turn sideways (rad) */
   private get yawLimit(): number {
     if (this.opts.tight) return YAW_LIMIT.tight;
+    if (this.desk) return YAW_LIMIT.desk;
     if (this.study) return YAW_LIMIT.study;
     return this.opts.interactive ? YAW_LIMIT.interactive : YAW_LIMIT.still;
   }
 
-  /** What the camera looks at in the tilted view */
-  private get target(): THREE.Vector3 {
+  /** What the camera looks at in the tilted view, before the desk view shifts it */
+  private get baseTarget(): THREE.Vector3 {
     return this.study ? STUDY_TARGET : PERSP_TARGET;
+  }
+
+  /** What the camera looks at in the tilted view: the desk view may have shifted it over the desk */
+  private get target(): THREE.Vector3 {
+    if (!this.desk) return this.baseTarget;
+    return this.deskTarget.set(STUDY_TARGET.x + this.deskView.panX, STUDY_TARGET.y, STUDY_TARGET.z + this.deskView.panZ);
   }
 
   /** How far the board is tilted towards the viewer at rest (the study's board lies flat on its table) */
@@ -775,7 +896,7 @@ export class LuxeBoardScene {
     const dir = this.study
       ? new THREE.Vector3(0, Math.sin(this.studyElevation), Math.cos(this.studyElevation))
       : new THREE.Vector3(0, 9.6, this.opts.tight ? 3.8 : 9.4).normalize();
-    const target = this.target;
+    const target = this.baseTarget;
     const E = 4.97; // frame half-width, bevel included
     const yawMax = this.yawLimit;
     const base = this.basePitch;
@@ -825,6 +946,7 @@ export class LuxeBoardScene {
       if (fits(tilted)) break;
     }
     this.perspPos.copy(target).addScaledVector(dir, d);
+    this.deskDist = d;
 
     // top-down: camera straight above, rank 8 at the top of the screen
     const flat: THREE.Vector3[] = [];
@@ -841,6 +963,11 @@ export class LuxeBoardScene {
     this.applyCamera();
   }
 
+  private deskOffsetVector(): THREE.Vector3 {
+    const [x, y, z] = deskOffset(this.deskView, this.deskDist);
+    return new THREE.Vector3(x, y, z);
+  }
+
   /** Phones look down more steeply: the far ranks get taller, so a finger can find them */
   private get studyElevation(): number {
     return this.opts.tight ? 0.95 : STUDY_ELEVATION;
@@ -854,6 +981,7 @@ export class LuxeBoardScene {
   /** Place the camera between the tilted pose (topT = 0) and the top-down pose (topT = 1). */
   private applyCamera(): void {
     const t = this.topT;
+    if (this.desk) this.perspPos.copy(this.target).add(this.deskOffsetVector());
     this.camera.position.lerpVectors(this.perspPos, new THREE.Vector3(0, this.topDist, 0), t);
     this.camera.up.lerpVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, -1), t).normalize();
     const tg = this.target;
@@ -1151,7 +1279,19 @@ export class LuxeBoardScene {
       return;
     }
 
+    if (this.desk) this.bindDeskCamera(on);
+
     on(this.canvas, 'pointerdown', (e: PointerEvent) => {
+      // a second finger turns the drag into a pinch, unless a piece is in the hand
+      if (this.desk && e.pointerType === 'touch') {
+        this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        if (this.touches.size === 2 && !this.held) {
+          this.drag.down = false;
+          this.drag.moved = true; // the lift of the fingers is not a tap
+          this.pinchDist = this.touchSpan();
+          return;
+        }
+      }
       const sq = e.button === 0 ? this.pick(e) : null;
       const entry = sq && this.opts.canDrag?.(sq) ? this.pieces.get(keyOf(sq.row, sq.col)) : undefined;
       if (sq && entry) {
@@ -1161,9 +1301,16 @@ export class LuxeBoardScene {
       }
       // on a phone the board stays put under the finger
       if (e.pointerType === 'touch' && this.opts.tight) return;
-      this.drag = { down: true, moved: false, x: e.clientX, y: e.clientY };
+      this.drag = { down: true, moved: false, x: e.clientX, y: e.clientY, pan: this.desk && (e.button === 2 || e.shiftKey) };
     });
     on(window, 'pointermove', (e: PointerEvent) => {
+      if (this.touches.has(e.pointerId)) this.touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.pinchDist > 0 && this.touches.size >= 2) {
+        const span = this.touchSpan();
+        this.deskGoal = zoomBy(this.deskGoal, span / this.pinchDist);
+        this.pinchDist = span;
+        return;
+      }
       if (this.held) {
         this.moveHeld(e);
         return;
@@ -1175,16 +1322,30 @@ export class LuxeBoardScene {
         this.drag.moved = true;
         this.drag.x = e.clientX;
         this.drag.y = e.clientY;
-        this.dragYaw = Math.max(-this.yawLimit, Math.min(this.yawLimit, this.dragYaw + dx * 0.008));
-        // dragging down raises the camera; all the way down looks straight at the board
-        this.topTarget = Math.max(0, Math.min(1, this.topTarget + dy / TOP_DRAG_PX));
+        if (this.desk) {
+          // the camera goes round the board; the board stays on its desk
+          if (this.drag.pan) this.deskGoal = panDrag(this.deskGoal, dx, dy, this.panUnitsPerPx());
+          else {
+            const r = orbitDrag(this.deskGoal, this.topTarget, dx, dy);
+            this.deskGoal = r.view;
+            this.topTarget = r.top;
+          }
+        } else {
+          this.dragYaw = Math.max(-this.yawLimit, Math.min(this.yawLimit, this.dragYaw + dx * 0.008));
+          // dragging down raises the camera; all the way down looks straight at the board
+          this.topTarget = Math.max(0, Math.min(1, this.topTarget + dy / TOP_DRAG_PX));
+        }
         this.canvas.style.cursor = 'grabbing';
       } else if (e.target === this.canvas) {
         this.canvas.style.cursor = this.pick(e) ? 'pointer' : 'default';
       }
     });
-    on(window, 'pointercancel', () => this.dropHeld(null));
+    on(window, 'pointercancel', (e: PointerEvent) => {
+      this.liftFinger(e);
+      this.dropHeld(null);
+    });
     on(window, 'pointerup', (e: PointerEvent) => {
+      this.liftFinger(e);
       if (this.held) {
         if (e.pointerId === this.held.id) this.dropHeld(e);
         return;
@@ -1204,6 +1365,45 @@ export class LuxeBoardScene {
       const sq = this.pick(e);
       if (sq && this.opts.onSquareClick) this.opts.onSquareClick(sq);
     });
+  }
+
+  /** The desk camera's inputs besides the drag: the wheel, Ctrl + the arrow keys, a double click on the bare desk. */
+  private bindDeskCamera(on: (target: EventTarget, type: string, fn: (e: any) => void) => void): void {
+    const canvas = this.canvas;
+    on(canvas, 'contextmenu', (e: Event) => e.preventDefault()); // the right button pans
+    const wheel = (e: WheelEvent): void => {
+      e.preventDefault();
+      // a wheel line is about 100 units, a trackpad's pinch a few: both feel the same
+      this.deskGoal = zoomBy(this.deskGoal, Math.exp(-e.deltaY * 0.0012));
+    };
+    canvas.addEventListener('wheel', wheel, { passive: false });
+    this.listeners.push(() => canvas.removeEventListener('wheel', wheel));
+    // Ctrl + arrows (plus Shift to shift the view over the desk): the plain arrows step through the game's moves
+    on(window, 'keydown', (e: KeyboardEvent) => {
+      if (!e.ctrlKey || e.altKey || e.metaKey || (e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable]')) return;
+      const key = ({ ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' } as const)[e.key as 'ArrowLeft'];
+      if (!key) return;
+      e.preventDefault();
+      this.deskGoal = nudge(this.deskGoal, key, e.shiftKey);
+    });
+    on(canvas, 'dblclick', (e: MouseEvent) => {
+      if (!this.pick(e)) this.setView('reset');
+    });
+  }
+
+  /** Distance between the first two fingers on the canvas */
+  private touchSpan(): number {
+    const [a, b] = [...this.touches.values()];
+    return a && b ? Math.max(Math.hypot(a.x - b.x, a.y - b.y), 1) : 0;
+  }
+
+  private liftFinger(e: PointerEvent): void {
+    if (this.touches.delete(e.pointerId) && this.touches.size < 2) this.pinchDist = 0;
+  }
+
+  /** How far the desk is from the camera for one pixel of the screen, at the board: what a pan drag moves by */
+  private panUnitsPerPx(): number {
+    return (2 * this.deskDist * this.deskGoal.zoom * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) / Math.max(this.viewH, 1);
   }
 
   /** Carry the pressed piece after the pointer, once it has moved far enough to be a drag. */
@@ -1296,7 +1496,7 @@ export class LuxeBoardScene {
   private frame = (): void => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.frame);
-    if (!this.visible || document.hidden || this.compiling) return;
+    if (!this.visible || document.hidden || this.compiling || !this.deskReady) return;
 
     const now = performance.now();
     const t = now * 0.001;
@@ -1312,17 +1512,27 @@ export class LuxeBoardScene {
 
     const k = this.opts.interactive ? 0.15 : 0.07;
     this.pitch += (this.targetPitch - this.pitch) * k;
-    this.yaw += (this.flipYaw + (this.dragYaw + this.parallaxYaw) * (1 - this.topT) - this.yaw) * k;
+    // the desk's camera goes round the board; only the board's own turn (playing Black) turns the board on the desk
+    const turn = this.desk ? 0 : (this.dragYaw + this.parallaxYaw) * (1 - this.topT);
+    this.yaw += (this.flipYaw + turn - this.yaw) * k;
     if (!this.intro) {
       this.boardGroup.rotation.x = (this.basePitch + this.pitch) * (1 - this.topT);
     }
 
+    let moved = false;
+    if (this.desk && !sameView(this.deskView, this.deskGoal, 1e-4)) {
+      this.deskView = easeView(this.deskView, this.deskGoal, 0.18);
+      if (sameView(this.deskView, this.deskGoal, 1e-3)) this.deskView = { ...this.deskGoal };
+      moved = true;
+    }
     if (this.topT !== this.topTarget) {
       this.topT += (this.topTarget - this.topT) * 0.12;
       if (Math.abs(this.topTarget - this.topT) < 0.002) this.topT = this.topTarget;
-      this.applyCamera();
+      moved = true;
     }
+    if (moved) this.applyCamera();
     this.boardGroup.rotation.y = this.yaw;
+    if (this.desk) for (const l of this.labels) l.rotation.y = -this.yaw;
 
     for (let i = this.tweens.length - 1; i >= 0; i--) {
       const tw = this.tweens[i];

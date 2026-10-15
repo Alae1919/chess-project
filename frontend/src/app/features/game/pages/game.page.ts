@@ -11,6 +11,7 @@ import { Store } from '@ngrx/store';
 import { combineLatest, distinctUntilChanged, filter, map, pairwise, Subscription, take } from 'rxjs'; // <-- Subscription added
 import { ChessBoardComponent } from '../../../shared/components/chess-board/chess-board.component';
 import { ChessBoard3DComponent } from '../../../shared/components/chess-board-3d/chess-board-3d.component';
+import { DeskPreset } from '../../../shared/three/desk-camera';
 import { BoardStylePickerComponent } from '../../../shared/components/board-style-picker/board-style-picker.component';
 import { GameOverDialogComponent, RematchState } from '../../../shared/components/game-over-dialog/game-over-dialog.component';
 import { playerColorOf, summarizeResult } from '../../../core/utils/game-result.utils';
@@ -141,6 +142,17 @@ export class GamePage implements OnInit, OnDestroy, AfterViewChecked {
    */
   fill          = !isCompactViewport();
   safeArea: SafeArea | null = null;
+  /** Wide screens: the board draws its own desk and room, and the camera can move around it. Phones keep the photo. */
+  readonly deskScene = !isCompactViewport();
+  /** The menu of camera views over the dock */
+  viewMenuOpen = false;
+  readonly views: Array<{ id: DeskPreset | 'reset'; label: string }> = [
+    { id: 'player', label: 'Joueur' },
+    { id: 'low', label: 'Rasant' },
+    { id: 'side', label: 'De côté' },
+    { id: 'overhead', label: 'Du dessus' },
+  ];
+  @ViewChild(ChessBoard3DComponent) private board3dCmp?: ChessBoard3DComponent;
   /** The compact layout is in use (read when the board is created) */
   readonly compact = isCompactViewport();
   boardFlipped  = false;
@@ -303,7 +315,7 @@ export class GamePage implements OnInit, OnDestroy, AfterViewChecked {
   toggleSettings(): void { this.settingsOpen = !this.settingsOpen; }
 
   @HostListener('document:keydown.escape')
-  closeSettings(): void { this.settingsOpen = false; this.closeSheet(); }
+  closeSettings(): void { this.settingsOpen = false; this.viewMenuOpen = false; this.closeSheet(); }
 
   // ── Phone layout ──────────────────────────────────────────────────────────
   openSheet(sheet: GameSheet): void { this.settingsOpen = false; this.sheet = sheet; }
@@ -427,6 +439,11 @@ export class GamePage implements OnInit, OnDestroy, AfterViewChecked {
   }
 
   toggleView(): void { this.setTopView(!this.topView); }
+
+  setBoardView(id: DeskPreset | 'reset'): void {
+    this.board3dCmp?.setView(id);
+    this.viewMenuOpen = false;
+  }
 
   setTopView(top: boolean): void {
     this.topView = top;

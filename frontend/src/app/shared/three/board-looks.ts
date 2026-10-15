@@ -50,7 +50,7 @@ export const LOOKS_3D: Record<Style3D, Look3D> = {
     light: { kind: 'wood', base: '#e8cb97', grain: 'rgba(150,100,50,', seed: 9 },
     dark: { kind: 'wood', base: '#7c4a2c', grain: 'rgba(44,20,8,', seed: 6 },
     inlay: 0xc9a05a,
-    label: 'rgba(240,222,184,.9)',
+    label: 'rgba(232,188,104,.95)',
     white: { color: 0xf3ead6, metalness: 0, roughness: 0.34, clearcoat: 0.6, clearcoatRoughness: 0.2, envMapIntensity: 1.0 },
     black: { color: 0x3a1a0e, metalness: 0, roughness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.15, envMapIntensity: 1.1 },
     trim: 0xc9a05a,
@@ -70,15 +70,83 @@ export const LOOKS_3D: Record<Style3D, Look3D> = {
 };
 
 export interface LookTextures {
-  frame: THREE.CanvasTexture;
-  light: THREE.CanvasTexture;
-  dark: THREE.CanvasTexture;
+  frame: THREE.Texture;
+  light: THREE.Texture;
+  dark: THREE.Texture;
+  /** Photographs of real wood rather than painted ones: each square shows a plain, unturned piece of them (see `fitSquare`) */
+  photo?: boolean;
 }
+
+/** Looks that have photographs of their woods to wear on the desk, and where they are (made by tools/desk-assets) */
+const PHOTO_WOODS: Partial<Record<Style3D, { light: string; dark: string; frame: string }>> = {
+  'classic-wood': { light: 'assets/desk/wood-maple.webp', dark: 'assets/desk/wood-walnut.webp', frame: 'assets/desk/wood-frame.webp' },
+};
+/** How much of a photograph one square shows, in px of it: a board square is a hand's width of the wood */
+const PHOTO_SQUARE_PX = 512;
+const photos: Partial<Record<Style3D, LookTextures>> = {};
 
 /** Textures are expensive to paint, so each style's set is built once and shared by every board on the page. */
 const cache: Partial<Record<Style3D, LookTextures>> = {};
 
-export function lookTextures(style: Style3D): LookTextures {
+/** Does this look have photographs of its woods? */
+export function hasPhotoWoods(style: Style3D): boolean {
+  return !!PHOTO_WOODS[style];
+}
+
+/** Are they in, ready for `lookTextures(style, true)`? */
+export function photoWoodsReady(style: Style3D): boolean {
+  return !!photos[style];
+}
+
+/** Bring in a look's photographs (once; at once if they are in already). Resolves false if they cannot be had. */
+export function loadPhotoWoods(style: Style3D): Promise<boolean> {
+  const urls = PHOTO_WOODS[style];
+  if (!urls) return Promise.resolve(false);
+  if (photos[style]) return Promise.resolve(true);
+  const load = (url: string): Promise<THREE.Texture> =>
+    new Promise((resolve, reject) => {
+      new THREE.TextureLoader().load(url, (t) => {
+        t.colorSpace = THREE.SRGBColorSpace;
+        resolve(t);
+      }, undefined, reject);
+    });
+  return Promise.all([load(urls.frame), load(urls.light), load(urls.dark)]).then(
+    ([frame, light, dark]) => {
+      frame.wrapS = frame.wrapT = THREE.RepeatWrapping;
+      frame.repeat.set(LOOKS_3D[style].frame.repeat, LOOKS_3D[style].frame.repeat);
+      photos[style] = { frame, light, dark, photo: true };
+      return true;
+    },
+    (err) => {
+      console.warn('[board-looks] could not load the woods of', style, err);
+      return false;
+    },
+  );
+}
+
+/**
+ * Point a square's own copy of its wood at a piece of it. Painted woods are small and endless: a random quarter of
+ * them, turned at random. Photographs are one plank: a square of PHOTO_SQUARE_PX px of it, anywhere, the grain
+ * always the way the photograph has it (turning it would also stretch it, as the photographs are not square).
+ */
+export function fitSquare(t: THREE.Texture, photo: boolean): void {
+  if (!photo) {
+    t.repeat.set(0.25, 0.25);
+    t.offset.set(Math.random() * 0.75, Math.random() * 0.75);
+    // a quarter turn keeps wood grain from running the same way on every square
+    t.center.set(0.5, 0.5);
+    t.rotation = Math.floor(Math.random() * 4) * (Math.PI / 2);
+    return;
+  }
+  const img = t.image as { width: number; height: number };
+  const rx = Math.min(PHOTO_SQUARE_PX / img.width, 1);
+  const ry = Math.min(PHOTO_SQUARE_PX / img.height, 1);
+  t.repeat.set(rx, ry);
+  t.offset.set(Math.random() * (1 - rx), Math.random() * (1 - ry));
+}
+
+export function lookTextures(style: Style3D, photo = false): LookTextures {
+  if (photo && photos[style]) return photos[style]!;
   const hit = cache[style];
   if (hit) return hit;
 
