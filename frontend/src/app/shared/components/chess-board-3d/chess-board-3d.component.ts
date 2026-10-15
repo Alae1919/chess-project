@@ -104,9 +104,9 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
           look: this.look,
           tight: this.tight,
           environment: this.environment,
-          // slow enough to follow, with a lower hop
-          moveMs: 850,
-          hop: 0.7,
+          // slow enough to follow, quick enough not to wait for
+          moveMs: 520,
+          hop: 0.6,
           canDrag: (sq) => this.canDrag(sq),
           onDragStart: (sq) => this.zone.run(() => this.store.dispatch(GameActions.selectSquare({ square: sq }))),
           onDrop: (from, to) => this.zone.run(() => this.onDrop(from, to)),
@@ -284,16 +284,9 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
     if (vm.selected) {
       const isLegal = (vm.legalMoves ?? []).some((m: Square) => m.row === sq.row && m.col === sq.col);
       if (isLegal) {
-        this.store.dispatch(
-          GameActions.submitMove({
-            move: {
-              from: vm.selected,
-              to: sq,
-              piece: vm.board.squares[vm.selected.row][vm.selected.col],
-              capturedPiece: piece ?? undefined,
-            },
-          })
-        );
+        // the piece goes across at once, and waits there for the game to confirm (or refuse) the move
+        this.scene?.slideTo(vm.selected, sq);
+        this.play(vm.selected, sq);
         return;
       }
       if (piece && piece.color === vm.movable) {

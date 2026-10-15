@@ -41,7 +41,7 @@ public class GameController {
             WebSocketSessionManager wsManager,
             GameAccess gameAccess,
             AnalysisService analysis,
-            @Value("${chess.ai.min-reply-ms:1000}") long aiMinReplyMs) {
+            @Value("${chess.ai.min-reply-ms:600}") long aiMinReplyMs) {
         this.aiMinReplyMs   = aiMinReplyMs;
         this.analysis       = analysis;
         this.engineService  = engineService;

@@ -384,6 +384,33 @@ export class LuxeBoardScene {
     this.applyHighlights();
   }
 
+  /**
+   * A move the player has just tapped: the piece goes across at once, before the game has confirmed the move.
+   * The piece stays on its old square in the scene's books, so the confirmation finds it already there (no
+   * second hop), and a refused move sends it back with `settle`.
+   */
+  slideTo(from: Square, to: Square, ms = 300): void {
+    const entry = this.pieces.get(keyOf(from.row, from.col));
+    if (!entry) return;
+    const g = entry.group;
+    const [tx, tz] = sqCenter(to.row, to.col);
+    const [sx, sy, sz] = [g.position.x, g.position.y, g.position.z];
+    const hop = (this.opts.hop ?? 0.95) * 0.6;
+    this.cancelTween(entry);
+    entry.moving = true;
+    entry.tween = this.tween(
+      ms,
+      (t) => {
+        const e = 1 - Math.pow(1 - t, 3);
+        g.position.set(sx + (tx - sx) * e, sy + (REST_Y - sy) * e + Math.sin(t * Math.PI) * hop, sz + (tz - sz) * e);
+      },
+      () => {
+        entry.moving = false;
+        g.position.set(tx, REST_Y, tz);
+      },
+    );
+  }
+
   /** Send every piece that is not on its square back to it (a move that was not played). */
   settle(): void {
     this.pieces.forEach((e) => {

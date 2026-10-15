@@ -29,8 +29,12 @@ const SOLID_PIECES: Record<PieceType, string> = {
   king: '♚︎', queen: '♛︎', rook: '♜︎', bishop: '♝︎', knight: '♞︎', pawn: '♟︎',
 };
 
-/** How long a piece takes to slide to its new square */
-const MOVE_SLIDE_MS = 700;
+/** How long a piece takes to slide to its new square when the game moves it (the AI's move, an opponent's) */
+const MOVE_SLIDE_MS = 380;
+/** The same for a move the player has just made: quicker, it answers the hand */
+const TAP_SLIDE_MS = 240;
+/** Fast off the mark, slow to settle: the piece reacts at once and still lands softly */
+const SLIDE_EASING = 'cubic-bezier(.2, .75, .25, 1)';
 
 /** A piece being carried: where it is on the board (px from the board's corner) and where it came from */
 interface Carried {
@@ -185,7 +189,7 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
     if (vm.selected) {
       const isLegal = (vm.legalMoves ?? []).some((m: Square) => m.row === sq.row && m.col === sq.col);
       if (isLegal) {
-        this.submit(vm.selected, sq, vm);
+        this.playByTap(vm.selected, sq, vm);
         return;
       }
       // Clicked on another own piece → reselect
@@ -312,6 +316,7 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
   private onStore(vm: any): void {
     this.latest = vm;
     this.watchForArrival(vm);
+    this.watchTappedMove(vm);
     const d = this.dropped;
     if (!d || !this.carried) return;
 
@@ -335,7 +340,67 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
     }
   }
 
-  /* ── a move played by someone else (or by a tap) slides into place ──────── */
+  /* ── a tapped move: the piece goes across at once, the game catches up ──── */
+
+  /**
+   * A move the player tapped, on its way to the server. The piece is already on its new square (it was slid
+   * there on the tap), and stays there until the game confirms the move or refuses it.
+   */
+  private tapped: { board: unknown; sawLoading: boolean; run: Animation; el: HTMLElement; square: HTMLElement | null } | null = null;
+
+  private playByTap(from: Square, to: Square, vm: any): void {
+    const el = this.pieceElAt(from);
+    const cell = this.cellSize();
+    if (!el || !cell || typeof el.animate !== 'function' || this.tapped) {
+      this.submit(from, to, vm);
+      return;
+    }
+    const { dx, dy } = this.offset(from, to, cell);
+    // over the other pieces, and the square raised with it (see glide)
+    const square = el.parentElement;
+    el.style.zIndex = '30';
+    if (square) square.style.zIndex = '30';
+    const run = el.animate(
+      [{ transform: 'translate(0, 0)' }, { transform: `translate(${dx}px, ${dy}px)` }],
+      { duration: TAP_SLIDE_MS, easing: SLIDE_EASING, fill: 'forwards' },
+    );
+    this.tapped = { board: vm.board, sawLoading: false, run, el, square };
+    this.draggedMove = true;   // the piece is already across when the move comes back: nothing to slide then
+    this.submit(from, to, vm);
+  }
+
+  private watchTappedMove(vm: any): void {
+    const t = this.tapped;
+    if (!t) return;
+    if (vm.board !== t.board) {
+      this.releaseTapped(t);           // confirmed: the real piece is on its square now
+    } else if (!t.sawLoading) {
+      // just sent: only a request seen loading can be answered (see onStore)
+      if (vm.loading || vm.promoting) t.sawLoading = true;
+    } else if (!vm.loading && !vm.promoting) {
+      // refused: the piece goes back
+      this.draggedMove = false;
+      t.run.onfinish = t.run.oncancel = () => this.releaseTapped(t);
+      t.run.reverse();
+    }
+  }
+
+  private releaseTapped(t: NonNullable<ChessBoardComponent['tapped']>): void {
+    if (this.tapped === t) this.tapped = null;
+    t.run.oncancel = t.run.onfinish = null;
+    t.run.cancel();
+    t.el.style.zIndex = '';
+    if (t.square) t.square.style.zIndex = '';
+  }
+
+  /** How far a piece moving from one square to another travels on screen, in px */
+  private offset(from: Square, to: Square, cell: number): { dx: number; dy: number } {
+    const col = (sq: Square) => (this.flipped ? 7 - sq.col : sq.col);
+    const row = (sq: Square) => (this.flipped ? 7 - sq.row : sq.row);
+    return { dx: (col(to) - col(from)) * cell, dy: (row(to) - row(from)) * cell };
+  }
+
+  /* ── a move played by someone else slides into place ────────────────────── */
 
   /** The game and its move count at the last store change, to tell one new move from anything else */
   private shown: { id?: string; moves: number } | null = null;
@@ -374,10 +439,7 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
     const cell = this.cellSize();
     const el = this.pieceElAt(to);
     if (!el || !cell || typeof el.animate !== 'function') return;
-    const col = (sq: Square) => (this.flipped ? 7 - sq.col : sq.col);
-    const row = (sq: Square) => (this.flipped ? 7 - sq.row : sq.row);
-    const dx = (col(from) - col(to)) * cell;
-    const dy = (row(from) - row(to)) * cell;
+    const { dx, dy } = this.offset(to, from, cell);   // it starts back where it came from
     // Over the other pieces on the way. The square is raised too, not only the piece: a square under the
     // pointer is brightened by a filter, which makes it a layer of its own that the squares drawn after it
     // would paint over, and the piece would be invisible on the way (the pointer rests on the square just
@@ -387,7 +449,7 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
     if (square) square.style.zIndex = '30';
     const run = el.animate(
       [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0, 0)' }],
-      { duration: MOVE_SLIDE_MS, easing: 'cubic-bezier(.45, .05, .25, 1)' },
+      { duration: MOVE_SLIDE_MS, easing: SLIDE_EASING },
     );
     run.onfinish = run.oncancel = () => { el.style.zIndex = ''; if (square) square.style.zIndex = ''; };
   }
