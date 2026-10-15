@@ -81,5 +81,24 @@ jobs:
         run: npm run test:ci
 
       # The production build type-checks the templates, which the specs don't cover.
+      # It also fails past the initial-bundle budget in angular.json.
       - name: Build
         run: npm run build -- --configuration production
+
+      # Every other file of the build: the lazy chunks (three.js), models, pictures, videos, fonts
+      - name: Size budget
+        run: npm run check:sizes
+
+      # Page loads under Lighthouse (mobile, throttled), on / and /login. Warnings only for now:
+      # the numbers on a shared CI machine vary too much to fail a build on. Reports are kept.
+      - name: Lighthouse
+        continue-on-error: true
+        run: npx --yes @lhci/cli@0.15.1 autorun --config=lighthouserc.json
+
+      - name: Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: frontend/.lighthouseci
+          if-no-files-found: ignore

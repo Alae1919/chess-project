@@ -35,6 +35,20 @@ the transferred total.
 
 **In production**: the [dashboard](monitoring.md), over a day at least: browser timings vary much more than a lab run.
 
+## Guardrails
+
+What keeps these numbers from sliding back, in CI ([`ci.yml`](../.github/workflows/ci.yml)) and after each deploy:
+
+| Check | Fails on | Where |
+|---|---|---|
+| Angular's initial-bundle budget | warning past 450 kB, error past 550 kB (408 kB today) | `frontend/angular.json` |
+| Size budget of every other file | a lazy chunk over 680 kB, a model over 1.5 MB, a picture over 1 MB, a clip over 5 MB, a font over 60 kB, the build over 22 MB | `frontend/size-budget.json`, `npm run check:sizes` |
+| Lighthouse, mobile, on `/` and `/login` | nothing yet: LCP over 2.5 s, TBT over 300 ms, CLS over 0.1 or more than 2.5 MB are warnings, and the reports are kept as a CI artifact | `frontend/lighthouserc.json` |
+| Delivery of the live site | a cache or compression header that is not what nginx.conf and the Caddyfile intend | `tools/ci/check-delivery.sh`, after `deploy.yml` |
+
+A budget is raised on purpose only, saying why in the commit. Once a few weeks of Lighthouse reports show what a CI
+machine measures, the warnings can become errors.
+
 ## Results
 
 Record the date, the commit, where it ran and the numbers. Leave earlier rows: they are the history.

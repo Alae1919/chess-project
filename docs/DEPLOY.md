@@ -193,6 +193,12 @@ Manager (SSM) to run the commands on the instance, so port 22 can stay closed. O
 
 Optionally add yourself as a required reviewer on the environment to approve each deploy.
 
+Also add a **variable** (Settings, Secrets and variables, Actions, Variables) `SITE_URL`, e.g.
+`https://chess.example.com`. After each deploy, [`tools/ci/check-delivery.sh`](../tools/ci/check-delivery.sh) then
+checks the live site from outside: `index.html` revalidated, bundles and versioned assets cached for a year, files sent
+compressed, the API's JSON compressed by Caddy, a missing asset a 404. Without the variable the check is skipped. You
+can run it by hand against any deployment: `tools/ci/check-delivery.sh https://your-site`.
+
 The server's checkout (`/home/ubuntu/chess-project`) must be on `main` with no local changes, or the fast-forward
 fails (and the run says so). Rolling back is still manual, as above.
 

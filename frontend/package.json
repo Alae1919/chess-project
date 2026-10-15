@@ -14,7 +14,8 @@
     "pretest": "npm run assets:hash",
     "test": "ng test",
     "pretest:ci": "npm run assets:hash",
-    "test:ci": "ng test --watch=false --browsers=ChromeHeadless"
+    "test:ci": "ng test --watch=false --browsers=ChromeHeadless",
+    "check:sizes": "node scripts/check-sizes.mjs"
   },
   "private": true,
   "dependencies": {

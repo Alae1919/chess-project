@@ -1,0 +1,22 @@
+{
+  "ci": {
+    "collect": {
+      "startServerCommand": "npx --yes serve@14.2.4 --single --no-clipboard --listen 4173 dist/rexchess/browser",
+      "startServerReadyPattern": "Accepting connections",
+      "url": ["http://localhost:4173/", "http://localhost:4173/login"],
+      "numberOfRuns": 1
+    },
+    "assert": {
+      "assertions": {
+        "largest-contentful-paint": ["warn", { "maxNumericValue": 2500 }],
+        "total-blocking-time": ["warn", { "maxNumericValue": 300 }],
+        "cumulative-layout-shift": ["warn", { "maxNumericValue": 0.1 }],
+        "total-byte-weight": ["warn", { "maxNumericValue": 2500000 }]
+      }
+    },
+    "upload": {
+      "target": "filesystem",
+      "outputDir": ".lighthouseci"
+    }
+  }
+}

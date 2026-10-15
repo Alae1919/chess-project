@@ -26,8 +26,10 @@ file that targets `localhost:8080`: see [docs/development.md](../docs/developmen
 | `npm run build -- --configuration production` | Production build into `dist/rexchess`. Also type-checks the templates |
 | `npm test` | Specs in watch mode (Karma, Jasmine) |
 | `npm run test:ci` | Specs once, in headless Chrome |
+| `npm run check:sizes` | After a production build: every file within `size-budget.json` (CI runs it) |
+| `npx @lhci/cli@0.15.1 autorun --config=lighthouserc.json` | After a production build: Lighthouse on `/` and `/login`, reports in `.lighthouseci/` |
 
-The production build fails if the initial bundle exceeds 1 MB or a component's stylesheet exceeds 20 kB.
+The production build warns past a 450 kB initial bundle and fails past 550 kB, or past 28 kB for a component's stylesheet.
 
 Before `start`, `build` and the tests, `npm run assets:hash` writes `src/app/core/assets/asset-hashes.generated.ts`
 (a content hash of every file under `src/assets`; not committed). After `build`, `scripts/precompress.mjs` writes a

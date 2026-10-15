@@ -76,3 +76,15 @@ jobs:
             --query '[StandardOutputContent, StandardErrorContent]' --output text
           echo "Final status: $status"
           [[ $status == Success ]]
+
+      # The site as visitors get it: what is cached and for how long, what is compressed (nginx.conf,
+      # Caddyfile). Needs the repository variable SITE_URL (https://your-domain); skipped without it.
+      - uses: actions/checkout@v4
+        if: vars.SITE_URL != ''
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          sparse-checkout: tools/ci
+
+      - name: Check delivery
+        if: vars.SITE_URL != ''
+        run: tools/ci/check-delivery.sh "${{ vars.SITE_URL }}"

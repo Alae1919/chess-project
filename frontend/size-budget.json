@@ -1,0 +1,13 @@
+{
+  "$comment": "Largest size allowed for each file of the production build, by kind, and for the build as a whole. Checked by scripts/check-sizes.mjs in CI. Raise a number only on purpose: say why in the commit.",
+  "total": "22MB",
+  "files": [
+    { "match": "\\.js$", "max": "680kB", "why": "the largest is three.js (620 kB), loaded with the 3D board only" },
+    { "match": "\\.css$", "max": "40kB" },
+    { "match": "\\.glb$", "max": "1.5MB", "why": "the desk props (lamp 1.37 MB): not meshopt-compressed, the CSP allows no WebAssembly" },
+    { "match": "\\.webp$", "max": "1MB", "why": "the desk's walnut photograph is 0.93 MB" },
+    { "match": "\\.mp4$", "max": "5MB", "why": "the landing page's first clip is 4.7 MB" },
+    { "match": "\\.woff2$", "max": "60kB" },
+    { "match": "\\.(png|svg|ico)$", "max": "300kB" }
+  ]
+}

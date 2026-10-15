@@ -46,3 +46,6 @@ Thumbs.db
 ._*
 # Written before every build by scripts/asset-hashes.mjs
 /src/app/core/assets/asset-hashes.generated.ts
+
+# Lighthouse CI reports (npx lhci autorun)
+/.lighthouseci
