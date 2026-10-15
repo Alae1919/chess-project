@@ -53,4 +53,23 @@ class AnalysisServiceTest {
     void badFen() {
         assertThrows(IllegalArgumentException.class, () -> service.analyse("nonsense"));
     }
+
+    @Test
+    @DisplayName("the same position, whatever its move counters, is searched once and then answered from memory")
+    void samePositionIsSearchedOnce() {
+        var first = service.analyse("r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3");
+        long start = System.nanoTime();
+        var again = service.analyse("r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 9");
+        long ms = (System.nanoTime() - start) / 1_000_000;
+
+        assertEquals(first, again);
+        assertTrue(ms < 100, "a search takes 400 ms; this took " + ms);
+    }
+
+    @Test
+    @DisplayName("positions differ by their pieces, side to move, castling and en passant, not their move counters")
+    void positionKey() {
+        assertEquals(AnalysisService.key("8/8/8/8/8/8/8/K6k w - - 0 1"), AnalysisService.key("8/8/8/8/8/8/8/K6k w - - 7 40"));
+        assertNotEquals(AnalysisService.key("8/8/8/8/8/8/8/K6k w - - 0 1"), AnalysisService.key("8/8/8/8/8/8/8/K6k b - - 0 1"));
+    }
 }

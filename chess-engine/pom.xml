@@ -106,6 +106,12 @@
       <artifactId>micrometer-registry-prometheus</artifactId>
     </dependency>
 
+    <!-- In-memory caches: the signed-in user, evaluations, profiles (version from Spring Boot) -->
+    <dependency>
+      <groupId>com.github.ben-manes.caffeine</groupId>
+      <artifactId>caffeine</artifactId>
+    </dependency>
+
     <!-- JSON log lines in production, so the log collector can read requestId, path and timings -->
     <dependency>
       <groupId>net.logstash.logback</groupId>

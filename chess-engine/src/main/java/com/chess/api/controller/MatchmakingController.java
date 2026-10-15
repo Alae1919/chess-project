@@ -1,5 +1,6 @@
 package com.chess.api.controller;
 
+import com.chess.security.AuthUser;
 import com.chess.api.dto.MatchmakingDto;
 import com.chess.application.MatchmakingService;
 import com.chess.application.UserService;
@@ -33,7 +34,7 @@ public class MatchmakingController {
     public MatchmakingDto.QueueStatus joinQueue(
             @Valid @RequestBody MatchmakingDto.JoinQueueRequest req,
             @AuthenticationPrincipal UserDetails userDetails) {
-        UUID userId = userService.getUserIdByUsername(userDetails.getUsername());
+        UUID userId = AuthUser.idOf(userDetails, userService::getUserIdByUsername);
         return matchmakingService.joinQueue(userId, req);
     }
 
@@ -41,7 +42,7 @@ public class MatchmakingController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Leave the matchmaking queue")
     public void leaveQueue(@AuthenticationPrincipal UserDetails userDetails) {
-        UUID userId = userService.getUserIdByUsername(userDetails.getUsername());
+        UUID userId = AuthUser.idOf(userDetails, userService::getUserIdByUsername);
         matchmakingService.leaveQueue(userId);
     }
 
@@ -49,7 +50,7 @@ public class MatchmakingController {
     @Operation(summary = "Get current queue status (polling fallback)")
     public ResponseEntity<MatchmakingDto.QueueStatus> getQueueStatus(
             @AuthenticationPrincipal UserDetails userDetails) {
-        UUID userId = userService.getUserIdByUsername(userDetails.getUsername());
+        UUID userId = AuthUser.idOf(userDetails, userService::getUserIdByUsername);
         return matchmakingService.getQueueStatus(userId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());

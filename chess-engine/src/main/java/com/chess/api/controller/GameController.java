@@ -1,12 +1,12 @@
 package com.chess.api.controller;
 
+import com.chess.security.AuthUser;
 import com.chess.api.dto.*;
 import com.chess.application.*;
 import com.chess.infrastructure.api.dto.GameStateResponse;
 import com.chess.infrastructure.websocket.WebSocketSessionManager;
 import com.chess.persistence.entity.DatabaseEnums.GameMode;
 import com.chess.persistence.entity.DatabaseEnums.GameStatus;
-import com.chess.persistence.entity.DatabaseEnums.PlayerSide;
 import com.chess.persistence.entity.GameEntity;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -52,7 +52,7 @@ public class GameController {
     public GameDto.Game createGame(
             @Valid @RequestBody GameDto.CreateGameRequest req,
             @AuthenticationPrincipal UserDetails userDetails) {
-        UUID userId = userService.getUserIdByUsername(userDetails.getUsername());
+        UUID userId = AuthUser.idOf(userDetails, userService::getUserIdByUsername);
         String username = userDetails.getUsername();
         // "random" and a missing AI level are settled here, once, so the engine and the
         // database agree on them
@@ -70,7 +70,7 @@ public class GameController {
     public GameDto.Game getGame(
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        requirePlayer(gameId, userDetails);
+        requireSeats(gameId, userDetails);
         var r = engineService.getGame(gameId);
         return persistService.toFullGameDto(gameId, r);
     }
@@ -80,7 +80,7 @@ public class GameController {
     public GameDto.LegalMovesResponse getLegalMoves(
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        requirePlayer(gameId, userDetails);
+        requireSeats(gameId, userDetails);
         var resp = engineService.getLegalMoves(gameId);
         return new GameDto.LegalMovesResponse(resp.gameId(), resp.activeColor(), resp.legalMoves());
     }
@@ -92,15 +92,11 @@ public class GameController {
             @Valid @RequestBody GameDto.MoveRequest req,
             @AuthenticationPrincipal UserDetails userDetails) {
         UUID callerId = callerId(userDetails);
-        GameEntity dbGame = gameAccess.requirePlayer(gameId, callerId);
+        var seats = gameAccess.requireSeats(gameId, callerId);
         // Online: each player only moves their own pieces
-        if (dbGame.getMode() == GameMode.online) {
-            UUID expectedId = dbGame.getCurrentTurn() == PlayerSide.white
-                ? dbGame.getWhiteUserId() : dbGame.getBlackUserId();
-            if (!callerId.equals(expectedId))
-                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "It is not your turn");
-        }
-        var r = engineService.submitMove(gameId, req.move(), GameAccess.seatOf(dbGame, callerId));
+        if (seats.online() && seats.seatOf(callerId) != seats.activeColor())
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "It is not your turn");
+        var r = engineService.submitMove(gameId, req.move(), seats.seatOf(callerId));
         var game = persistService.toFullGameDto(gameId, r);
         wsManager.broadcast(gameId, game.result() != null ? "GAME_OVER" : "MOVE_MADE", game);
         return game;
@@ -111,7 +107,7 @@ public class GameController {
     public GameDto.Game playAiMove(
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
-        requirePlayer(gameId, userDetails);
+        requireSeats(gameId, userDetails);
         // answered as soon as the move is found: the page waits a moment before showing it, so it can be
         // followed, without a server thread sleeping meanwhile (see AI_MIN_REPLY_MS in game.effects.ts)
         var r = engineService.playAiMove(gameId);
@@ -127,8 +123,8 @@ public class GameController {
             @AuthenticationPrincipal UserDetails userDetails) {
         // The caller resigns, whoever is to move (local games: the side to move)
         UUID callerId = callerId(userDetails);
-        GameEntity dbGame = gameAccess.requirePlayer(gameId, callerId);
-        var r = engineService.resign(gameId, GameAccess.seatOf(dbGame, callerId));
+        var seats = gameAccess.requireSeats(gameId, callerId);
+        var r = engineService.resign(gameId, seats.seatOf(callerId));
         var game = persistService.toFullGameDto(gameId, r);
         wsManager.broadcast(gameId, "GAME_OVER", game);
         return game;
@@ -140,8 +136,8 @@ public class GameController {
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
         UUID callerId = callerId(userDetails);
-        GameEntity dbGame = gameAccess.requirePlayer(gameId, callerId);
-        var r = engineService.offerDraw(gameId, GameAccess.seatOf(dbGame, callerId));
+        var seats = gameAccess.requireSeats(gameId, callerId);
+        var r = engineService.offerDraw(gameId, seats.seatOf(callerId));
         return broadcastDrawOutcome(gameId, r, "DRAW_OFFERED");
     }
 
@@ -151,8 +147,8 @@ public class GameController {
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
         UUID callerId = callerId(userDetails);
-        GameEntity dbGame = gameAccess.requirePlayer(gameId, callerId);
-        var r = engineService.acceptDraw(gameId, GameAccess.seatOf(dbGame, callerId));
+        var seats = gameAccess.requireSeats(gameId, callerId);
+        var r = engineService.acceptDraw(gameId, seats.seatOf(callerId));
         return broadcastDrawOutcome(gameId, r, "GAME_OVER");
     }
 
@@ -162,8 +158,8 @@ public class GameController {
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
         UUID callerId = callerId(userDetails);
-        GameEntity dbGame = gameAccess.requirePlayer(gameId, callerId);
-        var r = engineService.declineDraw(gameId, GameAccess.seatOf(dbGame, callerId));
+        var seats = gameAccess.requireSeats(gameId, callerId);
+        var r = engineService.declineDraw(gameId, seats.seatOf(callerId));
         return broadcastDrawOutcome(gameId, r, "DRAW_DECLINED");
     }
 
@@ -173,7 +169,7 @@ public class GameController {
             @PathVariable String gameId,
             @RequestParam(defaultValue = "1") int plies,
             @AuthenticationPrincipal UserDetails userDetails) {
-        if (requirePlayer(gameId, userDetails).getMode() == GameMode.online)
+        if (requireSeats(gameId, userDetails).online())
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Undo is not available in online games");
         var r = engineService.undoLastMove(gameId, plies);
         return persistService.toFullGameDto(gameId, r);
@@ -185,7 +181,7 @@ public class GameController {
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
         UUID userId = callerId(userDetails);
-        gameAccess.requirePlayer(gameId, userId);
+        gameAccess.requireSeats(gameId, userId);
         return persistService.saveCurrentGame(gameId, userId);
     }
 
@@ -211,7 +207,7 @@ public class GameController {
             @PathVariable String gameId,
             @AuthenticationPrincipal UserDetails userDetails) {
         // A hard delete: an online game is also part of the opponent's history
-        if (requirePlayer(gameId, userDetails).getMode() == GameMode.online)
+        if (requireSeats(gameId, userDetails).online())
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Online games can't be deleted");
         engineService.deleteGame(gameId);
     }
@@ -239,11 +235,16 @@ public class GameController {
     // ── Access helpers ────────────────────────────────────────────────────────
 
     private UUID callerId(UserDetails userDetails) {
-        return userService.getUserIdByUsername(userDetails.getUsername());
+        return AuthUser.idOf(userDetails, userService::getUserIdByUsername);
     }
 
     /** The stored game if the caller plays in it: 404 for unknown ids, 403 for anyone else. */
     private GameEntity requirePlayer(String gameId, UserDetails userDetails) {
         return gameAccess.requirePlayer(gameId, callerId(userDetails));
+    }
+
+    /** The same check, answered from the game's session when it is in memory (see GameAccess.requireSeats). */
+    private GameAccess.Seats requireSeats(String gameId, UserDetails userDetails) {
+        return gameAccess.requireSeats(gameId, callerId(userDetails));
     }
 }

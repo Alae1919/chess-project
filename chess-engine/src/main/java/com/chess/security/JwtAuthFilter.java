@@ -1,6 +1,5 @@
 package com.chess.security;
 
-import com.chess.persistence.repository.UserRepository;
 import jakarta.servlet.*;
 import jakarta.servlet.http.*;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -14,12 +13,12 @@ import java.util.UUID;
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
 
-    private final JwtService     jwtService;
-    private final UserRepository userRepository;
+    private final JwtService    jwtService;
+    private final AuthUserCache users;
 
-    public JwtAuthFilter(JwtService jwtService, UserRepository userRepository) {
-        this.jwtService     = jwtService;
-        this.userRepository = userRepository;
+    public JwtAuthFilter(JwtService jwtService, AuthUserCache users) {
+        this.jwtService = jwtService;
+        this.users      = users;
     }
 
     @Override
@@ -38,9 +37,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             if (!isRefreshToken && SecurityContextHolder.getContext().getAuthentication() == null) {
                 // Resolve by user id (sub), never by the username claim: usernames can
                 // change, and the old lookup also matched emails, so a user named after
-                // someone's email was authenticated as that person.
-                userRepository.findById(UUID.fromString(claims.getSubject()))
-                    .map(SecurityConfig::toUserDetails)
+                // someone's email was authenticated as that person. Cached for a minute (AuthUserCache).
+                users.get(UUID.fromString(claims.getSubject()))
                     .ifPresent(userDetails -> SecurityContextHolder.getContext().setAuthentication(
                         new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities())));

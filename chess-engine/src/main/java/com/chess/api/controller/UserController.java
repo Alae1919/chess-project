@@ -1,5 +1,6 @@
 package com.chess.api.controller;
 
+import com.chess.security.AuthUser;
 import com.chess.api.dto.*;
 import com.chess.application.*;
 import com.chess.persistence.repository.UserRepository;
@@ -137,6 +138,6 @@ public class UserController {
 
     private UUID extractId(UserDetails ud) {
         // Username stored as UUID string during registration — look it up
-        return userService.getUserIdByUsername(ud.getUsername());
+        return AuthUser.idOf(ud, userService::getUserIdByUsername);
     }
 }

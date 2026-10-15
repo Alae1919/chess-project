@@ -3,6 +3,7 @@ package com.chess.application;
 import com.chess.api.dto.UserDto;
 import com.chess.persistence.entity.*;
 import com.chess.persistence.repository.*;
+import com.chess.security.AuthUserCache;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,8 @@ public class UserService {
     private final StatsMapper               statsMapper;
     private final PasswordEncoder           encoder;
     private final RefreshTokenRepository    refreshTokens;
+    /** Who a token is: told whenever a name changes or an account goes */
+    private final AuthUserCache             authUsers;
 
     public UserService(UserRepository userRepo, EloHistoryRepository eloRepo,
                        UserAchievementRepository achievementRepo,
@@ -29,8 +32,10 @@ public class UserService {
                        UserMapper userMapper,
                        StatsMapper statsMapper,
                        PasswordEncoder encoder,
-                       RefreshTokenRepository refreshTokens) {
+                       RefreshTokenRepository refreshTokens,
+                       AuthUserCache authUsers) {
         this.refreshTokens     = refreshTokens;
+        this.authUsers         = authUsers;
         this.userRepo          = userRepo;
         this.eloRepo           = eloRepo;
         this.achievementRepo   = achievementRepo;
@@ -96,6 +101,7 @@ public class UserService {
             if (userRepo.existsByUsername(req.username()))
                 throw new IllegalArgumentException("Username already taken");
             user.setUsername(req.username());
+            authUsers.evict(userId);
         }
         if (req.country()  != null) user.setCountry(req.country());
         if (req.avatarUrl() != null) user.setAvatarUrl(req.avatarUrl());
@@ -113,6 +119,7 @@ public class UserService {
         userRepo.save(user);
         // Whoever else is signed in with the old password, on any device, is signed out
         refreshTokens.revokeAllForUser(userId);
+        authUsers.evict(userId);
     }
 
     @Transactional
@@ -122,5 +129,7 @@ public class UserService {
         if (!encoder.matches(password, user.getPasswordHash()))
             throw new IllegalArgumentException("Incorrect password");
         userRepo.deleteById(userId);
+        // the account's tokens stop working now, not when the cached entry expires
+        authUsers.evict(userId);
     }
 }

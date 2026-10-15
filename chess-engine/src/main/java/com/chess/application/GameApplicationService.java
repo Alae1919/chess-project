@@ -49,6 +49,7 @@ public class GameApplicationService {
     private final GameStore              store;
     private final GameRepository         gameRepository;
     private final GamePersistenceService persistenceService;
+    private final EngineCpuGate          engineCpu;
     /** Restoring reads lazy collections, so it needs a session of its own. */
     private final TransactionTemplate    readOnly;
     private final Object[] restoreLocks = newLocks(16);
@@ -62,7 +63,9 @@ public class GameApplicationService {
     public GameApplicationService(GameStore store,
                                    GameRepository gameRepository,
                                    GamePersistenceService persistenceService,
-                                   PlatformTransactionManager transactionManager) {
+                                   PlatformTransactionManager transactionManager,
+                                   EngineCpuGate engineCpu) {
+        this.engineCpu          = engineCpu;
         this.store              = store;
         this.gameRepository     = gameRepository;
         this.persistenceService = persistenceService;
@@ -200,23 +203,27 @@ public class GameApplicationService {
 
     /** The AI's move, timed by level and by where it came from (the opening book or a search). */
     private Move chooseAiMove(AiPlayer ai, AiTurn turn) {
-        long start = System.nanoTime();
-        AI_SEARCHES.incrementAndGet();
-        Move move;
-        try {
-            move = ai.chooseMove(turn.position(), turn.start(), turn.moves(),
-                    turn.whiteMs(), turn.blackMs(), turn.incrementMs());
-        } finally {
-            AI_SEARCHES.decrementAndGet();
-        }
-        long nanos = System.nanoTime() - start;
+        // waits for a free core: one search per core, across every game (see EngineCpuGate); the time
+        // recorded below is the search's own, the wait is chess.engine.wait
+        long[] nanos = new long[1];
+        Move move = engineCpu.run("ai", () -> {
+            long start = System.nanoTime();
+            AI_SEARCHES.incrementAndGet();
+            try {
+                return ai.chooseMove(turn.position(), turn.start(), turn.moves(),
+                        turn.whiteMs(), turn.blackMs(), turn.incrementMs());
+            } finally {
+                AI_SEARCHES.decrementAndGet();
+                nanos[0] = System.nanoTime() - start;
+            }
+        });
         SearchResult search = ai.lastSearch();
         String level = String.valueOf(ai.level().level());
         ChessMeters.timer("chess.ai.search", "Time for the AI to choose a move",
                 "level", level, "source", search == null ? "book" : "search")
-            .record(java.time.Duration.ofNanos(nanos));
+            .record(java.time.Duration.ofNanos(nanos[0]));
         if (search != null && log.isDebugEnabled())
-            log.debug("AI level {} searched {} nodes to depth {} in {} ms", level, search.nodes(), search.depth(), nanos / 1_000_000);
+            log.debug("AI level {} searched {} nodes to depth {} in {} ms", level, search.nodes(), search.depth(), nanos[0] / 1_000_000);
         return move;
     }
 
