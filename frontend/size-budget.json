@@ -1,6 +1,6 @@
 {
   "$comment": "Largest size allowed for each file of the production build, by kind, and for the build as a whole. Checked by scripts/check-sizes.mjs in CI. Raise a number only on purpose: say why in the commit.",
-  "total": "22MB",
+  "total": "23MB",
   "files": [
     { "match": "\\.js$", "max": "680kB", "why": "the largest is three.js (620 kB), loaded with the 3D board only" },
     { "match": "\\.css$", "max": "40kB" },

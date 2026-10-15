@@ -15,21 +15,31 @@ const FALLOFF_DEPTH = 6;
 /** What one copy of the wood picture covers: the picture is a plank 1.1 m wide */
 const WOOD_TILE = { w: 24, h: 13.5 };
 
+/** A rectangle on the desk's plane, in scene units */
+export interface DeskArea {
+  x0: number;
+  x1: number;
+  z0: number;
+  z1: number;
+}
+
 /** Everything the desk view allocated, so the scene can free it */
 export interface DeskParts {
   /** The desk top and the shadow along its far edge */
   object: THREE.Object3D;
   /** Swap in the wood picture once it has arrived */
   setWood(tex: THREE.Texture, anisotropy: number): void;
+  /** Cut the wood to the flat top of the desk model, once that has arrived (until then it covers the plain desk's size) */
+  fit(area: DeskArea): void;
   dispose(): void;
 }
 
+const flat = (w: number, d: number): THREE.PlaneGeometry => new THREE.PlaneGeometry(w, d).rotateX(-Math.PI / 2);
+
 /** The desk top, lying at height `y`, in a plain dark stand-in until the wood arrives. */
 export function buildDesk(y: number): DeskParts {
-  const w = DESK.halfWidth * 2;
-  const d = DESK.near - DESK.far;
-  const geo = new THREE.PlaneGeometry(w, d);
-  geo.rotateX(-Math.PI / 2);
+  let w = DESK.halfWidth * 2;
+  let d = DESK.near - DESK.far;
 
   const stand = new THREE.DataTexture(new Uint8Array([70, 42, 28, 255]), 1, 1);
   stand.colorSpace = THREE.SRGBColorSpace;
@@ -38,13 +48,11 @@ export function buildDesk(y: number): DeskParts {
   const mat = new THREE.MeshPhysicalMaterial({
     map: stand, roughness: 0.5, metalness: 0, clearcoat: 0.3, clearcoatRoughness: 0.4, envMapIntensity: 0.8,
   });
-  const mesh = new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(flat(w, d), mat);
   mesh.position.set(0, y, (DESK.near + DESK.far) / 2);
   mesh.receiveShadow = true;
 
   // the far end of the desk falls into shadow: the line where it meets the room behind is not a hard one
-  const fadeGeo = new THREE.PlaneGeometry(w, FALLOFF_DEPTH);
-  fadeGeo.rotateX(-Math.PI / 2);
   const c = document.createElement('canvas');
   c.width = 4;
   c.height = 128;
@@ -56,7 +64,7 @@ export function buildDesk(y: number): DeskParts {
   g.fillRect(0, 0, 4, 128);
   const fadeTex = new THREE.CanvasTexture(c);
   const fadeMat = new THREE.MeshBasicMaterial({ map: fadeTex, transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 });
-  const fade = new THREE.Mesh(fadeGeo, fadeMat);
+  const fade = new THREE.Mesh(flat(w, FALLOFF_DEPTH), fadeMat);
   fade.position.set(0, y + 0.01, DESK.far + FALLOFF_DEPTH / 2);
   fade.renderOrder = 1;
 
@@ -64,21 +72,35 @@ export function buildDesk(y: number): DeskParts {
   object.add(mesh, fade);
 
   let wood: THREE.Texture | null = null;
+  const repeat = (): void => {
+    wood?.repeat.set(w / WOOD_TILE.w, d / WOOD_TILE.h);
+  };
   return {
     object,
     setWood(tex, anisotropy) {
       wood = tex;
       tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-      tex.repeat.set(w / WOOD_TILE.w, d / WOOD_TILE.h);
+      repeat();
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = anisotropy;
       tex.needsUpdate = true;
       mat.map = tex; // the stand-in had a map too: no new shader
     },
+    fit(area) {
+      w = area.x1 - area.x0;
+      d = area.z1 - area.z0;
+      mesh.geometry.dispose();
+      mesh.geometry = flat(w, d);
+      mesh.position.set((area.x0 + area.x1) / 2, y, (area.z0 + area.z1) / 2);
+      fade.geometry.dispose();
+      fade.geometry = flat(w, FALLOFF_DEPTH);
+      fade.position.set(mesh.position.x, y + 0.01, area.z0 + FALLOFF_DEPTH / 2);
+      repeat();
+    },
     dispose() {
-      geo.dispose();
+      mesh.geometry.dispose();
       mat.dispose();
-      fadeGeo.dispose();
+      fade.geometry.dispose();
       fadeMat.dispose();
       fadeTex.dispose();
       stand.dispose();

@@ -119,15 +119,25 @@ instead: the scene draws the desk and the room itself, and the player can move t
 the photo and a fixed camera.
 
 * **The desk** is a real surface (`shared/three/desk-environment.ts`): a plane of walnut at the height of the board's
-  underside, with a varnish sheen, taking the shadows of the lights. Its far edge sinks into a soft shadow, and the room
-  shows beyond it.
-* **The room** is a 360 degree picture (`tools/desk-assets/room-pano.webp`), made ahead of time into three's blurred
-  reflections (PMREM) by `tools/desk-assets/bake-room-light.mjs`: the game loads the result (`assets/desk/room-light.webp`)
-  and uses it both as the background (slightly blurred, like the background of a photograph) and as the light and
-  reflections on the board, with no work on the graphics card beyond one copy. Run the script again after changing the
-  panorama. Far enough away not to need parallax. Nothing is drawn until the room and the wood have arrived (8 s at most),
-  so the page's own photo stays visible until then; until they have, the materials are compiled against a plain stand-in
-  reflection map of the same height, so the real one swaps in without compiling everything again.
+  underside, with a varnish sheen, taking the shadows of the lights. Its far edge sinks into a soft shadow. When the
+  desk model arrives (see the props), the plane is cut to the model's flat top (`fit()`) and lies a hair above it, so the
+  model supplies the rounded edge and the walnut photograph keeps its detail: the model's own picture is a smooth dark red,
+  too plain for a surface the board stands on. Until then, or if the model does not load, the plane is as wide as a room.
+* **The room** is built of what stands behind the desk, so that it has parallax: two bookcases against the back wall (the
+  same model, one mirrored), lit by their own picture (`glow`) because no lamp reaches them. The camera looks down at the
+  board, so over the desk's far edge it sees only a band of the room, from the height of the desk to a hand's breadth above
+  it: the bookcases are sunk (`rise` below zero) until their shelves, not their cupboards, fall in that band, and the
+  desk's edge hides their feet from every pose of the camera. The same limit holds for anything else put behind the desk,
+  the opponent included: he is one life-size model of a man seated in a wing chair, chin on his hand, sunk (`rise`) until
+  the band frames him from the nose down, as in the reference. Lowering the camera moves the band up over him and shows
+  his face. Left at his true height he would show only his forearms. Behind all this stays the room's 360 degree picture
+  (`tools/desk-assets/room-pano.webp`), made ahead of time into three's blurred reflections (PMREM) by
+  `tools/desk-assets/bake-room-light.mjs`: the game loads the result (`assets/desk/room-light.webp`) and uses it both as
+  the background (slightly blurred, like the background of a photograph) and as the light and reflections on the board,
+  with no work on the graphics card beyond one copy. Run the script again after changing the panorama. Nothing is drawn
+  until the room and the wood have arrived (8 s at most), so the page's own photo stays visible until then; until they
+  have, the materials are compiled against a plain stand-in reflection map of the same height, so the real one swaps in
+  without compiling everything again.
 * **The camera** (`shared/three/desk-camera.ts`, plain numbers, specs in `desk-camera.spec.ts`) goes round the board: turn
   15 degrees either way, rise from 25 to 69 degrees (more of the same slides into the top-down view), zoom 0.85 to 1.15,
   shift 1.6 squares sideways and 1 forward. Everything is clamped there, because beyond it the room behind the desk would
@@ -142,17 +152,22 @@ the photo and a fixed camera.
   always running down the files. The gold lettering lies on the frame and turns against the board, so it reads the
   same way for Black. No style was added: the backend only accepts the three it knows.
 * **The props** (`shared/three/desk-props.ts`): a brass table lamp on the left, a stack of old books on the right and a
-  black mug on its coaster near the player, as in the reference, from `.glb` files in `assets/desk/props/`. Each is
-  stood on its base, sized to the desk (1 unit is about 4.5 cm) and placed by `DESK_PROPS`; a file that does not load
-  is left out. Where something sticks out and would pull the middle off the base, `axis` names the band of the height
-  to centre on: the lamp's cord lies out along the desk (centred on the part above it, and turned so the cord runs off
-  to the left, not across the board), the mug's handle (centred on its coaster). The lamp also gets a flame under its
-  shade (`flame`, a fraction of its height) and becomes the
-  room's warm point light. Glass is drawn without refraction (`transmission` is cleared): three then draws the whole
-  scene a second time every frame, which cost the first lamp's glass two thirds of the frame rate for a picture that
-  looks the same. The books are from Sketchfab under CC BY 4.0: their credit is in `assets/desk/props/CREDITS.md` and
-  must stay with them (there is no credits page in the app yet). To add a model, shrink it first with
-  `tools/desk-assets/optimize-props.sh` (textures to 1024 px as WebP, no Draco or Meshopt).
+  black mug on its coaster near the player, as in the reference, then the desk and the bookcases of the room, the
+  opponent in his wing chair and a plant, from `.glb` files in `assets/desk/props/`. Each is stood on its base, sized to the desk (1 unit is about 4.5 cm) and placed by
+  `DESK_PROPS`; a file that does not load is left out. `hangs` hangs the desk from its top, `rise` lifts or sinks a
+  piece, `mirror` turns it left for right, `set` takes it out of the desk's shadows. Where something sticks out and would
+  pull the middle off the base, `axis` names the band of the height to centre on: the lamp's cord lies out along the desk
+  (centred on the part above it, and turned so the cord runs off to the left, not across the board), the mug's handle
+  (centred on its coaster). The lamp is 6 units (27 cm), not the 10 of a real table lamp: the camera hangs only about
+  35 cm over the desk, so a taller lamp has its shade above the top of the picture wherever it stands. It stands to the
+  left of the board, where the picture is narrow: on a window about 1500 px wide the left-hand panel hides its shade, on
+  a wider one it is seen whole. The plant is in the bottom-left corner, the books are on the desk a few units in from its
+  far edge (at the edge their back half hung in the air). It gets a flame under its shade (`flame`, a fraction of its height) and
+  becomes the room's warm point light. Glass is drawn without refraction (`transmission` is cleared): three then draws
+  the whole scene a second time every frame, which cost the first lamp's glass two thirds of the frame rate for a picture
+  that looks the same. All the models are the project's own (see `assets/desk/props/CREDITS.md`). To add one, shrink it
+  first with `tools/desk-assets/optimize-props.sh` (textures to 1024 px as WebP, no Draco or Meshopt; a third argument
+  keeps only that fraction of the triangles, for what is seen from afar or in part).
 * **The pictures** are made by `tools/desk-assets/prepare.py` from the raw images in `design/` (the panorama is turned so
   the man sits left of centre, lowered 10 degrees and lifted a little; the desk wood is flattened and made to tile). To
   change the room or the wood, replace the raw file and run it, then `node tools/desk-assets/bake-room-light.mjs` for the

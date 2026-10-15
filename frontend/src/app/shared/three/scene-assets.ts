@@ -25,6 +25,10 @@ export const DESK_PROP_URLS = {
   lamp: assetUrl('assets/desk/props/lamp.glb'),
   books: assetUrl('assets/desk/props/books.glb'),
   mug: assetUrl('assets/desk/props/mug.glb'),
+  desk: assetUrl('assets/desk/props/desk.glb'),
+  bookcase: assetUrl('assets/desk/props/bookcase.glb'),
+  person: assetUrl('assets/desk/props/person.glb'),
+  plant: assetUrl('assets/desk/props/plant.glb'),
 } as const;
 
 /** The photographs the classic-wood board wears on the desk (see board-looks.ts) */
