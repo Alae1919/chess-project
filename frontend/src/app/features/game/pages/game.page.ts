@@ -341,6 +341,11 @@ export class GamePage implements OnInit, OnDestroy, AfterViewChecked {
     return labels[game.mode] ?? 'Partie';
   }
 
+  /** Against the AI there is no clock to show */
+  hasClock(game: Game): boolean {
+    return game.mode !== 'ai' && game.timeControl?.type !== 'unlimited';
+  }
+
   /** "Rapide 10′" */
   timeControlLabel(game: Game): string {
     const names: Record<string, string> = { blitz: 'Blitz', rapid: 'Rapide', classical: 'Classique' };

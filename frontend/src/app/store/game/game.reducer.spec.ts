@@ -154,7 +154,7 @@ describe('gameReducer', () => {
 
   describe('tickTimer', () => {
     it('only runs the clock of the side to move', () => {
-      const state = withGame({ currentGame: makeGame({ currentTurn: 'black', moves: [FIRST_MOVE] }) });
+      const state = withGame({ currentGame: makeGame({ mode: 'local', currentTurn: 'black', moves: [FIRST_MOVE] }) });
 
       const next = gameReducer(state, GameActions.tickTimer());
 
@@ -163,7 +163,7 @@ describe('gameReducer', () => {
     });
 
     it('never goes below zero', () => {
-      const game = makeGame({ moves: [FIRST_MOVE] });
+      const game = makeGame({ mode: 'local', moves: [FIRST_MOVE] });
       const state = withGame({ currentGame: { ...game, playerWhite: { ...game.playerWhite, timeRemainingMs: 400 } } });
 
       const next = gameReducer(state, GameActions.tickTimer());
@@ -173,6 +173,12 @@ describe('gameReducer', () => {
 
     it('does nothing before the first move: the clocks have not started', () => {
       const state = withGame({ currentGame: makeGame() });
+
+      expect(gameReducer(state, GameActions.tickTimer())).toBe(state);
+    });
+
+    it('does nothing in a game against the AI: it is not timed', () => {
+      const state = withGame({ currentGame: makeGame({ mode: 'ai', moves: [FIRST_MOVE] }) });
 
       expect(gameReducer(state, GameActions.tickTimer())).toBe(state);
     });

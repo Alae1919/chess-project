@@ -35,7 +35,7 @@ const SYMBOLS: Record<PieceColor, Record<string, string>> = {
           </span>
         </span>
       </div>
-      <div class="clock" role="timer" [attr.aria-label]="'Temps restant ' + clock"
+      <div class="clock" *ngIf="showClock" role="timer" [attr.aria-label]="'Temps restant ' + clock"
            [class.clock--running]="active" [class.clock--low]="low">
         {{ clock }}
       </div>
@@ -94,6 +94,8 @@ export class PlayerStripComponent {
   @Input() active = false;
   /** The AI is working out its move */
   @Input() thinking = false;
+  /** The game is timed (not against the AI) */
+  @Input() showClock = true;
   /** This is the person holding the phone */
   @Input() me = false;
 

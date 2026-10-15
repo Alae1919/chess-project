@@ -439,6 +439,33 @@ export class LuxeBoardScene {
     this.applyHighlights();
   }
 
+  /**
+   * A move the player has just tapped: the piece goes across at once, before the game has confirmed the move.
+   * The piece stays on its old square in the scene's books, so the confirmation finds it already there (no
+   * second hop), and a refused move sends it back with `settle`.
+   */
+  slideTo(from: Square, to: Square, ms = 300): void {
+    const entry = this.pieces.get(keyOf(from.row, from.col));
+    if (!entry) return;
+    const g = entry.group;
+    const [tx, tz] = sqCenter(to.row, to.col);
+    const [sx, sy, sz] = [g.position.x, g.position.y, g.position.z];
+    const hop = (this.opts.hop ?? 0.95) * 0.6;
+    this.cancelTween(entry);
+    entry.moving = true;
+    entry.tween = this.tween(
+      ms,
+      (t) => {
+        const e = 1 - Math.pow(1 - t, 3);
+        g.position.set(sx + (tx - sx) * e, sy + (REST_Y - sy) * e + Math.sin(t * Math.PI) * hop, sz + (tz - sz) * e);
+      },
+      () => {
+        entry.moving = false;
+        g.position.set(tx, REST_Y, tz);
+      },
+    );
+  }
+
   /** Send every piece that is not on its square back to it (a move that was not played). */
   settle(): void {
     this.pieces.forEach((e) => {
@@ -1233,12 +1260,14 @@ export class LuxeBoardScene {
       const { row, col } = m.userData as { row: number; col: number };
       const mat = m.material as THREE.MeshPhysicalMaterial;
       const isHint = hints.some((h) => h.row === row && h.col === col);
-      const isLast = !!lastMove && (sameSq(lastMove[0], row, col) || sameSq(lastMove[1], row, col));
+      const isLastFrom = !!lastMove && sameSq(lastMove[0], row, col);
+      const isLastTo = !!lastMove && sameSq(lastMove[1], row, col);
       const [color, emissive, intensity] = sameSq(check, row, col) ? [0xffb0a0, 0x8a1c14, 0.6]
         : sameSq(selected, row, col) ? [0xffd890, 0x6a4510, 0.5]
         : isHint && sameSq(this.hover, row, col) ? [0xfff2c8, 0xb07a14, 0.8]
         : isHint ? [0xf2dfb4, 0x3a2808, 0.3]
-        : isLast ? [0xead6aa, 0x2a1c06, 0.18]
+        : isLastTo ? [0xf4d77c, 0x9a6a10, 0.75]
+        : isLastFrom ? [0xe9cf8e, 0x6a4a0c, 0.45]
         : [0xffffff, 0x000000, 0];
       mat.color.setHex(color);
       mat.emissive.setHex(emissive);

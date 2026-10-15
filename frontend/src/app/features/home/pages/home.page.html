@@ -180,7 +180,7 @@
       </div>
 
       <!-- Time control -->
-      <div class="opt-sec">
+      <div class="opt-sec" *ngIf="selectedMode !== 'ai'">
         <p class="opt-label">Cadence</p>
         <div class="btn-grid">
           <button type="button" class="opt-btn" *ngFor="let t of timeChoices"

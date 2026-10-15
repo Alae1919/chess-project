@@ -97,7 +97,7 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
   private reportedTopView?: boolean;
   private vm: any = null;
   /** A piece let go on a square, until the game has answered (or its legal moves have arrived) */
-  private pendingDrop: { from: Square; to: Square; squares: unknown; waiting: boolean } | null = null;
+  private pendingDrop: { from: Square; to: Square; squares: unknown; waiting: boolean; sawLoading: boolean } | null = null;
 
   ngAfterViewInit(): void {
     const canvas = this.canvasRef.nativeElement;
@@ -109,6 +109,9 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
           look: this.look,
           tight: this.tight,
           environment: this.environment,
+          // slow enough to follow, quick enough not to wait for
+          moveMs: 520,
+          hop: 0.6,
           canDrag: (sq) => this.canDrag(sq),
           onDragStart: (sq) => this.zone.run(() => this.store.dispatch(GameActions.selectSquare({ square: sq }))),
           onDrop: (from, to) => this.zone.run(() => this.onDrop(from, to)),
@@ -236,13 +239,13 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
     const verdict = dropVerdict(vm, from, to);
     if (verdict === 'accept') this.play(from, to);
     // the piece's legal moves are still on the way: it waits over the square (see resolveDrop)
-    else if (verdict === 'wait') this.pendingDrop = { from, to, squares: vm.board?.squares, waiting: true };
+    else if (verdict === 'wait') this.pendingDrop = { from, to, squares: vm.board?.squares, waiting: true, sawLoading: false };
     return verdict;
   }
 
   private play(from: Square, to: Square): void {
     const vm = this.vm;
-    this.pendingDrop = { from, to, squares: vm.board?.squares, waiting: false };
+    this.pendingDrop = { from, to, squares: vm.board?.squares, waiting: false, sawLoading: false };
     this.store.dispatch(
       GameActions.submitMove({
         move: {
@@ -267,6 +270,10 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
       if (!vm.legalMovesReady) return;
       if (dropVerdict(vm, d.from, d.to) === 'accept') this.zone.run(() => this.play(d.from, d.to));
       else this.refuseDrop();
+    } else if (!d.sawLoading) {
+      // just sent: this change of the game can be one already on its way when the move was sent (the legal
+      // moves arriving), still showing no request. Only a request seen loading can be answered.
+      if (vm.loading || vm.promoting) d.sawLoading = true;
     } else if (!vm.loading && !vm.promoting) {
       this.refuseDrop();                     // sent, answered, and nothing changed: the move was refused
     }
@@ -287,16 +294,9 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
     if (vm.selected) {
       const isLegal = (vm.legalMoves ?? []).some((m: Square) => m.row === sq.row && m.col === sq.col);
       if (isLegal) {
-        this.store.dispatch(
-          GameActions.submitMove({
-            move: {
-              from: vm.selected,
-              to: sq,
-              piece: vm.board.squares[vm.selected.row][vm.selected.col],
-              capturedPiece: piece ?? undefined,
-            },
-          })
-        );
+        // the piece goes across at once, and waits there for the game to confirm (or refuse) the move
+        this.scene?.slideTo(vm.selected, sq);
+        this.play(vm.selected, sq);
         return;
       }
       if (piece && piece.color === vm.movable) {

@@ -16,16 +16,25 @@ import {
   selectReviewedCheck,
   selectIsLoading,
   selectPendingPromotion,
+  selectViewedMove,
 } from '../../../store/game/game.selectors';
 import { GameActions } from '../../../store/game/game.actions';
-import { Piece, PieceType, Square, Style2D } from '../../../core/models';
+import { Move, Piece, PieceSet, PieceType, Square, Style2D } from '../../../core/models';
 import { isPlayableStatus } from '../../../core/utils/game-status.utils';
 import { DRAG_THRESHOLD_PX, dropVerdict, sameSquare } from '../../../core/utils/drag-drop.utils';
+import { pieceImageUrl, pieceImageUrls } from '../../board/piece-sets';
 
 // Solid glyphs for both colors (distinguished by CSS) — ︎ forces text, not emoji, rendering
 const SOLID_PIECES: Record<PieceType, string> = {
   king: '♚︎', queen: '♛︎', rook: '♜︎', bishop: '♝︎', knight: '♞︎', pawn: '♟︎',
 };
+
+/** How long a piece takes to slide to its new square when the game moves it (the AI's move, an opponent's) */
+const MOVE_SLIDE_MS = 380;
+/** The same for a move the player has just made: quicker, it answers the hand */
+const TAP_SLIDE_MS = 240;
+/** Fast off the mark, slow to settle: the piece reacts at once and still lands softly */
+const SLIDE_EASING = 'cubic-bezier(.2, .75, .25, 1)';
 
 /** A piece being carried: where it is on the board (px from the board's corner) and where it came from */
 interface Carried {
@@ -42,7 +51,7 @@ interface Carried {
   standalone: true,
   imports: [CommonModule, AsyncPipe],
   template: `
-    <div class="board-wrap" [ngClass]="'board--' + boardStyle" *ngIf="vm$ | async as vm">
+    <div class="board-wrap" [ngClass]="'board--' + boardStyle" [class.pieces-pending]="!imagesReady" *ngIf="vm$ | async as vm">
       <!-- Rank coordinates -->
       <div class="coord-ranks">
         <span *ngFor="let r of displayRanks">{{ r }}</span>
@@ -59,6 +68,8 @@ interface Carried {
               [class.selected]="isSelected(sq, vm.selected)"
               [class.hint]="isLegalMove(sq, vm.legalMoves) && !hasPiece(sq, vm.board)"
               [class.capture]="isLegalMove(sq, vm.legalMoves) && hasPiece(sq, vm.board)"
+              [class.last-from]="isLastFrom(sq, vm.viewedMove)"
+              [class.last-to]="isLastTo(sq, vm.viewedMove)"
               [class.in-check]="isKingInCheck(sq, vm)"
               [class.drop-target]="isDropTarget(sq, vm)"
               (click)="onSquareClick(sq, vm)"
@@ -68,8 +79,9 @@ interface Carried {
               <span class="sq-coord sq-coord--file" *ngIf="i >= 56" aria-hidden="true">{{ displayFiles[i - 56] }}</span>
               <span *ngIf="getPiece(sq, vm.board) as piece" class="piece"
                     [class.piece--white]="piece.color === 'white'" [class.piece--black]="piece.color === 'black'"
+                    [class.piece--img]="pieceSet !== 'glyph'" [style.background-image]="imageOf(piece)"
                     [class.piece--carried]="carried && isSelected(sq, carried.from)">
-                {{ getPieceUnicode(piece) }}
+                {{ pieceSet === 'glyph' ? getPieceUnicode(piece) : '' }}
               </span>
             </div>
           </div>
@@ -85,7 +97,8 @@ interface Carried {
       <span *ngIf="carried as c" class="piece piece--ghost" aria-hidden="true"
             [class.piece--white]="c.piece.color === 'white'" [class.piece--black]="c.piece.color === 'black'"
             [class.piece--settling]="c.settling"
-            [style.left.px]="c.x" [style.top.px]="c.y">{{ getPieceUnicode(c.piece) }}</span>
+            [class.piece--img]="pieceSet !== 'glyph'" [style.background-image]="imageOf(c.piece)"
+            [style.left.px]="c.x" [style.top.px]="c.y">{{ pieceSet === 'glyph' ? getPieceUnicode(c.piece) : '' }}</span>
     </div>
   `,
   styleUrls: ['./chess-board.component.scss'],
@@ -98,6 +111,25 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
   @Input() flipped = false;
   /** Colour scheme of the flat board */
   @Input() boardStyle: Style2D = 'classic-wood';
+  /** How the pieces are drawn: text symbols, or one of the image sets */
+  @Input() set pieceSet(value: PieceSet | undefined) {
+    const set = value ?? 'glyph';
+    this._pieceSet = set;
+    this.imagesReady = set === 'glyph' || typeof Image === 'undefined';
+    if (!this.imagesReady) this.loadImages(set);
+  }
+  get pieceSet(): PieceSet { return this._pieceSet; }
+  private _pieceSet: PieceSet = 'glyph';
+  /** The pieces of an image set are drawn once all twelve are loaded, not one by one as they arrive */
+  imagesReady = true;
+
+  private loadImages(set: PieceSet): void {
+    Promise.all(pieceImageUrls(set).map((url) => {
+      const img = new Image();
+      img.src = url;
+      return img.decode().catch(() => undefined);   // a missing image must not keep the board empty
+    })).then(() => { if (this._pieceSet === set) this.imagesReady = true; });
+  }
 
   readonly files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
   readonly ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
@@ -125,6 +157,8 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
     reviewedCheck: this.store.select(selectReviewedCheck),
     loading: this.store.select(selectIsLoading),
     promoting: this.store.select(selectPendingPromotion),
+    // the move that led to the board shown (the last one, unless looking back)
+    viewedMove: this.store.select(selectViewedMove),
   }).pipe(tap((vm) => this.onStore(vm)));
 
   /** The piece being dragged, once the pointer has moved far enough to call it a drag */
@@ -134,7 +168,7 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
 
   private press: { from: Square; piece: Piece; x: number; y: number; id: number } | null = null;
   /** A piece let go before its legal moves arrived, or sent off and not yet answered */
-  private dropped: { from: Square; to: Square; board: unknown; waiting: boolean } | null = null;
+  private dropped: { from: Square; to: Square; board: unknown; waiting: boolean; sawLoading: boolean } | null = null;
   private latest: any = null;
   private suppressClick = false;
   private unbind: Array<() => void> = [];
@@ -155,7 +189,7 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
     if (vm.selected) {
       const isLegal = (vm.legalMoves ?? []).some((m: Square) => m.row === sq.row && m.col === sq.col);
       if (isLegal) {
-        this.submit(vm.selected, sq, vm);
+        this.playByTap(vm.selected, sq, vm);
         return;
       }
       // Clicked on another own piece → reselect
@@ -184,6 +218,7 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
     this.endListening();
     this.carried = null;
     this.dropped = null;
+    this.draggedMove = false;
     this.press = { from: sq, piece, x: e.clientX, y: e.clientY, id: e.pointerId };
     this.listen(window, 'pointermove', (ev: PointerEvent) => this.onPointerMove(ev));
     this.listen(window, 'pointerup', (ev: PointerEvent) => this.onPointerUp(ev));
@@ -239,7 +274,7 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
       this.sendOff(press.from, to, vm);
     } else {
       // its legal moves are still on the way: hold the piece over the square until they arrive
-      this.dropped = { from: press.from, to, board: vm.board, waiting: true };
+      this.dropped = { from: press.from, to, board: vm.board, waiting: true, sawLoading: false };
       this.slideTo(to);
     }
   }
@@ -252,7 +287,8 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
 
   /** Legal: play it, and keep the piece on its new square until the board catches up */
   private sendOff(from: Square, to: Square, vm: any): void {
-    this.dropped = { from, to, board: vm.board, waiting: false };
+    this.draggedMove = true;
+    this.dropped = { from, to, board: vm.board, waiting: false, sawLoading: false };
     this.slideTo(to);
     this.submit(from, to, vm);
   }
@@ -262,6 +298,7 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
     const c = this.carried;
     if (!c) return;
     this.dropped = null;
+    this.draggedMove = false;
     this.slideTo(c.from);
     setTimeout(() => { if (this.carried === c) this.carried = null; }, 200);
   }
@@ -278,6 +315,8 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
   /** Every store change: settle a piece that was let go, once the game has answered */
   private onStore(vm: any): void {
     this.latest = vm;
+    this.watchForArrival(vm);
+    this.watchTappedMove(vm);
     const d = this.dropped;
     if (!d || !this.carried) return;
 
@@ -291,10 +330,135 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
       const verdict = dropVerdict(vm, d.from, d.to);
       if (verdict === 'accept') this.sendOff(d.from, d.to, vm);
       else this.returnPiece();
+    } else if (!d.sawLoading) {
+      // Just sent. This change of the store can be one already on its way when the move was sent (the legal
+      // moves arriving, say), still showing no request: only a request seen loading can be answered.
+      if (vm.loading || vm.promoting) d.sawLoading = true;
     } else if (!vm.loading && !vm.promoting) {
       // sent, answered, and the board did not change: the move was refused
       this.returnPiece();
     }
+  }
+
+  /* ── a tapped move: the piece goes across at once, the game catches up ──── */
+
+  /**
+   * A move the player tapped, on its way to the server. The piece is already on its new square (it was slid
+   * there on the tap), and stays there until the game confirms the move or refuses it.
+   */
+  private tapped: { board: unknown; sawLoading: boolean; run: Animation; el: HTMLElement; square: HTMLElement | null } | null = null;
+
+  private playByTap(from: Square, to: Square, vm: any): void {
+    const el = this.pieceElAt(from);
+    const cell = this.cellSize();
+    if (!el || !cell || typeof el.animate !== 'function' || this.tapped) {
+      this.submit(from, to, vm);
+      return;
+    }
+    const { dx, dy } = this.offset(from, to, cell);
+    // over the other pieces, and the square raised with it (see glide)
+    const square = el.parentElement;
+    el.style.zIndex = '30';
+    if (square) square.style.zIndex = '30';
+    const run = el.animate(
+      [{ transform: 'translate(0, 0)' }, { transform: `translate(${dx}px, ${dy}px)` }],
+      { duration: TAP_SLIDE_MS, easing: SLIDE_EASING, fill: 'forwards' },
+    );
+    this.tapped = { board: vm.board, sawLoading: false, run, el, square };
+    this.draggedMove = true;   // the piece is already across when the move comes back: nothing to slide then
+    this.submit(from, to, vm);
+  }
+
+  private watchTappedMove(vm: any): void {
+    const t = this.tapped;
+    if (!t) return;
+    if (vm.board !== t.board) {
+      this.releaseTapped(t);           // confirmed: the real piece is on its square now
+    } else if (!t.sawLoading) {
+      // just sent: only a request seen loading can be answered (see onStore)
+      if (vm.loading || vm.promoting) t.sawLoading = true;
+    } else if (!vm.loading && !vm.promoting) {
+      // refused: the piece goes back
+      this.draggedMove = false;
+      t.run.onfinish = t.run.oncancel = () => this.releaseTapped(t);
+      t.run.reverse();
+    }
+  }
+
+  private releaseTapped(t: NonNullable<ChessBoardComponent['tapped']>): void {
+    if (this.tapped === t) this.tapped = null;
+    t.run.oncancel = t.run.onfinish = null;
+    t.run.cancel();
+    t.el.style.zIndex = '';
+    if (t.square) t.square.style.zIndex = '';
+  }
+
+  /** How far a piece moving from one square to another travels on screen, in px */
+  private offset(from: Square, to: Square, cell: number): { dx: number; dy: number } {
+    const col = (sq: Square) => (this.flipped ? 7 - sq.col : sq.col);
+    const row = (sq: Square) => (this.flipped ? 7 - sq.row : sq.row);
+    return { dx: (col(to) - col(from)) * cell, dy: (row(to) - row(from)) * cell };
+  }
+
+  /* ── a move played by someone else slides into place ────────────────────── */
+
+  /** The game and its move count at the last store change, to tell one new move from anything else */
+  private shown: { id?: string; moves: number } | null = null;
+  /** The move on its way was dragged by the player: the piece is already on its square, nothing to slide */
+  private draggedMove = false;
+
+  // One change of the store reaches the view model in several emissions (each selector in turn), so this
+  // reads the move from the game itself rather than from the other parts of the model.
+  private watchForArrival(vm: any): void {
+    const was = this.shown;
+    const game = vm.game;
+    const moves: number = game?.moves?.length ?? 0;
+    this.shown = { id: game?.id, moves };
+    if (!was || !game || was.id !== game.id || moves !== was.moves + 1) return;
+    const dragged = this.draggedMove;
+    this.draggedMove = false;
+    if (dragged || vm.reviewing !== null) return;
+    this.slideIn(game.moves[moves - 1]);
+  }
+
+  /** The piece that just arrived travels from its old square to its new one (and the rook, when castling) */
+  private slideIn(move: Move): void {
+    const castles = move.piece?.type === 'king' && Math.abs(move.to.col - move.from.col) === 2;
+    const rook = castles
+      ? { from: { row: move.to.row, col: move.to.col > move.from.col ? 7 : 0 },
+          to:   { row: move.to.row, col: move.to.col > move.from.col ? move.to.col - 1 : move.to.col + 1 } }
+      : null;
+    // wait for the board to be drawn with the piece on its new square
+    setTimeout(() => {
+      this.glide(move.from, move.to);
+      if (rook) this.glide(rook.from, rook.to);
+    }, 0);
+  }
+
+  private glide(from: Square, to: Square): void {
+    const cell = this.cellSize();
+    const el = this.pieceElAt(to);
+    if (!el || !cell || typeof el.animate !== 'function') return;
+    const { dx, dy } = this.offset(to, from, cell);   // it starts back where it came from
+    // Over the other pieces on the way. The square is raised too, not only the piece: a square under the
+    // pointer is brightened by a filter, which makes it a layer of its own that the squares drawn after it
+    // would paint over, and the piece would be invisible on the way (the pointer rests on the square just
+    // clicked, so this is what happened to the player's own moves).
+    const square = el.parentElement;
+    el.style.zIndex = '30';
+    if (square) square.style.zIndex = '30';
+    const run = el.animate(
+      [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0, 0)' }],
+      { duration: MOVE_SLIDE_MS, easing: SLIDE_EASING },
+    );
+    run.onfinish = run.oncancel = () => { el.style.zIndex = ''; if (square) square.style.zIndex = ''; };
+  }
+
+  private pieceElAt(sq: Square): HTMLElement | null {
+    const row = this.flipped ? 7 - sq.row : sq.row;
+    const col = this.flipped ? 7 - sq.col : sq.col;
+    const cells = this.host.nativeElement.querySelectorAll('.board-grid .sq');
+    return cells[row * 8 + col]?.querySelector<HTMLElement>('.piece') ?? null;
   }
 
   private submit(from: Square, to: Square, vm: any): void {
@@ -367,6 +531,10 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
     return !!selected && selected.row === sq.row && selected.col === sq.col;
   }
 
+  /** The square the last move started from, and the one it ended on */
+  isLastFrom(sq: Square, move: Move | null): boolean { return !!move && sameSquare(move.from, sq); }
+  isLastTo(sq: Square, move: Move | null): boolean { return !!move && sameSquare(move.to, sq); }
+
   isLegalMove(sq: Square, legalMoves: Square[]): boolean {
     return (legalMoves ?? []).some((m) => m.row === sq.row && m.col === sq.col);
   }
@@ -377,6 +545,11 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
 
   getPiece(sq: Square, board: any): Piece | null {
     return board?.squares?.[sq.row]?.[sq.col] ?? null;
+  }
+
+  /** CSS background of a piece in an image set, none for the text symbols */
+  imageOf(piece: Piece): string | null {
+    return this._pieceSet === 'glyph' ? null : `url(${pieceImageUrl(this._pieceSet, piece)})`;
   }
 
   getPieceUnicode(piece: Piece): string {

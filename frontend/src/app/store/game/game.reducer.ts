@@ -145,7 +145,7 @@ const reducer = createReducer(
   on(GameActions.tickTimer, (state) => {
     if (!state.currentGame || !isPlayableStatus(state.currentGame.status)) return state;
     const game = state.currentGame;
-    if (game.timeControl.type === 'unlimited' || game.moves.length === 0) return state;
+    if (game.mode === 'ai' || game.timeControl.type === 'unlimited' || game.moves.length === 0) return state;
     const isWhiteTurn = game.currentTurn === 'white';
     return {
       ...state,

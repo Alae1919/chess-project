@@ -75,6 +75,8 @@ export interface UserPreferences {
 export type BoardMode = '2d' | '3d';
 export type Style3D = 'marble-gold' | 'classic-wood' | 'ebony-ivory';
 export type Style2D = 'classic-wood' | 'luxe' | 'slate-blue';
+/** How the flat board draws its pieces: text symbols, or one of the image sets in assets/pieces */
+export type PieceSet = 'glyph' | 'classic' | 'contour';
 export type BoardTheme = 'classic-wood' | 'marble-green' | 'slate' | 'blue-night';
 export type PieceStyle = 'standard' | 'modern' | 'minimalist';
 
