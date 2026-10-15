@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { Action, Store } from '@ngrx/store';
 import { EMPTY, interval, of, Subscription } from 'rxjs';
-import { catchError, concatMap, exhaustMap, filter, map, switchMap, tap, withLatestFrom } from 'rxjs/operators';
+import { catchError, concatMap, exhaustMap, filter, map, switchMap, take, takeUntil, tap, withLatestFrom } from 'rxjs/operators';
 import { GameActions } from './game.actions';
 import { isPlayableStatus } from '../../core/utils/game-status.utils';
 import { needsPromotionChoice } from '../../core/utils/promotion.utils';
@@ -12,7 +12,8 @@ import { GameService } from '../../core/services/game.service';
 import { Game, PieceColor, Square } from '../../core/models';
 import { ChatService } from '../../core/services/chat.service';
 import { WebSocketService } from '../../core/services/websocket.service';
-import { Router } from '@angular/router';
+import { NavigationEnd, Router } from '@angular/router';
+import { TelemetryService, timed } from '../../core/telemetry/telemetry.service';
 import { errorMessage } from '../../core/utils/error-message';
 
 /** The server refused because the AI is already working out this game's move. */
@@ -46,6 +47,7 @@ export class GameEffects {
   private wsSub?: Subscription;
   private wsService = inject(WebSocketService);
   private router = inject(Router);
+  private telemetry = inject(TelemetryService);
 
   createGame$ = createEffect(() =>
     this.actions$.pipe(
@@ -57,6 +59,28 @@ export class GameEffects {
         )
       )
     )
+  );
+
+  /** From "start a game" to the game page being on screen (see TelemetryService). */
+  timeGameStart$ = createEffect(
+    () =>
+      this.actions$.pipe(
+        ofType(GameActions.createGame),
+        switchMap(() => {
+          const start = performance.now();
+          return this.actions$.pipe(
+            ofType(GameActions.createGameSuccess),
+            take(1),
+            switchMap(({ game }) => this.router.events.pipe(
+              filter((e): e is NavigationEnd => e instanceof NavigationEnd && e.urlAfterRedirects === `/game/${game.id}`),
+              take(1),
+            )),
+            takeUntil(this.actions$.pipe(ofType(GameActions.createGameFailure))),
+            tap(() => this.telemetry.timing('game.start', performance.now() - start)),
+          );
+        })
+      ),
+    { dispatch: false }
   );
 
   navigateAfterCreateOrLoad$ = createEffect(
@@ -208,6 +232,7 @@ export class GameEffects {
       filter(([, game]) => !!game),
       switchMap(([{ square }, game]) =>
         this.gameService.getLegalMoves(game!.id, square).pipe(
+          timed(this.telemetry, 'legal.select'),
           map((squares) => GameActions.loadLegalMovesSuccess({ squares })),
           catchError(() => of(GameActions.clearSelection()))
         )
@@ -224,6 +249,7 @@ export class GameEffects {
       // first answer, which in an AI game is what asks the AI to reply
       exhaustMap(([{ move }, game]) =>
         this.gameService.submitMove(game!.id, move).pipe(
+          timed(this.telemetry, 'move.roundtrip'),
           map((updatedGame) => GameActions.submitMoveSuccess({ game: updatedGame })),
           catchError((error) => of(GameActions.submitMoveFailure({ error: errorMessage(error) })))
         )
@@ -239,6 +265,7 @@ export class GameEffects {
       // exhaustMap: while the server is searching, a second request only repeats the work
       exhaustMap(([, game]) =>
         this.gameService.getAiMove(game!.id).pipe(
+          timed(this.telemetry, 'ai.reply'),
           map((updatedGame) => GameActions.aIMoveSuccess({ game: updatedGame })),
           // Already searching (a request from before a reload, say): its move arrives on its
           // own, over the socket, so there is nothing to report

@@ -62,7 +62,16 @@ management:
   endpoints:
     web:
       exposure:
-        include: health         # nothing else: no env, beans or heap dumps
+        # nothing else: no env, beans or heap dumps. Neither is public: nginx only proxies /api and /ws
+        include: health,prometheus
+  metrics:
+    tags:
+      application: rexchess
+    distribution:
+      # A few fixed histogram buckets per endpoint (Grafana computes p50/p95/p99 from them), rather
+      # than a full percentile histogram: that is ~70 series per endpoint and status
+      slo:
+        http.server.requests: 10ms,25ms,50ms,100ms,250ms,500ms,1s,2s,5s
   endpoint:
     health:
       probes:

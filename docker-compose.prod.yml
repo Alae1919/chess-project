@@ -3,12 +3,25 @@
 # Only Caddy is published (80 and 443). It terminates HTTPS and hands requests to nginx,
 # which serves the app and reaches the backend and the database over the internal Docker
 # network. See docs/DEPLOY.md for the AWS walkthrough.
+#
+# Every service rotates its logs and has a memory ceiling: on a 2 GB server, one runaway
+# container (or a log file that never stops growing) would otherwise take the others down.
+# With COMPOSE_PROFILES=monitoring in .env, Grafana Alloy also runs and sends metrics and logs
+# to Grafana Cloud (docs/monitoring.md).
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
   db:
     image: postgres:15
     container_name: chess_db
     restart: unless-stopped
+    logging: *logging
+    mem_limit: 512m
     environment:
       POSTGRES_DB: chess_db
       POSTGRES_USER: chess_user
@@ -27,6 +40,9 @@ services:
       dockerfile: Dockerfile
     container_name: chess_backend
     restart: unless-stopped
+    logging: *logging
+    # the JVM sizes its heap from this (see the Dockerfile): AI games keep a hash table each
+    mem_limit: 1g
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/chess_db
@@ -52,6 +68,8 @@ services:
       dockerfile: Dockerfile
     container_name: chess_frontend
     restart: unless-stopped
+    logging: *logging
+    mem_limit: 64m
     depends_on:
       backend:
         condition: service_healthy
@@ -65,6 +83,8 @@ services:
     image: caddy:2-alpine
     container_name: chess_caddy
     restart: unless-stopped
+    logging: *logging
+    mem_limit: 128m
     ports:
       - "80:80"     # Let's Encrypt validation, and the redirect to https
       - "443:443"
@@ -78,7 +98,43 @@ services:
       frontend:
         condition: service_healthy
 
+  # Ships metrics and logs to Grafana Cloud. Only with COMPOSE_PROFILES=monitoring and the
+  # GRAFANA_CLOUD_* settings in .env; see monitoring/alloy/config.alloy for what it collects.
+  alloy:
+    image: grafana/alloy:v1.19.2
+    container_name: chess_alloy
+    profiles: ["monitoring"]
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 160m
+    command:
+      - run
+      - --server.http.listen-addr=127.0.0.1:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    environment:
+      - GRAFANA_CLOUD_PROM_URL=${GRAFANA_CLOUD_PROM_URL:-}
+      - GRAFANA_CLOUD_PROM_USER=${GRAFANA_CLOUD_PROM_USER:-}
+      - GRAFANA_CLOUD_LOKI_URL=${GRAFANA_CLOUD_LOKI_URL:-}
+      - GRAFANA_CLOUD_LOKI_USER=${GRAFANA_CLOUD_LOKI_USER:-}
+      - GRAFANA_CLOUD_API_KEY=${GRAFANA_CLOUD_API_KEY:-}
+      # key=value form: a password with / or + in it would break a postgres:// URL
+      - POSTGRES_DSN=host=db port=5432 user=chess_user password=${POSTGRES_PASSWORD} dbname=chess_db sslmode=disable
+    volumes:
+      - ./monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy_data:/var/lib/alloy/data     # metrics and log positions not yet sent survive a restart
+      # the containers' logs; read-only, but whoever controls Alloy's config can read every log
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # the host's CPU, memory and disk, not just the container's
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   caddy_data:
   caddy_config:
+  alloy_data:

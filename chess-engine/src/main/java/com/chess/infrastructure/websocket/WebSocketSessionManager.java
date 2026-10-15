@@ -1,6 +1,10 @@
 package com.chess.infrastructure.websocket;
 
+import com.chess.infrastructure.metrics.ChessMeters;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.Metrics;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
@@ -17,8 +21,15 @@ public class WebSocketSessionManager {
     private final SafeSockets safe = new SafeSockets();
     private final ObjectMapper objectMapper;
 
+    private static final Timer BROADCAST =
+        ChessMeters.timer("chess.ws.broadcast", "Writing one game event and sending it to every socket on the game");
+
     public WebSocketSessionManager(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
+        Gauge.builder("chess.ws.open", sessions, s -> s.values().stream().mapToInt(Set::size).sum())
+            .description("Open WebSockets")
+            .tag("socket", "game")
+            .register(Metrics.globalRegistry);
     }
 
     public void register(String gameId, WebSocketSession session) {
@@ -58,7 +69,7 @@ public class WebSocketSessionManager {
             for (WebSocketSession session : gameSessions) {
                 if (!session.isOpen()) continue;
                 try {
-                    safe.forSending(session).sendMessage(new org.springframework.web.socket.PingMessage());
+                    safe.forSending(session).sendMessage(SocketRtt.ping());
                 } catch (Exception ignored) {
                     // closed meanwhile
                 }
@@ -79,6 +90,13 @@ public class WebSocketSessionManager {
     public void broadcast(String gameId, String type, Object payload) {
         Set<WebSocketSession> gameSessions = sessions.get(gameId);
         if (gameSessions == null || gameSessions.isEmpty()) return;
+        ChessMeters.time(BROADCAST, () -> {
+            send(gameSessions, type, payload);
+            return null;
+        });
+    }
+
+    private void send(Set<WebSocketSession> gameSessions, String type, Object payload) {
 
         String json;
         try {

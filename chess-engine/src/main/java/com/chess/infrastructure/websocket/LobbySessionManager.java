@@ -21,6 +21,10 @@ public class LobbySessionManager {
 
     public LobbySessionManager(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
+        io.micrometer.core.instrument.Gauge.builder("chess.ws.open", sessions, java.util.Map::size)
+            .description("Open WebSockets")
+            .tag("socket", "lobby")
+            .register(io.micrometer.core.instrument.Metrics.globalRegistry);
     }
 
     public void register(String userId, WebSocketSession session) {
@@ -43,7 +47,7 @@ public class LobbySessionManager {
         for (WebSocketSession session : sessions.values()) {
             if (!session.isOpen()) continue;
             try {
-                safe.forSending(session).sendMessage(new org.springframework.web.socket.PingMessage());
+                safe.forSending(session).sendMessage(SocketRtt.ping());
             } catch (Exception ignored) {
                 // closed meanwhile
             }

@@ -22,6 +22,12 @@ public class GameStore {
 
     private final Map<String, GameSession> games = new ConcurrentHashMap<>();
 
+    public GameStore() {
+        io.micrometer.core.instrument.Gauge.builder("chess.games.live", games, Map::size)
+            .description("Game sessions held in memory")
+            .register(io.micrometer.core.instrument.Metrics.globalRegistry);
+    }
+
     /** Creates a new session and returns its generated ID. */
     public String save(GameSession session) {
         games.put(session.id(), session);

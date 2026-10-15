@@ -3,6 +3,7 @@ package com.chess.infrastructure.websocket;
 import com.chess.application.AbandonmentService;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.PongMessage;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
@@ -25,6 +26,12 @@ public class GameWebSocketHandler extends TextWebSocketHandler {
             sessionManager.register(gameId, session);
             abandonment.playerConnected(gameId, userId(session), session);
         }
+    }
+
+    /** The answer to a keepalive ping (see {@link SocketKeepAlive}): times the round trip. */
+    @Override
+    protected void handlePongMessage(WebSocketSession session, PongMessage message) {
+        SocketRtt.recordGame(message);
     }
 
     @Override

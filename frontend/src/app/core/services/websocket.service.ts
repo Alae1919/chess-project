@@ -6,6 +6,7 @@ import { BehaviorSubject, EMPTY, Observable, Subject, of } from 'rxjs';
 import { AuthService } from './auth.service';
 import { environment } from '../../../environments/environment';
 import { ReconnectingSocket, SocketState } from '../utils/reconnecting-socket';
+import { TelemetryService } from '../telemetry/telemetry.service';
 
 export interface WsEvent<T = unknown> {
   type:
@@ -21,6 +22,7 @@ export interface WsEvent<T = unknown> {
 @Injectable({ providedIn: 'root' })
 export class WebSocketService {
   private authService = inject(AuthService);
+  private telemetry = inject(TelemetryService);
   private socket: ReconnectingSocket | null = null;
   private gameId: string | null = null;
   private messageSubject = new Subject<WsEvent>();
@@ -54,7 +56,11 @@ export class WebSocketService {
           console.error('WS parse error', data);
         }
       },
-      onOpen: (reconnected) => { if (reconnected) this.reconnectedSubject.next(); },
+      onOpen: (reconnected, downMs) => {
+        if (!reconnected) return;
+        if (downMs !== undefined) this.telemetry.timing('ws.reconnect', downMs, 'game');
+        this.reconnectedSubject.next();
+      },
       onStateChange: (state) => this.stateSubject.next(state),
     });
     this.socket.open();

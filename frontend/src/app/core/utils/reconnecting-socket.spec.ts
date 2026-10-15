@@ -58,6 +58,32 @@ describe('ReconnectingSocket', () => {
     expect(opens).toEqual([false]);
   });
 
+  it('says how long the socket was down when it is back', fakeAsync(() => {
+    let now = 0;
+    spyOn(performance, 'now').and.callFake(() => now);
+    const downs: Array<number | undefined> = [];
+    const socket = new ReconnectingSocket({
+      url: () => 'ws://x/game',
+      onMessage: () => undefined,
+      onOpen: (_reconnected, downMs) => downs.push(downMs),
+      create: (url) => { const s = new FakeSocket(url); sockets.push(s); return s; },
+      baseDelayMs: 1000,
+    });
+    socket.open();
+    last().accept();
+    now = 5000;
+    last().drop();
+    now = 5400;
+    tick(1000);
+    last().drop();                       // a failed attempt: still down since 5000
+    now = 7300;
+    tick(2000);
+    last().accept();
+
+    expect(downs).toEqual([undefined, 2300]);
+    socket.close();
+  }));
+
   it('reconnects after a drop, doubling the delay up to the maximum', fakeAsync(() => {
     const socket = makeSocket();
     socket.open();

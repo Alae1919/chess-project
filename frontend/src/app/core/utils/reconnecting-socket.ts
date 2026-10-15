@@ -19,8 +19,11 @@ export interface ReconnectingSocketOptions {
   /** Runs before every attempt, e.g. to refresh a token that is about to expire. */
   prepare?: () => Observable<unknown>;
   onMessage: (data: string) => void;
-  /** {@code reconnected} is false for the first connection and true after a drop. */
-  onOpen?: (reconnected: boolean) => void;
+  /**
+   * {@code reconnected} is false for the first connection and true after a drop; then
+   * {@code downMs} is how long the socket was down.
+   */
+  onOpen?: (reconnected: boolean, downMs?: number) => void;
   onStateChange?: (state: SocketState) => void;
   create?: (url: string) => SocketLike;
   baseDelayMs?: number;
@@ -38,6 +41,8 @@ export class ReconnectingSocket {
   private preparing = false;
   private wanted = false;
   private everOpened = false;
+  /** When the open socket dropped (performance.now()), until it is open again */
+  private droppedAt: number | null = null;
   private delay: number;
 
   private readonly base: number;
@@ -60,6 +65,7 @@ export class ReconnectingSocket {
   close(): void {
     this.wanted = false;
     this.everOpened = false;
+    this.droppedAt = null;
     this.delay = this.base;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
@@ -98,10 +104,12 @@ export class ReconnectingSocket {
     socket.onopen = () => {
       if (this.socket !== socket) return;
       const reconnected = this.everOpened;
+      const downMs = this.droppedAt === null ? undefined : performance.now() - this.droppedAt;
       this.everOpened = true;
+      this.droppedAt = null;
       this.delay = this.base;
       this.setState('open');
-      this.options.onOpen?.(reconnected);
+      this.options.onOpen?.(reconnected, downMs);
     };
     socket.onmessage = (event) => {
       if (this.socket === socket) this.options.onMessage(event.data);
@@ -109,6 +117,7 @@ export class ReconnectingSocket {
     socket.onclose = () => {
       if (this.socket !== socket) return; // a socket we already let go of
       this.socket = null;
+      if (this.everOpened && this.droppedAt === null) this.droppedAt = performance.now();
       this.retryLater();
     };
   }

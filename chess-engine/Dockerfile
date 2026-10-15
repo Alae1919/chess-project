@@ -18,6 +18,7 @@ COPY --from=builder /app/target/*.jar app.jar
 USER app
 
 EXPOSE 8080
-# The JVM sizes itself from the container's memory; leave room for the rest of the host.
+# The JVM sizes its heap from the container's memory limit (1 GB in docker-compose.prod.yml),
+# leaving the rest for threads, metaspace and buffers.
 # If it still runs out of memory, die and let the restart policy bring it back clean.
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=60", "-XX:+ExitOnOutOfMemoryError", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=70", "-XX:+ExitOnOutOfMemoryError", "-jar", "app.jar"]

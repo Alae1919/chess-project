@@ -1,0 +1,121 @@
+// Grafana Alloy: collects the production stack's metrics and logs and sends them to Grafana Cloud.
+// Started by docker-compose.prod.yml under the "monitoring" profile; see docs/monitoring.md.
+//
+// Metrics: the backend's /actuator/prometheus (latency histograms, the AI, the sockets, browser
+// timings, JVM, Hikari), the host (CPU, steal, memory, disk) and Postgres.
+// Logs: every container's stdout (Caddy, nginx, the backend's JSON lines), with a `container` label.
+
+// ── Metrics ────────────────────────────────────────────────────────────────────────────────────
+
+prometheus.scrape "backend" {
+  targets         = [{"__address__" = "backend:8080", "service" = "backend"}]
+  metrics_path    = "/actuator/prometheus"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.relabel.trim.receiver]
+}
+
+prometheus.exporter.unix "host" {
+  procfs_path = "/host/proc"
+  sysfs_path  = "/host/sys"
+  rootfs_path = "/host/root"
+  // only what says whether the box keeps up: a t3 instance runs out of CPU credits (steal) and
+  // the AI's searches are CPU-bound; 2 GB of memory is shared by five containers
+  set_collectors = ["cpu", "loadavg", "meminfo", "pressure", "filesystem", "diskstats", "netdev", "vmstat"]
+  filesystem {
+    mount_points_exclude = "^/(dev|proc|run|sys|var/lib/docker/.+)($|/)"
+  }
+}
+
+prometheus.scrape "host" {
+  targets         = prometheus.exporter.unix.host.targets
+  scrape_interval = "30s"
+  forward_to      = [prometheus.relabel.trim.receiver]
+}
+
+prometheus.exporter.postgres "db" {
+  data_source_names = [sys.env("POSTGRES_DSN")]
+}
+
+prometheus.scrape "db" {
+  targets         = prometheus.exporter.postgres.db.targets
+  scrape_interval = "30s"
+  forward_to      = [prometheus.relabel.trim.receiver]
+}
+
+// Grafana Cloud's free tier counts active series: drop what no panel or alert reads
+prometheus.relabel "trim" {
+  forward_to = [prometheus.remote_write.cloud.receiver]
+
+  // the healthcheck and the scrape itself
+  rule {
+    source_labels = ["uri"]
+    regex         = "/actuator.*"
+    action        = "drop"
+  }
+  // hundreds of server settings, and internals nobody graphs
+  rule {
+    source_labels = ["__name__"]
+    regex         = "pg_settings_.*|jvm_buffer_.*|jvm_classes_.*|tomcat_sessions_.*|executor_.*|logback_events_total|disk_.*|node_scrape_collector_.*"
+    action        = "drop"
+  }
+}
+
+prometheus.remote_write "cloud" {
+  endpoint {
+    url = sys.env("GRAFANA_CLOUD_PROM_URL")
+    basic_auth {
+      username = sys.env("GRAFANA_CLOUD_PROM_USER")
+      password = sys.env("GRAFANA_CLOUD_API_KEY")
+    }
+  }
+  external_labels = {"env" = "production"}
+}
+
+// ── Logs ───────────────────────────────────────────────────────────────────────────────────────
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+}
+
+loki.source.docker "containers" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.relabel.containers.output
+  relabel_rules = discovery.relabel.containers.rules
+  forward_to    = [loki.process.levels.receiver]
+}
+
+// The backend logs JSON (see logback-spring.xml): its level becomes a label to filter on.
+// The request id stays in the line: one label value per request would be one stream per request.
+loki.process "levels" {
+  forward_to = [loki.write.cloud.receiver]
+
+  stage.match {
+    selector = "{container=\"chess_backend\"}"
+    stage.json {
+      expressions = {level = "level"}
+    }
+    stage.labels {
+      values = {level = ""}
+    }
+  }
+}
+
+loki.write "cloud" {
+  endpoint {
+    url = sys.env("GRAFANA_CLOUD_LOKI_URL")
+    basic_auth {
+      username = sys.env("GRAFANA_CLOUD_LOKI_USER")
+      password = sys.env("GRAFANA_CLOUD_API_KEY")
+    }
+  }
+  external_labels = {"env" = "production"}
+}

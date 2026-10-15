@@ -11,6 +11,7 @@ import { WebSocketService } from './core/services/websocket.service';
 import { InvitationToastComponent } from './features/online/components/invitation-toast.component';
 import { makeMarble } from './shared/three/marble';
 import { TabBarComponent, tabFor } from './shared/components/tab-bar/tab-bar.component';
+import { TelemetryService } from './core/telemetry/telemetry.service';
 
 /** The landing page, whatever query or fragment follows the slash */
 export function isLandingUrl(url: string): boolean {
@@ -46,6 +47,7 @@ export class AppComponent implements OnInit {
   private lobbyWsService = inject(LobbyWebSocketService);
   private gameWsService = inject(WebSocketService);
   private router = inject(Router);
+  private telemetry = inject(TelemetryService);
 
   /** The game arena has its own top bar */
   showNavbar = !location.pathname.startsWith('/game');
@@ -65,6 +67,7 @@ export class AppComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.telemetry.start();
     this.paintMarbleBackground();
     // The profile and the sockets live exactly as long as the session: invites
     // arrive right after logging in, and nothing stays open after logging out

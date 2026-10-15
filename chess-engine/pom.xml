@@ -95,10 +95,22 @@
       <artifactId>spring-boot-starter-validation</artifactId>
     </dependency>
 
-    <!-- Health probe for the container healthcheck (only /actuator/health is exposed) -->
+    <!-- Health probe for the container healthcheck, and the metrics (/actuator/health and
+         /actuator/prometheus; nginx proxies neither, so they are only reachable inside Docker) -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+    </dependency>
+
+    <!-- JSON log lines in production, so the log collector can read requestId, path and timings -->
+    <dependency>
+      <groupId>net.logstash.logback</groupId>
+      <artifactId>logstash-logback-encoder</artifactId>
+      <version>7.4</version>
     </dependency>
 
     <!-- 📘 Swagger / OpenAPI -->

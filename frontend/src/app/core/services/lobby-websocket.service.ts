@@ -3,6 +3,7 @@ import { EMPTY, Observable, Subject, of } from 'rxjs';
 import { AuthService } from './auth.service';
 import { environment } from '../../../environments/environment';
 import { ReconnectingSocket } from '../utils/reconnecting-socket';
+import { TelemetryService } from '../telemetry/telemetry.service';
 
 export type LobbyWsEventType =
   | 'MATCH_FOUND'
@@ -20,6 +21,7 @@ export interface LobbyWsEvent<T = unknown> {
 @Injectable({ providedIn: 'root' })
 export class LobbyWebSocketService {
   private authService = inject(AuthService);
+  private telemetry = inject(TelemetryService);
   private messageSubject = new Subject<LobbyWsEvent>();
   private socket = new ReconnectingSocket({
     url: () => {
@@ -33,6 +35,9 @@ export class LobbyWebSocketService {
       } catch {
         console.error('Lobby WS parse error', data);
       }
+    },
+    onOpen: (reconnected, downMs) => {
+      if (reconnected && downMs !== undefined) this.telemetry.timing('ws.reconnect', downMs, 'lobby');
     },
   });
 

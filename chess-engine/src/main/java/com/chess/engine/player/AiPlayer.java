@@ -37,6 +37,8 @@ public final class AiPlayer implements Player {
     private final AiLevel level;
     private final RandomGenerator random;
     private volatile Searcher searcher;
+    /** What the last move's search found, or null when the opening book chose it. */
+    private volatile SearchResult lastSearch;
 
     public AiPlayer(Color color) { this(color, AiLevel.DEFAULT); }
     public AiPlayer(Color color, int level) { this(color, level, ThreadLocalRandom.current()); }
@@ -73,15 +75,22 @@ public final class AiPlayer implements Player {
 
         if (!BOOK.isEmpty() && pos.fullmoveNumber() <= BOOK_MAX_FULLMOVE) {
             int book = BOOK.pick(pos, random);
-            if (book != com.chess.engine.core.Move.NONE) return toDomain(board, book);
+            if (book != com.chess.engine.core.Move.NONE) {
+                lastSearch = null;
+                return toDomain(board, book);
+            }
         }
 
         Searcher s = searcher;
         if (s == null) searcher = s = new Searcher(Evaluators.create(), level.hashMegabytes());
         long remaining = pos.sideToMove() == Position.WHITE ? whiteMs : blackMs;
         SearchResult result = s.search(pos, level.limits(remaining, incrementMs));
+        lastSearch = result;
         return toDomain(board, level.choose(result, random));
     }
+
+    /** The search behind the last move chosen, or null if the opening book chose it (or no move was chosen yet). */
+    public SearchResult lastSearch() { return lastSearch; }
 
     /** Asks a search in progress to finish at once; its move is then the best found so far. */
     public void stop() {

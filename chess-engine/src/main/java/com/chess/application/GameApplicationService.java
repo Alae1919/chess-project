@@ -8,7 +8,10 @@ import com.chess.domain.board.BoardFactory;
 import com.chess.domain.board.FenParser;
 import com.chess.domain.model.*;
 import com.chess.domain.rules.*;
+import com.chess.engine.core.search.SearchResult;
 import com.chess.engine.player.AiPlayer;
+import com.chess.infrastructure.metrics.ChessMeters;
+import io.micrometer.core.instrument.Metrics;
 import com.chess.infrastructure.api.FenSerializer;
 import com.chess.infrastructure.api.dto.*;
 import com.chess.infrastructure.api.exception.*;
@@ -24,6 +27,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -48,6 +52,12 @@ public class GameApplicationService {
     /** Restoring reads lazy collections, so it needs a session of its own. */
     private final TransactionTemplate    readOnly;
     private final Object[] restoreLocks = newLocks(16);
+
+    /** AI searches running right now, across all games (each one takes a core while it runs). */
+    private static final AtomicInteger AI_SEARCHES =
+            Metrics.globalRegistry.gauge("chess.ai.searches.active", new AtomicInteger());
+    private static final io.micrometer.core.instrument.Timer PERSIST_MOVE =
+            ChessMeters.timer("chess.move.persist", "Saving one move to the database, inside the game's turn lock");
 
     public GameApplicationService(GameStore store,
                                    GameRepository gameRepository,
@@ -136,7 +146,7 @@ public class GameApplicationService {
             session.applyMove(move);
 
             GameStateResponse r = toResponse(session);
-            persistenceService.persistMove(UUID.fromString(gameId), uciMove, r.fen(), colorPlayed);
+            persistMove(gameId, uciMove, r.fen(), colorPlayed);
             finaliseIfTerminal(gameId, r.status(), r.activeColor());
             return r;
         });
@@ -165,8 +175,7 @@ public class GameApplicationService {
             });
             Board position = turn.position();
 
-            Move move = session.aiPlayer().chooseMove(position, turn.start(), turn.moves(),
-                    turn.whiteMs(), turn.blackMs(), turn.incrementMs());
+            Move move = chooseAiMove(session.aiPlayer(), turn);
 
             return underTurnLock(session, () -> {
                 if (session.isOver()) throw new GameOverException(gameId);
@@ -180,13 +189,42 @@ public class GameApplicationService {
 
                 GameStateResponse r = toResponse(session);
                 if (r.lastMove() != null)
-                    persistenceService.persistMove(UUID.fromString(gameId), r.lastMove(), r.fen(), colorPlayed);
+                    persistMove(gameId, r.lastMove(), r.fen(), colorPlayed);
                 finaliseIfTerminal(gameId, r.status(), r.activeColor());
                 return r;
             });
         } finally {
             session.endAiSearch();
         }
+    }
+
+    /** The AI's move, timed by level and by where it came from (the opening book or a search). */
+    private Move chooseAiMove(AiPlayer ai, AiTurn turn) {
+        long start = System.nanoTime();
+        AI_SEARCHES.incrementAndGet();
+        Move move;
+        try {
+            move = ai.chooseMove(turn.position(), turn.start(), turn.moves(),
+                    turn.whiteMs(), turn.blackMs(), turn.incrementMs());
+        } finally {
+            AI_SEARCHES.decrementAndGet();
+        }
+        long nanos = System.nanoTime() - start;
+        SearchResult search = ai.lastSearch();
+        String level = String.valueOf(ai.level().level());
+        ChessMeters.timer("chess.ai.search", "Time for the AI to choose a move",
+                "level", level, "source", search == null ? "book" : "search")
+            .record(java.time.Duration.ofNanos(nanos));
+        if (search != null && log.isDebugEnabled())
+            log.debug("AI level {} searched {} nodes to depth {} in {} ms", level, search.nodes(), search.depth(), nanos / 1_000_000);
+        return move;
+    }
+
+    private void persistMove(String gameId, String uciMove, String fen, String colorPlayed) {
+        ChessMeters.time(PERSIST_MOVE, () -> {
+            persistenceService.persistMove(UUID.fromString(gameId), uciMove, fen, colorPlayed);
+            return null;
+        });
     }
 
     // ----------------------------------------------------------------

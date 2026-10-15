@@ -86,7 +86,18 @@ export interface SceneOptions {
    * can move around the board: turn, rise, come closer, shift (see desk-camera.ts).
    */
   environment?: 'studio' | 'study' | 'desk';
+  /**
+   * The first frame was drawn, `ms` after the scene was created. `cold` for the first scene since the page loaded:
+   * later ones find the piece models, and the browser's caches, already warm.
+   */
+  onFirstFrame?: (ms: number, cold: boolean) => void;
+  /** The desk's room, wood and props are all in, `ms` after the scene asked for them (desk scenes only) */
+  onDeskReady?: (ms: number, cold: boolean) => void;
 }
+
+/** Scenes and desks built since the page loaded: the first of each is the one that loads everything */
+let scenesBuilt = 0;
+let desksLoaded = 0;
 
 /** Room the page leaves free for the board, in px from each side of the canvas (panels, bars) */
 export interface SafeArea {
@@ -261,6 +272,10 @@ export class LuxeBoardScene {
   private suppressClick = false;
 
   private readonly listeners: Array<() => void> = [];
+
+  private readonly createdAt = performance.now();
+  private readonly cold = scenesBuilt++ === 0;
+  private firstFrameDrawn = false;
 
   constructor(private canvas: HTMLCanvasElement, private opts: SceneOptions) {
     const width = Math.max(canvas.clientWidth, 200);
@@ -712,6 +727,8 @@ export class LuxeBoardScene {
 
   /** Bring in the room behind the desk and the wood of its top, then let the scene be drawn. */
   private async loadDesk(): Promise<void> {
+    const start = performance.now();
+    const cold = desksLoaded++ === 0;
     const looks = (Object.keys(LOOKS_3D) as Style3D[]).filter(hasPhotoWoods);
     const [pano, wood, props] = await Promise.all([loadPicture(DESK_PANO_URL), loadPicture(DESK_WOOD_URL), loadDeskProps(), ...looks.map(loadPhotoWoods)]);
     if (this.disposed) {
@@ -740,6 +757,7 @@ export class LuxeBoardScene {
     if (this.disposed) return;
     window.clearTimeout(this.deskTimer);
     this.deskReady = true;
+    this.opts.onDeskReady?.(performance.now() - start, cold);
   }
 
   /** Stand a prop on the desk. The lamp also becomes the light of the room: a flame inside it, and the lamp light moved to it. */
@@ -1634,5 +1652,9 @@ export class LuxeBoardScene {
 
     this.renderer.render(this.scene, this.camera);
     this.afterDraw.splice(0).forEach((free) => free());
+    if (!this.firstFrameDrawn) {
+      this.firstFrameDrawn = true;
+      this.opts.onFirstFrame?.(performance.now() - this.createdAt, this.cold);
+    }
   };
 }

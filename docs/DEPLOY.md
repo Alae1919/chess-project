@@ -236,5 +236,5 @@ them to an S3 bucket by attaching an IAM role that may write to the bucket and a
 
 * **A managed database.** RDS for PostgreSQL would take backups off your hands, at the price of a database that costs more
   than the server. The backend only needs its `SPRING_DATASOURCE_*` settings changed.
-* **Monitoring.** Beyond `docker compose ps`, consider an uptime check (Route 53 health checks, or any free
-  uptime monitor) on `https://your-site/`.
+* **Monitoring** has its own page: [monitoring.md](monitoring.md) sets up Grafana Cloud's free tier (metrics, logs,
+  a latency dashboard, alerts and an uptime check) with one more container on this server.

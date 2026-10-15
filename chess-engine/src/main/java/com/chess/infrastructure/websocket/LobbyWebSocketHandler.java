@@ -4,6 +4,7 @@ import com.chess.application.MatchmakingService;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.PongMessage;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.time.Duration;
@@ -39,6 +40,12 @@ public class LobbyWebSocketHandler extends TextWebSocketHandler {
         if (userId != null) {
             lobbySessionManager.register(userId, session);
         }
+    }
+
+    /** The answer to a keepalive ping (see {@link SocketKeepAlive}): times the round trip. */
+    @Override
+    protected void handlePongMessage(WebSocketSession session, PongMessage message) {
+        SocketRtt.recordLobby(message);
     }
 
     @Override

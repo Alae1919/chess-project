@@ -22,6 +22,7 @@ import { isPlayableStatus } from '../../../core/utils/game-status.utils';
 import { dropVerdict, DropVerdict } from '../../../core/utils/drag-drop.utils';
 import { DeskPreset } from '../../three/desk-camera';
 import { initialSquares, LuxeBoardScene, SafeArea, Squares } from '../../three/luxe-board-scene';
+import { TelemetryService } from '../../../core/telemetry/telemetry.service';
 
 /**
  * The REXCHESS Luxe 3D board.
@@ -86,6 +87,7 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
 
   private store = inject(Store);
   private zone = inject(NgZone);
+  private telemetry = inject(TelemetryService);
   private host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   private scene?: LuxeBoardScene;
@@ -116,6 +118,9 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
           onDragStart: (sq) => this.zone.run(() => this.store.dispatch(GameActions.selectSquare({ square: sq }))),
           onDrop: (from, to) => this.zone.run(() => this.onDrop(from, to)),
           onSquareClick: (sq) => this.zone.run(() => this.onSquareClick(sq)),
+          // outside Angular, like the scene's own loop: recording a timing changes nothing on screen
+          onFirstFrame: (ms, cold) => this.telemetry.timing('game.firstFrame', ms, cold ? 'cold' : 'warm'),
+          onDeskReady: (ms, cold) => this.telemetry.timing('desk.assets', ms, cold ? 'cold' : 'warm'),
           onTopViewChange: (top) => this.zone.run(() => {
             this.reportedTopView = top;
             this.topViewChange.emit(top);

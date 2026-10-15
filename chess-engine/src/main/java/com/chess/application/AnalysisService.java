@@ -5,7 +5,10 @@ import com.chess.engine.core.eval.Evaluators;
 import com.chess.engine.core.search.SearchLimits;
 import com.chess.engine.core.search.SearchResult;
 import com.chess.engine.core.search.Searcher;
+import com.chess.infrastructure.metrics.ChessMeters;
 import org.springframework.stereotype.Service;
+
+import java.time.Duration;
 
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -29,6 +32,22 @@ public class AnalysisService {
 
     /** @throws IllegalStateException when the engine is too busy to take another position */
     public Analysis analyse(String fen) {
+        long start = System.nanoTime();
+        String outcome = "error";
+        try {
+            Analysis analysis = search(fen);
+            outcome = "ok";
+            return analysis;
+        } catch (IllegalStateException e) {
+            outcome = "busy";
+            throw e;
+        } finally {
+            ChessMeters.timer("chess.analysis", "An evaluation asked for by a player, waiting for a slot included",
+                    "outcome", outcome).record(Duration.ofNanos(System.nanoTime() - start));
+        }
+    }
+
+    private Analysis search(String fen) {
         Position pos = Position.fromFen(fen);
         boolean got;
         try {

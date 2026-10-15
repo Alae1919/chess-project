@@ -50,8 +50,12 @@ public class SecurityConfig {
                     "/api/showcase",
                     "/error",   // the error page of a failed request must not itself need a login
                     "/ws/**",
-                    // the container healthcheck; nginx only proxies /api and /ws, so it is not public
+                    // browser timings (page loads, moves), sent without a login: see RumController
+                    "/api/rum",
+                    // the container healthcheck and the metrics scrape; nginx only proxies /api and /ws,
+                    // so neither is public
                     "/actuator/health/**",
+                    "/actuator/prometheus",
                     "/swagger-ui/**", "/swagger-ui.html",
                     "/api-docs/**", "/v3/api-docs/**"
                 ).permitAll()
