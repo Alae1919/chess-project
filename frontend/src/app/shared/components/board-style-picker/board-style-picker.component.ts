@@ -3,6 +3,8 @@ import { Component, Input, inject } from '@angular/core';
 import { AsyncPipe, NgFor, NgIf } from '@angular/common';
 import { BoardPrefsService } from '../../../core/services/board-prefs.service';
 import { BOARD_MODES, STYLES_2D, STYLES_3D } from '../../board/board-styles';
+import { PIECE_SETS, pieceImageUrl, pieceImageUrls } from '../../board/piece-sets';
+import { PieceSet } from '../../../core/models';
 
 /**
  * Pick the board mode (3D / 2D) and its style. Changes apply immediately and are saved
@@ -37,6 +39,17 @@ import { BOARD_MODES, STYLES_2D, STYLES_3D } from '../../board/board-styles';
         </div>
       </div>
       <p class="cmp__label">Style : {{ styleLabel(prefs) }}</p>
+      <ng-container *ngIf="prefs.mode === '2d'">
+        <div class="cmp__sets" role="radiogroup" aria-label="Jeu de pièces">
+          <button *ngFor="let p of pieceSets" type="button" role="radio" class="cmp__set"
+                  [class.cmp__set--on]="prefs.pieceSet === p.id" [attr.aria-checked]="prefs.pieceSet === p.id"
+                  [attr.aria-label]="p.label" (click)="prefsService.setPieceSet(p.id)">
+            <span *ngIf="p.id === 'glyph'; else img" class="cmp__glyph" aria-hidden="true">♞</span>
+            <ng-template #img><img [src]="previewUrl(p.id, 'white')" alt="" /><img [src]="previewUrl(p.id, 'black')" alt="" /></ng-template>
+          </button>
+        </div>
+        <p class="cmp__label">Pièces : {{ pieceSetLabel(prefs.pieceSet) }}</p>
+      </ng-container>
     </div>
 
     <div class="bsp" *ngIf="!compact ? (prefsService.prefs$ | async) : null as prefs">
@@ -89,6 +102,27 @@ import { BOARD_MODES, STYLES_2D, STYLES_3D } from '../../board/board-styles';
           </button>
         </div>
       </div>
+
+      <div class="bsp__group" *ngIf="both || prefs.mode === '2d'">
+        <p class="bsp__title">Pièces 2D</p>
+        <div class="bsp__styles" role="radiogroup" aria-label="Jeu de pièces du plateau 2D">
+          <button
+            *ngFor="let p of pieceSets"
+            type="button" role="radio"
+            class="bsp__style"
+            [class.bsp__style--sel]="prefs.pieceSet === p.id"
+            [attr.aria-checked]="prefs.pieceSet === p.id"
+            [title]="p.hint"
+            (click)="prefsService.setPieceSet(p.id)"
+          >
+            <span class="bsp__pieces">
+              <span *ngIf="p.id === 'glyph'; else img" class="bsp__glyph" aria-hidden="true">♞</span>
+              <ng-template #img><img [src]="previewUrl(p.id, 'white')" alt="" /><img [src]="previewUrl(p.id, 'black')" alt="" /></ng-template>
+            </span>
+            <span class="bsp__style-label">{{ p.label }}</span>
+          </button>
+        </div>
+      </div>
     </div>
   `,
   styles: [`
@@ -134,6 +168,26 @@ import { BOARD_MODES, STYLES_2D, STYLES_3D } from '../../board/board-styles';
       transform: translate(-50%, -50%); background: var(--accent); box-shadow: 0 1px 3px rgba(0, 0, 0, .6);
     }
 
+    /* a piece set: a white and a black knight of the set, on a light and a dark square */
+    .bsp__pieces {
+      display: flex; width: 56px; height: 34px; border-radius: 3px; overflow: hidden;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, .12);
+    }
+    .bsp__pieces img, .bsp__glyph { flex: 1; min-width: 0; height: 100%; object-fit: contain; padding: 2px; box-sizing: border-box; }
+    .bsp__pieces > img:first-child, .bsp__pieces > .bsp__glyph { background: #f0d9b5; }
+    .bsp__pieces > img:last-child { background: #b58863; }
+    .bsp__glyph { display: flex; align-items: center; justify-content: center; font: 24px/1 'Segoe UI Symbol', 'Noto Sans Symbols 2', serif; color: #17110b; background: #f0d9b5; }
+
+    .cmp__sets { display: flex; justify-content: flex-end; gap: 10px; margin-top: 12px; }
+    .cmp__set {
+      display: flex; width: 72px; height: 40px; padding: 0; border: 0; border-radius: 10px; overflow: hidden; cursor: pointer;
+      background: #f0d9b5; box-shadow: 0 0 0 1px rgba(201, 164, 92, .25); transition: box-shadow .2s;
+    }
+    .cmp__set img, .cmp__glyph { flex: 1; min-width: 0; height: 100%; object-fit: contain; padding: 3px; box-sizing: border-box; }
+    .cmp__set img:last-child { background: #b58863; }
+    .cmp__glyph { display: flex; align-items: center; justify-content: center; font: 26px/1 'Segoe UI Symbol', 'Noto Sans Symbols 2', serif; color: #17110b; }
+    .cmp__set--on { box-shadow: 0 0 0 2px #120e0a, 0 0 0 4px var(--gold); }
+
     .cmp__row { display: flex; align-items: center; gap: 10px; }
     .cmp__modes { flex: none; display: flex; padding: 3px; background: rgba(255, 255, 255, .04); border: 1px solid var(--border); border-radius: 12px; }
     .cmp__mode {
@@ -162,6 +216,13 @@ import { BOARD_MODES, STYLES_2D, STYLES_3D } from '../../board/board-styles';
 export class BoardStylePickerComponent {
   prefsService = inject(BoardPrefsService);
 
+  constructor() {
+    // fetch every set's pieces now, so choosing one shows it at once instead of piece by piece
+    if (typeof Image !== 'undefined') {
+      PIECE_SETS.filter((p) => p.id !== 'glyph').forEach((p) => pieceImageUrls(p.id).forEach((url) => { new Image().src = url; }));
+    }
+  }
+
   /** Show the 3D and the 2D styles together (account page) instead of only the active mode's */
   @Input() both = false;
   /** The phone's game sheet: a switch and swatches, no descriptions */
@@ -172,6 +233,17 @@ export class BoardStylePickerComponent {
     const list: ReadonlyArray<{ id: string; label: string }> = prefs.mode === '3d' ? STYLES_3D : STYLES_2D;
     const id = prefs.mode === '3d' ? prefs.style3d : prefs.style2d;
     return list.find((s) => s.id === id)?.label ?? '';
+  }
+
+  readonly pieceSets = PIECE_SETS;
+
+  /** A knight of the set, as the picker shows it */
+  previewUrl(set: PieceSet, color: 'white' | 'black'): string {
+    return pieceImageUrl(set, { color, type: 'knight' });
+  }
+
+  pieceSetLabel(id: PieceSet): string {
+    return PIECE_SETS.find((p) => p.id === id)?.label ?? '';
   }
 
   readonly modes = BOARD_MODES;

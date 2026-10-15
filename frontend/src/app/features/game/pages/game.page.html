@@ -168,7 +168,7 @@
             [fill]="fill" environment="study" [safeArea]="safeArea"
             [look]="bv.prefs.style3d" [topView]="topView" (topViewChange)="setTopView($event)" />
           <ng-template #flatBoard>
-            <app-chess-board [flipped]="boardFlipped" [boardStyle]="bv.prefs.style2d" />
+            <app-chess-board [flipped]="boardFlipped" [boardStyle]="bv.prefs.style2d" [pieceSet]="bv.prefs.pieceSet" />
           </ng-template>
           <app-promotion-picker
             *ngIf="pendingPromotion$ | async as pending"

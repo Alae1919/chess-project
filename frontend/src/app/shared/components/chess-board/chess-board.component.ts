@@ -19,9 +19,10 @@ import {
   selectViewedMove,
 } from '../../../store/game/game.selectors';
 import { GameActions } from '../../../store/game/game.actions';
-import { Move, Piece, PieceType, Square, Style2D } from '../../../core/models';
+import { Move, Piece, PieceSet, PieceType, Square, Style2D } from '../../../core/models';
 import { isPlayableStatus } from '../../../core/utils/game-status.utils';
 import { DRAG_THRESHOLD_PX, dropVerdict, sameSquare } from '../../../core/utils/drag-drop.utils';
+import { pieceImageUrl, pieceImageUrls } from '../../board/piece-sets';
 
 // Solid glyphs for both colors (distinguished by CSS) — ︎ forces text, not emoji, rendering
 const SOLID_PIECES: Record<PieceType, string> = {
@@ -46,7 +47,7 @@ interface Carried {
   standalone: true,
   imports: [CommonModule, AsyncPipe],
   template: `
-    <div class="board-wrap" [ngClass]="'board--' + boardStyle" *ngIf="vm$ | async as vm">
+    <div class="board-wrap" [ngClass]="'board--' + boardStyle" [class.pieces-pending]="!imagesReady" *ngIf="vm$ | async as vm">
       <!-- Rank coordinates -->
       <div class="coord-ranks">
         <span *ngFor="let r of displayRanks">{{ r }}</span>
@@ -74,8 +75,9 @@ interface Carried {
               <span class="sq-coord sq-coord--file" *ngIf="i >= 56" aria-hidden="true">{{ displayFiles[i - 56] }}</span>
               <span *ngIf="getPiece(sq, vm.board) as piece" class="piece"
                     [class.piece--white]="piece.color === 'white'" [class.piece--black]="piece.color === 'black'"
+                    [class.piece--img]="pieceSet !== 'glyph'" [style.background-image]="imageOf(piece)"
                     [class.piece--carried]="carried && isSelected(sq, carried.from)">
-                {{ getPieceUnicode(piece) }}
+                {{ pieceSet === 'glyph' ? getPieceUnicode(piece) : '' }}
               </span>
             </div>
           </div>
@@ -91,7 +93,8 @@ interface Carried {
       <span *ngIf="carried as c" class="piece piece--ghost" aria-hidden="true"
             [class.piece--white]="c.piece.color === 'white'" [class.piece--black]="c.piece.color === 'black'"
             [class.piece--settling]="c.settling"
-            [style.left.px]="c.x" [style.top.px]="c.y">{{ getPieceUnicode(c.piece) }}</span>
+            [class.piece--img]="pieceSet !== 'glyph'" [style.background-image]="imageOf(c.piece)"
+            [style.left.px]="c.x" [style.top.px]="c.y">{{ pieceSet === 'glyph' ? getPieceUnicode(c.piece) : '' }}</span>
     </div>
   `,
   styleUrls: ['./chess-board.component.scss'],
@@ -104,6 +107,25 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
   @Input() flipped = false;
   /** Colour scheme of the flat board */
   @Input() boardStyle: Style2D = 'classic-wood';
+  /** How the pieces are drawn: text symbols, or one of the image sets */
+  @Input() set pieceSet(value: PieceSet | undefined) {
+    const set = value ?? 'glyph';
+    this._pieceSet = set;
+    this.imagesReady = set === 'glyph' || typeof Image === 'undefined';
+    if (!this.imagesReady) this.loadImages(set);
+  }
+  get pieceSet(): PieceSet { return this._pieceSet; }
+  private _pieceSet: PieceSet = 'glyph';
+  /** The pieces of an image set are drawn once all twelve are loaded, not one by one as they arrive */
+  imagesReady = true;
+
+  private loadImages(set: PieceSet): void {
+    Promise.all(pieceImageUrls(set).map((url) => {
+      const img = new Image();
+      img.src = url;
+      return img.decode().catch(() => undefined);   // a missing image must not keep the board empty
+    })).then(() => { if (this._pieceSet === set) this.imagesReady = true; });
+  }
 
   readonly files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
   readonly ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
@@ -451,6 +473,11 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
 
   getPiece(sq: Square, board: any): Piece | null {
     return board?.squares?.[sq.row]?.[sq.col] ?? null;
+  }
+
+  /** CSS background of a piece in an image set, none for the text symbols */
+  imageOf(piece: Piece): string | null {
+    return this._pieceSet === 'glyph' ? null : `url(${pieceImageUrl(this._pieceSet, piece)})`;
   }
 
   getPieceUnicode(piece: Piece): string {

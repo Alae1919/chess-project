@@ -2,7 +2,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { BehaviorSubject, combineLatest, distinctUntilChanged, map } from 'rxjs';
-import { BoardMode, Style2D, Style3D } from '../models';
+import { BoardMode, PieceSet, Style2D, Style3D } from '../models';
 import { AccountActions } from '../../store/account/account.actions';
 import { selectUserPreferences } from '../../store/account/account.reducer';
 import { AuthService } from './auth.service';
@@ -15,11 +15,14 @@ import {
   isStyle2D,
   isStyle3D,
 } from '../../shared/board/board-styles';
+import { DEFAULT_PIECE_SET, isPieceSet } from '../../shared/board/piece-sets';
 
 export interface BoardPrefs {
   mode: BoardMode;
   style3d: Style3D;
   style2d: Style2D;
+  /** Pieces of the flat board. Kept in the browser only: the account has no field for it yet. */
+  pieceSet: PieceSet;
 }
 
 const STORAGE_KEY = 'rex_board_prefs';
@@ -44,7 +47,7 @@ export class BoardPrefsService {
   readonly webgl = isWebGLAvailable();
 
   readonly prefs$ = this.subject.pipe(
-    distinctUntilChanged((a, b) => a.mode === b.mode && a.style3d === b.style3d && a.style2d === b.style2d),
+    distinctUntilChanged((a, b) => a.mode === b.mode && a.style3d === b.style3d && a.style2d === b.style2d && a.pieceSet === b.pieceSet),
   );
 
   /** What to actually draw: the chosen mode, or 2D when the browser can't do WebGL */
@@ -61,6 +64,7 @@ export class BoardPrefsService {
         mode: isBoardMode(account.boardMode) ? account.boardMode : cur.mode,
         style3d: isStyle3D(account.boardStyle3d) ? account.boardStyle3d : cur.style3d,
         style2d: isStyle2D(account.boardStyle2d) ? account.boardStyle2d : cur.style2d,
+        pieceSet: cur.pieceSet,
       });
     });
   }
@@ -72,13 +76,15 @@ export class BoardPrefsService {
   setMode(mode: BoardMode): void { this.change({ mode }); }
   setStyle3d(style3d: Style3D): void { this.change({ style3d }); }
   setStyle2d(style2d: Style2D): void { this.change({ style2d }); }
+  setPieceSet(pieceSet: PieceSet): void { this.change({ pieceSet }); }
 
   private change(patch: Partial<BoardPrefs>): void {
     const next = { ...this.subject.value, ...patch };
     this.lastLocalChange = Date.now();
     this.apply(next);
 
-    if (this.auth.isLoggedIn) {
+    // the piece set is not part of the account (yet): nothing to send for it alone
+    if (this.auth.isLoggedIn && Object.keys(patch).some((k) => k !== 'pieceSet')) {
       this.store.dispatch(
         AccountActions.updatePreferences({
           prefs: { boardMode: next.mode, boardStyle3d: next.style3d, boardStyle2d: next.style2d },
@@ -89,7 +95,8 @@ export class BoardPrefsService {
 
   private apply(prefs: BoardPrefs): void {
     const cur = this.subject.value;
-    if (cur.mode === prefs.mode && cur.style3d === prefs.style3d && cur.style2d === prefs.style2d) return;
+    if (cur.mode === prefs.mode && cur.style3d === prefs.style3d && cur.style2d === prefs.style2d
+        && cur.pieceSet === prefs.pieceSet) return;
     this.subject.next(prefs);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
@@ -103,9 +110,10 @@ export class BoardPrefsService {
         mode: isBoardMode(raw.mode) ? raw.mode : DEFAULT_MODE,
         style3d: isStyle3D(raw.style3d) ? raw.style3d : DEFAULT_STYLE_3D,
         style2d: isStyle2D(raw.style2d) ? raw.style2d : DEFAULT_STYLE_2D,
+        pieceSet: isPieceSet(raw.pieceSet) ? raw.pieceSet : DEFAULT_PIECE_SET,
       };
     } catch {
-      return { mode: DEFAULT_MODE, style3d: DEFAULT_STYLE_3D, style2d: DEFAULT_STYLE_2D };
+      return { mode: DEFAULT_MODE, style3d: DEFAULT_STYLE_3D, style2d: DEFAULT_STYLE_2D, pieceSet: DEFAULT_PIECE_SET };
     }
   }
 }

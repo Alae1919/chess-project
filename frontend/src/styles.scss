@@ -353,8 +353,19 @@ input, select, textarea { font-family: var(--font); }
       filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .55));
     }
     &--carried { opacity: .25; }   /* its twin is in the player's hand */
+
+    /* an image set: the piece is a picture sized to the square, not a glyph */
+    &--img {
+      width: calc(var(--sq) * .94); height: calc(var(--sq) * .94); font-size: 0;
+      background: center / contain no-repeat;
+      -webkit-text-stroke: 0;
+      &.piece--white, &.piece--black { filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .4)); }
+    }
   }
 }
+
+/* an image set that is still loading: no piece until all of them can be drawn */
+.board-wrap.pieces-pending .piece { visibility: hidden; }
 
 /* The piece in the player's hand, over the board: bigger than on its square, as if lifted */
 .board-wrap .piece--ghost {
@@ -365,6 +376,7 @@ input, select, textarea { font-family: var(--font); }
   &.piece--white { color: var(--pw-fill); -webkit-text-stroke: 1.5px var(--pw-stroke); }
   &.piece--black { color: var(--pb-fill); -webkit-text-stroke: 1.2px var(--pb-stroke); }
   &.piece--settling { transition: left .16s ease-out, top .16s ease-out; }
+  &.piece--img { width: calc(var(--sq) * 1.2); height: calc(var(--sq) * 1.2); font-size: 0; background: center / contain no-repeat; -webkit-text-stroke: 0; }
 }
 
 /* a finger dragging a piece must not scroll the page */
