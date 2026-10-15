@@ -5,6 +5,9 @@ import { disposeLuxeMaterials, makeLuxeMaterials } from './luxe-pieces';
 
 const LOOKS = Object.keys(LOOKS_3D) as Style3D[];
 
+/** Jasmine counts an async spec's own work against its 5 s: building a scene is several seconds on a CI runner with no GPU */
+const SLOW_SPEC_MS = 60_000;
+
 describe('disposeLuxeMaterials', () => {
   it('is exercised on a look with stone pieces, whose materials carry a plain description of the marble', () => {
     expect(LOOKS_3D['marble-gold'].stone).toBeDefined();
@@ -78,7 +81,7 @@ describe('LuxeBoardScene', () => {
       const late = deskIn();
       await new Promise((resolve) => setTimeout(resolve, 400));
       expect(() => late.dispose()).not.toThrow();
-    });
+    }, SLOW_SPEC_MS);
 
     it('sends the camera to a named view, and back', () => {
       needsWebGL();
@@ -130,5 +133,5 @@ describe('LuxeBoardScene', () => {
     expect(() => scene.dispose()).not.toThrow();
     // the compile watcher wakes up after the scene is gone
     await new Promise((resolve) => setTimeout(resolve, 150));
-  });
+  }, SLOW_SPEC_MS);
 });
