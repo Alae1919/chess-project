@@ -142,8 +142,13 @@ with `--use-angle=d3d11`.
   on, once per style and visit). To see it, record the gaps between `requestAnimationFrame` calls after `setLook`.
 * The desk view records its loading steps as performance measures: `desk: files`, `desk: props placed, room lighting`
   and `desk: shaders`, in the Performance panel's Timings track or with
-  `performance.getEntriesByType('measure')`. The pictures and models stay in memory for the page's life, so a second
-  game shows only the GPU's part (room lighting and shaders).
+  `performance.getEntriesByType('measure')`. The pictures and models stay in memory for the page's life, decoded, so a
+  second game shows only the GPU's part. The room's light is baked into a file (`tools/desk-assets/bake-room-light.mjs`),
+  so "room lighting" is one copy on the GPU. `desk: shaders` also takes in the scene's first draw, which uploads every
+  picture to the new WebGL context: on an Intel Iris Plus 640, 150–300 ms for each 2048 px wood, most of what a second
+  game still costs.
+* `node tools/demo-video/board-timings.mjs 4` (dev stack up) plays four desk-view games in one page load, in Chrome with
+  its window shown, and prints each one's first frame (cold or warm) and the desk's steps.
 * The GPU driver caches compiled shaders for the session, so only the first cold build of a given shader is slow:
   rebuilding the same scene in a new WebGL context took 0.5 s against 5 s the first time.
 

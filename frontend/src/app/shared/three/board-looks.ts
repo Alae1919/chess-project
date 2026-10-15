@@ -6,6 +6,7 @@ import { makeMarble } from './marble';
 import { PieceMarble } from './piece-marble';
 import { makeWood } from './wood';
 import { CLASSIC_WOOD_PHOTOS } from './scene-assets';
+import { loadPictureTexture } from './picture-texture';
 
 type TexSpec =
   | { kind: 'marble'; base: string; vein: string; mott: [string, string]; seed: number; k?: number }
@@ -105,11 +106,9 @@ export function loadPhotoWoods(style: Style3D): Promise<boolean> {
   if (!urls) return Promise.resolve(false);
   if (photos[style]) return Promise.resolve(true);
   const load = (url: string): Promise<THREE.Texture> =>
-    new Promise((resolve, reject) => {
-      new THREE.TextureLoader().load(url, (t) => {
-        t.colorSpace = THREE.SRGBColorSpace;
-        resolve(t);
-      }, undefined, reject);
+    loadPictureTexture(url).then((t) => {
+      t.colorSpace = THREE.SRGBColorSpace;
+      return t;
     });
   return Promise.all([load(urls.frame), load(urls.light), load(urls.dark)]).then(
     ([frame, light, dark]) => {

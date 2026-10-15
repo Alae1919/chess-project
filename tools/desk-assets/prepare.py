@@ -3,9 +3,10 @@
     python -P tools/desk-assets/prepare.py            (needs Pillow and numpy; run from the repo root)
 
 Reads  design/generated/desk/  and  design/refs/desk/wood_colors/
-Writes frontend/src/assets/desk/
+Writes frontend/src/assets/desk/ (and the room to tools/desk-assets/)
 
-  room-pano.webp    the 360° room, turned so the man sits where the reference puts him
+  room-pano.webp    the 360° room, turned so the man sits where the reference puts him: the game does not load it,
+                    but the light baked from it (run bake-room-light.mjs after this)
   desk-wood.webp    the desk top: brightness flattened and made to tile
   wood-*.webp       the board's woods (squares and frame), made to tile
 
@@ -54,8 +55,8 @@ def sharpen(img: Image.Image) -> Image.Image:
     return img.filter(ImageFilter.UnsharpMask(radius=2.2, percent=70, threshold=2))
 
 
-def save(img: Image.Image, name: str, quality: int = 88) -> None:
-    img.save(OUT + name, 'WEBP', quality=quality, method=6)
+def save(img: Image.Image, name: str, quality: int = 88, out: str = OUT) -> None:
+    img.save(out + name, 'WEBP', quality=quality, method=6)
     print(f'{name}: {img.size[0]}x{img.size[1]}')
 
 
@@ -98,7 +99,7 @@ def room() -> None:
     f = turned.astype(np.float32) / 255
     f = 1 - (1 - np.minimum(f * ROOM_GAIN, 1.0)) ** 1.0  # plain gain, clipped
     lifted = np.where(f > 0.8, 0.8 + (f - 0.8) * 0.6, f)      # ease the top so the lamps do not burn out
-    save(Image.fromarray((np.clip(lifted, 0, 1) * 255).astype(np.uint8)), 'room-pano.webp', 90)
+    save(Image.fromarray((np.clip(lifted, 0, 1) * 255).astype(np.uint8)), 'room-pano.webp', 90, 'tools/desk-assets/')
 
 
 def desk() -> None:

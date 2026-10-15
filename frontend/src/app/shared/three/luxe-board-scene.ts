@@ -8,7 +8,7 @@ import { buildFrame, buildPiece, disposeLuxeMaterials, glowPiece, hasPieceModel,
 import { fitSquare, hasPhotoWoods, loadPhotoWoods, LOOKS_3D, lookTextures, photoWoodsReady } from './board-looks';
 import { DESK_HOME, DESK_PRESETS, DeskPreset, DeskView, deskOffset, easeView, nudge, orbitDrag, panDrag, sameView, zoomBy } from './desk-camera';
 import { disposeProp, loadDeskProps, LoadedProp } from './desk-props';
-import { buildDesk, DESK_PANO_URL, DESK_WOOD_URL, DeskParts, loadPicture, roomEnvironment, standInEnvironment } from './desk-environment';
+import { buildDesk, DESK_WOOD_URL, DeskParts, loadPicture, loadRoomLight, roomLight, standInRoomLight } from './desk-environment';
 
 const LETTER: Record<PieceType, PieceLetter> = {
   king: 'K', queen: 'Q', rook: 'R', bishop: 'B', knight: 'N', pawn: 'P',
@@ -208,7 +208,8 @@ export class LuxeBoardScene {
   /** The room and the wood have arrived (or we gave up waiting): until then the desk view draws nothing */
   private deskReady = true;
   private deskTimer = 0;
-  private panoTexture: THREE.Texture | null = null;
+  /** The room's light on the desk (see roomLight), freed with the scene */
+  private roomTarget: THREE.WebGLRenderTarget | null = null;
   /** What stands on the desk (the lamp, the books), freed with the scene */
   private deskProps: THREE.Object3D[] = [];
   /** The lamp's light: in the study it is a guess at where the photo's lamp is; on the desk it moves to the real lamp */
@@ -607,9 +608,9 @@ export class LuxeBoardScene {
     this.deskProps.forEach(disposeProp);
     this.deskProps = [];
     this.deskParts?.dispose();
-    this.panoTexture?.dispose();
     this.scene.background = null;
     this.envTexture.dispose();
+    this.roomTarget?.dispose();
     this.tableParts.forEach((p) => { p.geo.dispose(); p.mat.dispose(); p.tex?.dispose(); });
     this.tableParts = [];
     this.lights.forEach((l) => l.dispose());
@@ -670,8 +671,8 @@ export class LuxeBoardScene {
     return env;
   }
 
-  /** The light of the room in the photo: a warm lamp on the left, a soft ceiling light, dark wood all around. */
-  private buildStudyLighting(): THREE.Texture {
+  /** The study's room as reflections: glowing cards where the photo has its lamp, its ceiling light, its shelves */
+  private studyRoom(): THREE.Texture {
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     const room = new THREE.Scene();
     room.background = new THREE.Color(0x070402);
@@ -695,11 +696,17 @@ export class LuxeBoardScene {
       geos.push(geo);
       mats.push(mat);
     });
-    // the desk's room is a picture that arrives later: a stand-in of the same kind keeps the shaders valid for it
-    const env = this.desk ? standInEnvironment(this.renderer) : pmrem.fromScene(room, 0.04).texture;
+    const env = pmrem.fromScene(room, 0.04).texture;
     pmrem.dispose();
     geos.forEach((g) => g.dispose());
     mats.forEach((m) => m.dispose());
+    return env;
+  }
+
+  /** The light of the room in the photo: a warm lamp on the left, a soft ceiling light, dark wood all around. */
+  private buildStudyLighting(): THREE.Texture {
+    // the desk's room is a picture that arrives later: a stand-in of the same kind keeps the shaders valid for it
+    const env = this.desk ? standInRoomLight() : this.studyRoom();
     this.scene.environment = env;
 
     const add = <T extends THREE.Light>(l: T): T => {
@@ -738,8 +745,8 @@ export class LuxeBoardScene {
     const start = performance.now();
     const cold = desksLoaded++ === 0;
     // only the woods the board wears now: the other looks' photographs come in afterwards, before anyone switches
-    const [pano, wood, props] = await Promise.all([
-      loadPicture(DESK_PANO_URL), loadPicture(DESK_WOOD_URL), loadDeskProps(),
+    const [room, wood, props] = await Promise.all([
+      loadRoomLight(), loadPicture(DESK_WOOD_URL), loadDeskProps(),
       hasPhotoWoods(this.look) ? loadPhotoWoods(this.look) : Promise.resolve(false),
     ]);
     // each step shows in DevTools' Performance panel (Timings), and in performance.getEntriesByType('measure')
@@ -747,7 +754,6 @@ export class LuxeBoardScene {
     if (this.disposed) {
       // the pictures and models are shared with the scenes to come (see loadPicture, loadDeskProps): only this
       // scene's copies on the graphics card go
-      pano?.dispose();
       wood?.dispose();
       props.forEach((p) => disposeProp(p.object));
       return;
@@ -763,13 +769,13 @@ export class LuxeBoardScene {
     // the board is wearing painted wood, and has photographs to wear instead
     if (photoWoodsReady(this.look)) this.dress(this.look);
     if (wood) this.deskParts?.setWood(wood, this.renderer.capabilities.getMaxAnisotropy());
-    if (pano) {
-      pano.mapping = THREE.EquirectangularReflectionMapping;
-      pano.colorSpace = THREE.SRGBColorSpace;
-      this.panoTexture = pano;
-      this.scene.background = pano;
+    if (room) {
+      this.roomTarget = roomLight(this.renderer, room);
+      const env = this.roomTarget.texture;
+      // the room's light is also the room behind the desk, blurred: three would otherwise make the same light from
+      // the panorama again for the background
+      this.scene.background = env;
       this.scene.backgroundBlurriness = DESK_BLUR;
-      const env = roomEnvironment(this.renderer, pano);
       this.envTexture.dispose();
       this.envTexture = env;
       this.scene.environment = env;

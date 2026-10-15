@@ -13,8 +13,11 @@ export const PIECE_MODEL_URLS = {
   K: assetUrl('assets/models/king.glb'),
 } as const;
 
-/** The room behind the desk (a 360° picture) and the wood of the desk top (see desk-environment.ts) */
-export const DESK_PANO_URL = assetUrl('assets/desk/room-pano.webp');
+/**
+ * The room behind the desk, as the light it gives (its 360° picture, made into three.js's blurred reflections by
+ * tools/desk-assets/bake-room-light.mjs), and the wood of the desk top (see desk-environment.ts)
+ */
+export const DESK_ROOM_LIGHT_URL = assetUrl('assets/desk/room-light.webp');
 export const DESK_WOOD_URL = assetUrl('assets/desk/desk-wood.webp');
 
 /** What stands on the desk (see desk-props.ts) */
@@ -44,7 +47,7 @@ export function prefetchSceneAssets(desk: boolean): void {
   if (connection?.saveData) return;
   prefetched = true;
   const urls: string[] = [...Object.values(PIECE_MODEL_URLS)];
-  if (desk) urls.push(DESK_PANO_URL, DESK_WOOD_URL, ...Object.values(DESK_PROP_URLS), ...Object.values(CLASSIC_WOOD_PHOTOS));
+  if (desk) urls.push(DESK_ROOM_LIGHT_URL, DESK_WOOD_URL, ...Object.values(DESK_PROP_URLS), ...Object.values(CLASSIC_WOOD_PHOTOS));
   for (const url of urls) {
     // low priority: whatever the page itself asks for goes first
     fetch(url, { priority: 'low' } as RequestInit).catch(() => undefined);

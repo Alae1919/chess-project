@@ -63,6 +63,18 @@ Record the date, the commit, where it ran and the numbers. Leave earlier rows: t
 | 2026-10-15 | phase 3 | `ng serve`, desktop, landing | first load | stills and act I's clip only; act III's clip once act II is passed, three.js and the 6 piece models approaching act IV. Before: all of it, 7.9 MB of video included, at once |
 | 2026-10-15 | phase 3 | `ng serve`, desktop, desk view | 3D first frame | ~2.4–3 s for the first board of a page load, after the home page prefetched the files (was 10.4 s); ~1.6–2 s for the next board, with no request at all (desk files 1159 → 91 ms; what is left is room lighting ~0.3 s and shader compilation ~0.6 s on the GPU) |
 
+### Phase 3, continued: the 3D board's next games
+
+`node tools/demo-video/board-timings.mjs 4`: four desk-view games in one page load, the home page in between, in Chrome
+with its window shown. Each figure is the range over two runs.
+
+| Date | Commit | Where | Measure | Result |
+|---|---|---|---|---|
+| 2026-10-15 | phase 3 | `ng serve`, MacBook Pro, i5-7360U, Intel Iris Plus 640 (ANGLE on Metal), Chrome | where a later game's time goes, before | 1.9–2.5 s to the first frame. ~1.6 s is the first draw uploading every picture to the new WebGL context: the browser decodes an `<img>` again each time, 0.3–0.7 s for each 2048 px wood. Room lighting ~0.5 s: three's PMREM ran three times per game (the stand-in, the room's light, and again for the blurred background). Compiling the 13 shader programs ~0.3 s. `compile()` already waited on the driver as `compileAsync` does, so changing to it gains nothing |
+| 2026-10-15 | phase 3 | same | 3D first frame, desk view | later games 1.9–2.5 → **1.0–1.2 s**; the first game of a page load 4.1–4.3 → 3.5–3.6 s. `desk: props placed, room lighting` 300–380 → ~100 ms. Pictures are decoded once into bitmaps (uploads ~1.6 → ~0.8 s); the room's light is baked into `room-light.webp` and copied to the GPU in one draw, and is the background too (no PMREM at all) |
+| 2026-10-15 | phase 3 | same | the picture | screenshots of the desk view before and after: 0.9% of pixels more than 3 levels apart (of 255), 0.05% more than 10 (two runs of the old code: 0.04% and 0.04%, the player's name); the differences are WebP noise in the blurred room. The baked file is 574 KB, in place of the 487 KB panorama (lossless would be 2.1 MB, and the same as before to the pixel) |
+| 2026-10-15 | phase 3 | same | still over the 0.6 s target | what a later game still pays is uploading the pictures (~0.8 s here: the woods, the desk, the props) and compiling (~0.3 s). Only keeping them on the GPU between games would remove it, which means keeping the WebGL context, the textures and the materials alive (an estimated 150 MB of GPU memory while the player is elsewhere) |
+
 ### After phase 4 (moves)
 
 | Date | Commit | Where | Measure | Result |

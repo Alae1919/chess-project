@@ -119,11 +119,13 @@ the photo and a fixed camera.
 * **The desk** is a real surface (`shared/three/desk-environment.ts`): a plane of walnut at the height of the board's
   underside, with a varnish sheen, taking the shadows of the lights. Its far edge sinks into a soft shadow, and the room
   shows beyond it.
-* **The room** is a 360 degree picture (`assets/desk/room-pano.webp`), used both as the background (slightly blurred, like
-  the background of a photograph) and, through PMREM, as the light and reflections on the board. Far enough away not to need
-  parallax. Nothing is drawn until the room and the wood have arrived (8 s at most), so the page's own photo stays
-  visible until then; until they have, the materials are compiled against a plain stand-in reflection map of the same size,
-  so the real one swaps in without compiling everything again.
+* **The room** is a 360 degree picture (`tools/desk-assets/room-pano.webp`), made ahead of time into three's blurred
+  reflections (PMREM) by `tools/desk-assets/bake-room-light.mjs`: the game loads the result (`assets/desk/room-light.webp`)
+  and uses it both as the background (slightly blurred, like the background of a photograph) and as the light and
+  reflections on the board, with no work on the graphics card beyond one copy. Run the script again after changing the
+  panorama. Far enough away not to need parallax. Nothing is drawn until the room and the wood have arrived (8 s at most),
+  so the page's own photo stays visible until then; until they have, the materials are compiled against a plain stand-in
+  reflection map of the same height, so the real one swaps in without compiling everything again.
 * **The camera** (`shared/three/desk-camera.ts`, plain numbers, specs in `desk-camera.spec.ts`) goes round the board: turn
   15 degrees either way, rise from 25 to 69 degrees (more of the same slides into the top-down view), zoom 0.85 to 1.15,
   shift 1.6 squares sideways and 1 forward. Everything is clamped there, because beyond it the room behind the desk would
@@ -151,7 +153,8 @@ the photo and a fixed camera.
   `tools/desk-assets/optimize-props.sh` (textures to 1024 px as WebP, no Draco or Meshopt).
 * **The pictures** are made by `tools/desk-assets/prepare.py` from the raw images in `design/` (the panorama is turned so
   the man sits left of centre, lowered 10 degrees and lifted a little; the desk wood is flattened and made to tile). To
-  change the room or the wood, replace the raw file and run it; nothing needs it at run time.
+  change the room or the wood, replace the raw file and run it, then `node tools/desk-assets/bake-room-light.mjs` for the
+  room; nothing needs them at run time.
 * **Looking at it:** `node tools/demo-video/desk-shots.mjs` (Docker dev stack up) photographs the first view, the
   named views, the mouse and wheel, a piece dragged across the board and the menu, into `tools/demo-video/out/desk/`.
 
