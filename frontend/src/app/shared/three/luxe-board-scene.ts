@@ -7,6 +7,7 @@ import { Piece, PieceType, Square, Style3D } from '../../core/models';
 import { buildFrame, buildPiece, disposeLuxeMaterials, glowPiece, hasPieceModel, loadPieceModels, LuxeMaterials, makeLuxeMaterials, PieceLetter, pieceModelsSettled, reshapePiece } from './luxe-pieces';
 import { fitSquare, hasPhotoWoods, loadPhotoWoods, LOOKS_3D, lookTextures, photoWoodsReady } from './board-looks';
 import { DESK_HOME, DESK_PRESETS, DeskPreset, DeskView, deskOffset, easeView, nudge, orbitDrag, panDrag, sameView, zoomBy } from './desk-camera';
+import { disposeProp, loadDeskProps, LoadedProp } from './desk-props';
 import { buildDesk, DESK_PANO_URL, DESK_WOOD_URL, DeskParts, loadPicture, roomEnvironment, standInEnvironment } from './desk-environment';
 
 const LETTER: Record<PieceType, PieceLetter> = {
@@ -189,6 +190,10 @@ export class LuxeBoardScene {
   private deskReady = true;
   private deskTimer = 0;
   private panoTexture: THREE.Texture | null = null;
+  /** What stands on the desk (the lamp, the books), freed with the scene */
+  private deskProps: THREE.Object3D[] = [];
+  /** The lamp's light: in the study it is a guess at where the photo's lamp is; on the desk it moves to the real lamp */
+  private lampLight: THREE.PointLight | null = null;
   /** Where the camera is, where the player has sent it, and the distance it was framed at */
   private deskView: DeskView = { ...DESK_HOME };
   private deskGoal: DeskView = { ...DESK_HOME };
@@ -576,6 +581,8 @@ export class LuxeBoardScene {
     [this.dotGeo, this.ringGeo].forEach((g) => g.dispose());
     [this.dotMat, this.ringMat].forEach((m) => m.dispose());
     window.clearTimeout(this.deskTimer);
+    this.deskProps.forEach(disposeProp);
+    this.deskProps = [];
     this.deskParts?.dispose();
     this.panoTexture?.dispose();
     this.scene.background = null;
@@ -693,6 +700,7 @@ export class LuxeBoardScene {
     // the lamp itself, close to the left side of the board
     const lamp = add(new THREE.PointLight(0xffb866, 140, 0, 2));
     lamp.position.set(-9, 2.6, 3);
+    this.lampLight = lamp;
     // an edge of warm light from behind, so dark pieces keep their outline
     // (low and far behind: its glint on the glossy squares must land beyond the frame, not in the middle of the board)
     const rim = add(new THREE.DirectionalLight(0xffb070, 1.2));
@@ -705,12 +713,14 @@ export class LuxeBoardScene {
   /** Bring in the room behind the desk and the wood of its top, then let the scene be drawn. */
   private async loadDesk(): Promise<void> {
     const looks = (Object.keys(LOOKS_3D) as Style3D[]).filter(hasPhotoWoods);
-    const [pano, wood] = await Promise.all([loadPicture(DESK_PANO_URL), loadPicture(DESK_WOOD_URL), ...looks.map(loadPhotoWoods)]);
+    const [pano, wood, props] = await Promise.all([loadPicture(DESK_PANO_URL), loadPicture(DESK_WOOD_URL), loadDeskProps(), ...looks.map(loadPhotoWoods)]);
     if (this.disposed) {
       pano?.dispose();
       wood?.dispose();
+      props.forEach((p) => disposeProp(p.object));
       return;
     }
+    props.forEach((p) => this.placeProp(p));
     // the board is wearing painted wood, and has photographs to wear instead
     if (photoWoodsReady(this.look)) this.dress(this.look);
     if (wood) this.deskParts?.setWood(wood, this.renderer.capabilities.getMaxAnisotropy());
@@ -725,8 +735,48 @@ export class LuxeBoardScene {
       this.envTexture = env;
       this.scene.environment = env;
     }
+    // the props came in after the shaders were compiled: compile theirs too, before anything is drawn
+    await this.compile();
+    if (this.disposed) return;
     window.clearTimeout(this.deskTimer);
     this.deskReady = true;
+  }
+
+  /** Stand a prop on the desk. The lamp also becomes the light of the room: a flame inside it, and the lamp light moved to it. */
+  private placeProp(p: LoadedProp): void {
+    p.object.position.set(p.spec.at[0], TABLE_Y, p.spec.at[1]);
+    this.scene.add(p.object);
+    this.deskProps.push(p.object);
+    if (p.spec.id !== 'lamp') return;
+
+    const flame = new THREE.Vector3(p.spec.at[0], TABLE_Y + p.height * (p.spec.flame ?? 0.72), p.spec.at[1]);
+    this.lampLight?.position.copy(flame);
+    if (this.lampLight) this.lampLight.intensity = 45; // less than the photo's guess: this one is near the board, and its glint on the varnish blows out
+
+    const core = new THREE.SphereGeometry(p.height * 0.022, 12, 8);
+    const coreMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1, 0.72, 0.36).multiplyScalar(3) });
+    const coreMesh = new THREE.Mesh(core, coreMat);
+    coreMesh.scale.y = 1.6;
+    coreMesh.position.copy(flame);
+    this.scene.add(coreMesh);
+    // a soft halo around it, as the glow of a flame seen through glass
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const g = c.getContext('2d')!;
+    const ramp = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    ramp.addColorStop(0, 'rgba(255,196,110,0.9)');
+    ramp.addColorStop(0.25, 'rgba(255,160,70,0.35)');
+    ramp.addColorStop(1, 'rgba(255,140,50,0)');
+    g.fillStyle = ramp;
+    g.fillRect(0, 0, 128, 128);
+    const haloTex = new THREE.CanvasTexture(c);
+    const haloMat = new THREE.SpriteMaterial({ map: haloTex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false, opacity: 0.8 });
+    const halo = new THREE.Sprite(haloMat);
+    halo.scale.setScalar(p.height * 0.7);
+    halo.position.copy(flame);
+    this.scene.add(halo);
+    this.tableParts.push({ geo: core, mat: coreMat }, { geo: new THREE.BufferGeometry(), mat: haloMat, tex: haloTex });
+    this.deskProps.push(coreMesh, halo);
   }
 
   /**

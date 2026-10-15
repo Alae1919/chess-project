@@ -121,6 +121,18 @@ the photo and a fixed camera.
   in them once (`dress()`), before the first frame. Each square shows its own 512 px piece of the plank, the grain
   always running down the files. The gold lettering lies on the frame and turns against the board, so it reads the
   same way for Black. No style was added: the backend only accepts the three it knows.
+* **The props** (`shared/three/desk-props.ts`): a brass table lamp on the left, a stack of old books on the right and a
+  black mug on its coaster near the player, as in the reference, from `.glb` files in `assets/desk/props/`. Each is
+  stood on its base, sized to the desk (1 unit is about 4.5 cm) and placed by `DESK_PROPS`; a file that does not load
+  is left out. Where something sticks out and would pull the middle off the base, `axis` names the band of the height
+  to centre on: the lamp's cord lies out along the desk (centred on the part above it, and turned so the cord runs off
+  to the left, not across the board), the mug's handle (centred on its coaster). The lamp also gets a flame under its
+  shade (`flame`, a fraction of its height) and becomes the
+  room's warm point light. Glass is drawn without refraction (`transmission` is cleared): three then draws the whole
+  scene a second time every frame, which cost the first lamp's glass two thirds of the frame rate for a picture that
+  looks the same. The books are from Sketchfab under CC BY 4.0: their credit is in `assets/desk/props/CREDITS.md` and
+  must stay with them (there is no credits page in the app yet). To add a model, shrink it first with
+  `tools/desk-assets/optimize-props.sh` (textures to 1024 px as WebP, no Draco or Meshopt).
 * **The pictures** are made by `tools/desk-assets/prepare.py` from the raw images in `design/` (the panorama is turned so
   the man sits left of centre, lowered 10 degrees and lifted a little; the desk wood is flattened and made to tile). To
   change the room or the wood, replace the raw file and run it; nothing needs it at run time.
