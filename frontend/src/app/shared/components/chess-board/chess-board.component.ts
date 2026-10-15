@@ -164,7 +164,7 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
 
   private press: { from: Square; piece: Piece; x: number; y: number; id: number } | null = null;
   /** A piece let go before its legal moves arrived, or sent off and not yet answered */
-  private dropped: { from: Square; to: Square; board: unknown; waiting: boolean } | null = null;
+  private dropped: { from: Square; to: Square; board: unknown; waiting: boolean; sawLoading: boolean } | null = null;
   private latest: any = null;
   private suppressClick = false;
   private unbind: Array<() => void> = [];
@@ -270,7 +270,7 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
       this.sendOff(press.from, to, vm);
     } else {
       // its legal moves are still on the way: hold the piece over the square until they arrive
-      this.dropped = { from: press.from, to, board: vm.board, waiting: true };
+      this.dropped = { from: press.from, to, board: vm.board, waiting: true, sawLoading: false };
       this.slideTo(to);
     }
   }
@@ -284,7 +284,7 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
   /** Legal: play it, and keep the piece on its new square until the board catches up */
   private sendOff(from: Square, to: Square, vm: any): void {
     this.draggedMove = true;
-    this.dropped = { from, to, board: vm.board, waiting: false };
+    this.dropped = { from, to, board: vm.board, waiting: false, sawLoading: false };
     this.slideTo(to);
     this.submit(from, to, vm);
   }
@@ -325,6 +325,10 @@ export class ChessBoardComponent implements OnInit, OnDestroy {
       const verdict = dropVerdict(vm, d.from, d.to);
       if (verdict === 'accept') this.sendOff(d.from, d.to, vm);
       else this.returnPiece();
+    } else if (!d.sawLoading) {
+      // Just sent. This change of the store can be one already on its way when the move was sent (the legal
+      // moves arriving, say), still showing no request: only a request seen loading can be answered.
+      if (vm.loading || vm.promoting) d.sawLoading = true;
     } else if (!vm.loading && !vm.promoting) {
       // sent, answered, and the board did not change: the move was refused
       this.returnPiece();

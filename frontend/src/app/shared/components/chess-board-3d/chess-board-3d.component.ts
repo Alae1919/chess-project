@@ -92,7 +92,7 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
   private reportedTopView?: boolean;
   private vm: any = null;
   /** A piece let go on a square, until the game has answered (or its legal moves have arrived) */
-  private pendingDrop: { from: Square; to: Square; squares: unknown; waiting: boolean } | null = null;
+  private pendingDrop: { from: Square; to: Square; squares: unknown; waiting: boolean; sawLoading: boolean } | null = null;
 
   ngAfterViewInit(): void {
     const canvas = this.canvasRef.nativeElement;
@@ -229,13 +229,13 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
     const verdict = dropVerdict(vm, from, to);
     if (verdict === 'accept') this.play(from, to);
     // the piece's legal moves are still on the way: it waits over the square (see resolveDrop)
-    else if (verdict === 'wait') this.pendingDrop = { from, to, squares: vm.board?.squares, waiting: true };
+    else if (verdict === 'wait') this.pendingDrop = { from, to, squares: vm.board?.squares, waiting: true, sawLoading: false };
     return verdict;
   }
 
   private play(from: Square, to: Square): void {
     const vm = this.vm;
-    this.pendingDrop = { from, to, squares: vm.board?.squares, waiting: false };
+    this.pendingDrop = { from, to, squares: vm.board?.squares, waiting: false, sawLoading: false };
     this.store.dispatch(
       GameActions.submitMove({
         move: {
@@ -260,6 +260,10 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
       if (!vm.legalMovesReady) return;
       if (dropVerdict(vm, d.from, d.to) === 'accept') this.zone.run(() => this.play(d.from, d.to));
       else this.refuseDrop();
+    } else if (!d.sawLoading) {
+      // just sent: this change of the game can be one already on its way when the move was sent (the legal
+      // moves arriving), still showing no request. Only a request seen loading can be answered.
+      if (vm.loading || vm.promoting) d.sawLoading = true;
     } else if (!vm.loading && !vm.promoting) {
       this.refuseDrop();                     // sent, answered, and nothing changed: the move was refused
     }
