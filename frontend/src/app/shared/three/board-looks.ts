@@ -5,7 +5,7 @@ import { Style3D } from '../../core/models';
 import { makeMarble } from './marble';
 import { PieceMarble } from './piece-marble';
 import { makeWood } from './wood';
-import { assetUrl } from '../../core/assets/asset-url';
+import { CLASSIC_WOOD_PHOTOS } from './scene-assets';
 
 type TexSpec =
   | { kind: 'marble'; base: string; vein: string; mott: [string, string]; seed: number; k?: number }
@@ -80,7 +80,7 @@ export interface LookTextures {
 
 /** Looks that have photographs of their woods to wear on the desk, and where they are (made by tools/desk-assets) */
 const PHOTO_WOODS: Partial<Record<Style3D, { light: string; dark: string; frame: string }>> = {
-  'classic-wood': { light: assetUrl('assets/desk/wood-maple.webp'), dark: assetUrl('assets/desk/wood-walnut.webp'), frame: assetUrl('assets/desk/wood-frame.webp') },
+  'classic-wood': CLASSIC_WOOD_PHOTOS,
 };
 /** How much of a photograph one square shows, in px of it: a board square is a hand's width of the wood */
 const PHOTO_SQUARE_PX = 512;

@@ -152,7 +152,9 @@ export class GamePage implements OnInit, OnDestroy, AfterViewChecked {
     { id: 'side', label: 'De côté' },
     { id: 'overhead', label: 'Du dessus' },
   ];
-  @ViewChild(ChessBoard3DComponent) private board3dCmp?: ChessBoard3DComponent;
+  /** By its template name, not its class: the class may be referred to only in the template's @defer block,
+      or the 3D board (and three.js with it) would be loaded with this page */
+  @ViewChild('board3d') private board3dCmp?: { setView(preset: DeskPreset | 'reset'): void };
   /** The compact layout is in use (read when the board is created) */
   readonly compact = isCompactViewport();
   boardFlipped  = false;

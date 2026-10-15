@@ -6,7 +6,8 @@ import { BoardMode, PieceSet, Style2D, Style3D } from '../models';
 import { AccountActions } from '../../store/account/account.actions';
 import { selectUserPreferences } from '../../store/account/account.reducer';
 import { AuthService } from './auth.service';
-import { isWebGLAvailable } from '../../shared/three/luxe-board-scene';
+// not from luxe-board-scene: that would bring three.js into every page that reads the board preferences
+import { canUseWebGL } from '../../shared/three/webgl-support';
 import {
   DEFAULT_MODE,
   DEFAULT_STYLE_2D,
@@ -44,7 +45,7 @@ export class BoardPrefsService {
   private subject = new BehaviorSubject<BoardPrefs>(this.read());
   private lastLocalChange = 0;
 
-  readonly webgl = isWebGLAvailable();
+  readonly webgl = canUseWebGL();
 
   readonly prefs$ = this.subject.pipe(
     distinctUntilChanged((a, b) => a.mode === b.mode && a.style3d === b.style3d && a.style2d === b.style2d && a.pieceSet === b.pieceSet),

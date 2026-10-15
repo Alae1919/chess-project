@@ -95,6 +95,20 @@ export interface SceneOptions {
   onDeskReady?: (ms: number, cold: boolean) => void;
 }
 
+/** Runs `work` when the main thread is idle (or soon, where that cannot be asked about) */
+function whenIdle(work: () => void): void {
+  const ric = (window as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+  if (ric) ric(work, { timeout: 3000 });
+  else setTimeout(work, 500);
+}
+
+/** Records the time since `start` as a performance measure named `name`; returns the end, for the next step */
+function measure(name: string, start: number): number {
+  const end = performance.now();
+  try { performance.measure(name, { start, end }); } catch { /* an old browser: nothing to record */ }
+  return end;
+}
+
 /** Scenes and desks built since the page loaded: the first of each is the one that loads everything */
 let scenesBuilt = 0;
 let desksLoaded = 0;
@@ -158,14 +172,8 @@ export function initialSquares(): Squares {
   ];
 }
 
-export function isWebGLAvailable(): boolean {
-  try {
-    const c = document.createElement('canvas');
-    return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl')));
-  } catch {
-    return false;
-  }
-}
+/** Can this browser draw WebGL? (Kept for the scene's callers; pages check with canUseWebGL, which loads no three.js.) */
+export { canUseWebGL as isWebGLAvailable } from './webgl-support';
 
 const sqCenter = (row: number, col: number): [number, number] => [-3.5 + col, -3.5 + row];
 const keyOf = (row: number, col: number): string => `${row},${col}`;
@@ -729,14 +737,28 @@ export class LuxeBoardScene {
   private async loadDesk(): Promise<void> {
     const start = performance.now();
     const cold = desksLoaded++ === 0;
-    const looks = (Object.keys(LOOKS_3D) as Style3D[]).filter(hasPhotoWoods);
-    const [pano, wood, props] = await Promise.all([loadPicture(DESK_PANO_URL), loadPicture(DESK_WOOD_URL), loadDeskProps(), ...looks.map(loadPhotoWoods)]);
+    // only the woods the board wears now: the other looks' photographs come in afterwards, before anyone switches
+    const [pano, wood, props] = await Promise.all([
+      loadPicture(DESK_PANO_URL), loadPicture(DESK_WOOD_URL), loadDeskProps(),
+      hasPhotoWoods(this.look) ? loadPhotoWoods(this.look) : Promise.resolve(false),
+    ]);
+    // each step shows in DevTools' Performance panel (Timings), and in performance.getEntriesByType('measure')
+    const filesIn = measure('desk: files', start);
     if (this.disposed) {
+      // the pictures and models are shared with the scenes to come (see loadPicture, loadDeskProps): only this
+      // scene's copies on the graphics card go
       pano?.dispose();
       wood?.dispose();
       props.forEach((p) => disposeProp(p.object));
       return;
     }
+    whenIdle(() => {
+      for (const look of Object.keys(LOOKS_3D) as Style3D[]) {
+        if (look === this.look || !hasPhotoWoods(look)) continue;
+        // a look switched to before they are in wears painted wood, and its photographs as soon as they arrive
+        void loadPhotoWoods(look).then((ok) => { if (ok && !this.disposed && this.look === look) this.dress(look); });
+      }
+    });
     props.forEach((p) => this.placeProp(p));
     // the board is wearing painted wood, and has photographs to wear instead
     if (photoWoodsReady(this.look)) this.dress(this.look);
@@ -752,8 +774,10 @@ export class LuxeBoardScene {
       this.envTexture = env;
       this.scene.environment = env;
     }
+    const lit = measure('desk: props placed, room lighting', filesIn);
     // the props came in after the shaders were compiled: compile theirs too, before anything is drawn
     await this.compile();
+    measure('desk: shaders', lit);
     if (this.disposed) return;
     window.clearTimeout(this.deskTimer);
     this.deskReady = true;

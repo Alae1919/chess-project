@@ -304,6 +304,9 @@ export class LandingPage implements AfterViewInit, OnDestroy {
     const time = this.tl?.time() ?? 0;
 
     this.king?.set(r.light * this.intro.v, r.push, time < 21);
+    // what a later act needs starts loading an act ahead of it, rather than all of it with the page
+    if (time > 12) this.searchStage?.prepare();
+    if (time > 38) this.duel?.prepare();
     this.searchStage?.set(r.search, time > 30 && time < 60);
     this.shotViews?.forEach((v) => {
       const at = SHOT_TIMES[v.shot.id];

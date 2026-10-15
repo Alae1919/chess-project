@@ -9,7 +9,6 @@ import { SessionActions } from './store/session/session.actions';
 import { LobbyWebSocketService } from './core/services/lobby-websocket.service';
 import { WebSocketService } from './core/services/websocket.service';
 import { InvitationToastComponent } from './features/online/components/invitation-toast.component';
-import { makeMarble } from './shared/three/marble';
 import { TabBarComponent, tabFor } from './shared/components/tab-bar/tab-bar.component';
 import { TelemetryService } from './core/telemetry/telemetry.service';
 
@@ -68,7 +67,6 @@ export class AppComponent implements OnInit {
 
   ngOnInit(): void {
     this.telemetry.start();
-    this.paintMarbleBackground();
     // The profile and the sockets live exactly as long as the session: invites
     // arrive right after logging in, and nothing stays open after logging out
     this.authService.loggedIn$.subscribe((loggedIn) => {
@@ -82,15 +80,5 @@ export class AppComponent implements OnInit {
         this.store.dispatch(SessionActions.ended());
       }
     });
-  }
-
-  /** Black marble with gold veining behind every page; drawn once, off the critical path. */
-  private paintMarbleBackground(): void {
-    const paint = () => {
-      const canvas = makeMarble(1400, '#0e0c0a', 'rgba(196,156,92,', ['rgba(40,32,24,.35)', 'rgba(0,0,0,.45)'], 7);
-      document.body.style.backgroundImage = `url(${canvas.toDataURL('image/jpeg', 0.85)})`;
-    };
-    const idle = (window as any).requestIdleCallback as ((cb: () => void) => void) | undefined;
-    idle ? idle(paint) : setTimeout(paint, 50);
   }
 }

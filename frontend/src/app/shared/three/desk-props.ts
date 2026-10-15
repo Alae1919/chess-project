@@ -3,7 +3,7 @@
 // about 4.5 cm). A model that does not load is left out; the desk is complete without it.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { assetUrl } from '../../core/assets/asset-url';
+import { DESK_PROP_URLS } from './scene-assets';
 
 export interface DeskProp {
   id: 'lamp' | 'books' | 'mug';
@@ -31,9 +31,9 @@ export interface DeskProp {
  * its knight turned towards the board and its handle towards the player, as in the picture.
  */
 export const DESK_PROPS: DeskProp[] = [
-  { id: 'lamp', url: assetUrl('assets/desk/props/lamp.glb'), size: { height: 10 }, at: [-8.6, -4.6], turn: Math.PI, axis: [0.3, 1], flame: 0.74 },
-  { id: 'books', url: assetUrl('assets/desk/props/books.glb'), size: { width: 7 }, at: [8.4, -8], turn: -0.5 },
-  { id: 'mug', url: assetUrl('assets/desk/props/mug.glb'), size: { height: 2.3 }, at: [7.2, 4.1], turn: -0.35, axis: [0, 0.06] },
+  { id: 'lamp', url: DESK_PROP_URLS.lamp, size: { height: 10 }, at: [-8.6, -4.6], turn: Math.PI, axis: [0.3, 1], flame: 0.74 },
+  { id: 'books', url: DESK_PROP_URLS.books, size: { width: 7 }, at: [8.4, -8], turn: -0.5 },
+  { id: 'mug', url: DESK_PROP_URLS.mug, size: { height: 2.3 }, at: [7.2, 4.1], turn: -0.35, axis: [0, 0.06] },
 ];
 
 export interface LoadedProp {
@@ -44,13 +44,29 @@ export interface LoadedProp {
   height: number;
 }
 
+/** The model files already asked for, by URL: each is fetched and parsed once per page load (see loadDeskProps) */
+const models = new Map<string, Promise<THREE.Group>>();
+
+function loadModel(url: string): Promise<THREE.Group> {
+  let model = models.get(url);
+  if (!model) {
+    model = new GLTFLoader().loadAsync(url).then((gltf) => gltf.scene);
+    model.catch(() => models.delete(url)); // the next scene tries again
+    models.set(url, model);
+  }
+  return model;
+}
+
+/**
+ * The props, ready to stand on the desk. Each scene gets its own copies, which share the models' geometry, materials
+ * and pictures: a disposed scene frees those on the graphics card, and three uploads them again for the next one.
+ */
 export async function loadDeskProps(): Promise<LoadedProp[]> {
-  const loader = new GLTFLoader();
   const loaded = await Promise.all(
     DESK_PROPS.map(async (spec): Promise<LoadedProp | null> => {
       try {
-        const gltf = await loader.loadAsync(spec.url);
-        return { spec, ...standOnBase(gltf.scene, spec) };
+        const model = await loadModel(spec.url);
+        return { spec, ...standOnBase(model.clone(true), spec) };
       } catch (err) {
         console.warn(`[desk-props] ${spec.url} did not load, leaving it off the desk`, err);
         return null;

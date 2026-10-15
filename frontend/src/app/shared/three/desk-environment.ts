@@ -3,10 +3,9 @@
 // and the room behind it (a 360° picture, far enough away not to need parallax). Both are pictures that arrive after
 // the scene is built, so the scene starts with stand-ins and swaps them in.
 import * as THREE from 'three';
-import { assetUrl } from '../../core/assets/asset-url';
+import { DESK_PANO_URL, DESK_WOOD_URL } from './scene-assets';
 
-export const DESK_PANO_URL = assetUrl('assets/desk/room-pano.webp');
-export const DESK_WOOD_URL = assetUrl('assets/desk/desk-wood.webp');
+export { DESK_PANO_URL, DESK_WOOD_URL };
 
 /** The desk top, in board units (1 unit is about 4.5 cm): sides, the edge nearest the player, and the far edge behind the board */
 const DESK = { halfWidth: 38, near: 42, far: -10 };
@@ -87,14 +86,27 @@ export function buildDesk(y: number): DeskParts {
   };
 }
 
-/** One picture, or null if it cannot be had (the scene then keeps its stand-in) */
+/** Pictures already asked for, by URL: kept for the life of the page (see loadPicture) */
+const pictures = new Map<string, Promise<THREE.Texture | null>>();
+
+/**
+ * One picture, or null if it cannot be had (the scene then keeps its stand-in). Fetched and decoded once per page
+ * load, then shared: a scene that is disposed frees the picture's copy on the graphics card, and three uploads it
+ * again for the next scene, without going back to the network or decoding it again.
+ */
 export function loadPicture(url: string): Promise<THREE.Texture | null> {
-  return new Promise((resolve) => {
-    new THREE.TextureLoader().load(url, resolve, undefined, (err) => {
-      console.warn('[desk] could not load', url, err);
-      resolve(null);
+  let picture = pictures.get(url);
+  if (!picture) {
+    picture = new Promise((resolve) => {
+      new THREE.TextureLoader().load(url, resolve, undefined, (err) => {
+        console.warn('[desk] could not load', url, err);
+        pictures.delete(url); // the next scene tries again
+        resolve(null);
+      });
     });
-  });
+    pictures.set(url, picture);
+  }
+  return picture;
 }
 
 /** The room as light and reflection for everything on the desk. */

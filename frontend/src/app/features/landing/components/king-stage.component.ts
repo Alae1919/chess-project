@@ -56,7 +56,11 @@ export class KingStageComponent implements AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
     this.paint();
     const v = this.videoEl?.nativeElement;
-    if (v) this.scrub = new ScrubVideo(v, assetUrl(MEDIA.video), () => this.hostEl.classList.add('is-live'));
+    if (v) {
+      this.scrub = new ScrubVideo(v, assetUrl(MEDIA.video), () => this.hostEl.classList.add('is-live'));
+      // act I is on screen from the start: its clip loads as soon as the page has (after the first frame's still)
+      this.scrub.load();
+    }
   }
 
   /** light: 0 dark … 1 full spotlight; push: 0 the first frame … 1 the last; active: on screen */

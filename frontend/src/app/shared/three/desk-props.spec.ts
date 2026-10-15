@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { DESK_PROPS, disposeProp, standOnBase } from './desk-props';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DESK_PROPS, disposeProp, loadDeskProps, standOnBase } from './desk-props';
 
 /** A model as a file would give it: any size, any place, any units */
 const model = (): THREE.Object3D => {
@@ -129,5 +130,19 @@ describe('standing a model on the desk', () => {
     expect(new Set(ids).size).toBe(ids.length);
     // versioned (see assetUrl): the hash is there only for a file that exists
     DESK_PROPS.forEach((p) => expect(p.url).toMatch(/^assets\/desk\/props\/.+\.glb\?v=[0-9a-f]{10}$/));
+  });
+});
+
+describe('loading the props', () => {
+  it('fetches each model once per page load, and gives every scene copies of its own that share its geometry', async () => {
+    const load = spyOn(GLTFLoader.prototype, 'loadAsync').and.callFake(async () => ({ scene: model() } as any));
+    const first = await loadDeskProps();
+    const second = await loadDeskProps();
+
+    expect(load).toHaveBeenCalledTimes(DESK_PROPS.length);
+    expect(first.length).toBe(DESK_PROPS.length);
+    expect(second[0].object).not.toBe(first[0].object);
+    const mesh = (o: THREE.Object3D) => { let m: THREE.Mesh | undefined; o.traverse((c) => { if ((c as THREE.Mesh).isMesh) m ??= c as THREE.Mesh; }); return m!; };
+    expect(mesh(second[0].object).geometry).toBe(mesh(first[0].object).geometry);
   });
 });

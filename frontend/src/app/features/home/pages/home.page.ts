@@ -12,13 +12,15 @@ import { selectCurrentGame, selectNotice, selectSavedGames } from '../../../stor
 import { selectUser } from '../../../store/account/account.reducer';
 import { AiDifficulty, Game, GameMode, GameOptions, PieceColor, SavedGame, TimeControl, User } from '../../../core/models';
 import { AuthService } from '../../../core/services/auth.service';
-import { combineLatest, map } from 'rxjs';
+import { combineLatest, map, take } from 'rxjs';
 import { MiniBoardComponent } from '../../../shared/components/mini-board/mini-board.component';
 import { SheetDragDirective } from '../../../shared/directives/sheet-drag.directive';
 import { isPlayableStatus } from '../../../core/utils/game-status.utils';
 import { playerColorOf } from '../../../core/utils/game-result.utils';
 import { isPhoneViewport, isStudioViewport } from '../../../core/utils/viewport';
 import { AI_LEVEL_ELO, AI_LEVEL_LABELS, aiLevelLabel } from '../../../core/utils/ai-levels';
+import { BoardPrefsService } from '../../../core/services/board-prefs.service';
+import { prefetchGame } from '../../game/prefetch-game';
 
 type TimeChoice = 'blitz' | 'rapid' | 'classical';
 
@@ -60,6 +62,7 @@ export class HomePage implements OnInit {
   private route = inject(ActivatedRoute);
   private auth = inject(AuthService);
   private destroyRef = inject(DestroyRef);
+  private boardPrefs = inject(BoardPrefsService);
 
   savedGames$ = this.store.select(selectSavedGames);
   /** Why the last game could not be started, if it could not */
@@ -110,6 +113,8 @@ export class HomePage implements OnInit {
   ];
 
   ngOnInit(): void {
+    // the player is about to start a game: have its board ready by then
+    this.boardPrefs.effectiveMode$.pipe(take(1)).subscribe((mode) => prefetchGame(mode));
     this.store.dispatch(GameActions.loadSavedGames());
     // The "Parties" tab is this page with ?mode=saved
     this.route.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {

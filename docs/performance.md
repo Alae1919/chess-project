@@ -55,4 +55,12 @@ Record the date, the commit, where it ran and the numbers. Leave earlier rows: t
 | 2026-10-15 | phase 2 | same | compression | build `.gz` files: 5.9 MB → 3.5 MB (lamp.glb 1.37 MB → 0.97 MB); API JSON zstd |
 | 2026-10-15 | phase 2 | same | fonts | 3 variable-font files from the site (Jost 27 kB, Cormorant 38 kB + 39 kB italic) instead of a Google Fonts stylesheet and its files from two other origins |
 
+### After phase 3 (page loads)
+
+| Date | Commit | Where | Measure | Result |
+|---|---|---|---|---|
+| 2026-10-15 | phase 3 | `ng build --configuration production` | bundle sizes | initial 465 → 408 kB raw (133 → 119 kB transferred): no animations package. three.js (620 kB) leaves the game page's and the account page's chunks: it loads with the 3D board only |
+| 2026-10-15 | phase 3 | `ng serve`, desktop, landing | first load | stills and act I's clip only; act III's clip once act II is passed, three.js and the 6 piece models approaching act IV. Before: all of it, 7.9 MB of video included, at once |
+| 2026-10-15 | phase 3 | `ng serve`, desktop, desk view | 3D first frame | ~2.4–3 s for the first board of a page load, after the home page prefetched the files (was 10.4 s); ~1.6–2 s for the next board, with no request at all (desk files 1159 → 91 ms; what is left is room lighting ~0.3 s and shader compilation ~0.6 s on the GPU) |
+
 Production numbers come once the dashboard has a day of data.

@@ -140,6 +140,10 @@ with `--use-angle=d3d11`.
 * A style change that is instant at first but drops a frame a moment later is a texture upload: the first time a style
   is shown, its three 1024 px textures are painted and uploaded (up to about 0.8 s on the machine this was measured
   on, once per style and visit). To see it, record the gaps between `requestAnimationFrame` calls after `setLook`.
+* The desk view records its loading steps as performance measures: `desk: files`, `desk: props placed, room lighting`
+  and `desk: shaders`, in the Performance panel's Timings track or with
+  `performance.getEntriesByType('measure')`. The pictures and models stay in memory for the page's life, so a second
+  game shows only the GPU's part (room lighting and shaders).
 * The GPU driver caches compiled shaders for the session, so only the first cold build of a given shader is slow:
   rebuilding the same scene in a new WebGL context took 0.5 s against 5 s the first time.
 

@@ -162,14 +162,17 @@
     <div class="game-center">
       <ng-container *ngIf="boardView$ | async as bv">
         <div class="board-stage" [class.board-stage--flat]="bv.mode === '2d'" [class.board-stage--fill]="fill && bv.mode === '3d'" [style.--board-aspect]="boardAspect">
-          <app-chess-board-3d
-            *ngIf="bv.mode === '3d'; else flatBoard" #board3d
-            [interactive]="true" [aspect]="boardAspect" [tight]="compact" [flipped]="boardFlipped"
-            [fill]="fill" [environment]="deskScene ? 'desk' : 'study'" [safeArea]="safeArea"
-            [look]="bv.prefs.style3d" [topView]="topView" (topViewChange)="setTopView($event)" />
-          <ng-template #flatBoard>
+          @if (bv.mode === '3d') {
+            <!-- its own chunk, with three.js: a player on the flat board never downloads them -->
+            @defer (on immediate) {
+              <app-chess-board-3d #board3d
+                [interactive]="true" [aspect]="boardAspect" [tight]="compact" [flipped]="boardFlipped"
+                [fill]="fill" [environment]="deskScene ? 'desk' : 'study'" [safeArea]="safeArea"
+                [look]="bv.prefs.style3d" [topView]="topView" (topViewChange)="setTopView($event)" />
+            }
+          } @else {
             <app-chess-board [flipped]="boardFlipped" [boardStyle]="bv.prefs.style2d" [pieceSet]="bv.prefs.pieceSet" />
-          </ng-template>
+          }
           <app-promotion-picker
             *ngIf="pendingPromotion$ | async as pending"
             [color]="pending.piece.color"

@@ -5,7 +5,7 @@ import { Piece, Square } from '../../../core/models';
 import { fenToSquares, uciSquares } from '../../../core/utils/fen.utils';
 import type { Arc, LuxeBoardScene } from '../../../shared/three/luxe-board-scene';
 import { Showcase, STORY } from '../showcase';
-import { canUseWebGL } from '../webgl';
+import { canUseWebGL } from '../../../shared/three/webgl-support';
 
 /** The colour of the engine's thinking, and only of that */
 const ENGINE_BLUE = 0x4da6ff;
@@ -53,10 +53,23 @@ export class DuelBoardComponent implements AfterViewInit, OnDestroy {
   private tilt = 0;
   private arcs: Arc[] = [];
   private active = false;
+  private destroyed = false;
 
-  async ngAfterViewInit(): Promise<void> {
-    if (!canUseWebGL()) return this.useFlat();
+  private preparing = false;
+
+  ngAfterViewInit(): void {
+    if (!canUseWebGL()) this.useFlat();
+  }
+
+  /**
+   * The visitor is getting close to act IV: load three.js and the piece models, and build the scene (once).
+   * Not with the page: they are megabytes and a WebGL context, for an act most visitors reach after a minute, if at all.
+   */
+  async prepare(): Promise<void> {
+    if (this.preparing || this.flat) return;
+    this.preparing = true;
     const { LuxeBoardScene } = await import('../../../shared/three/luxe-board-scene');
+    if (this.destroyed) return;
     this.zone.runOutsideAngular(() => {
       try {
         this.scene = new LuxeBoardScene(this.canvas.nativeElement, {
@@ -77,7 +90,9 @@ export class DuelBoardComponent implements AfterViewInit, OnDestroy {
       this.resize = new ResizeObserver(() => this.scene?.resize(el.clientWidth, el.clientHeight));
       this.resize.observe(el);
       this.scene.setVisible(this.active);
-      this.scene.setTopAmount(1 - this.tilt, true);
+      this.scene.setTopAmount(1 - this.tilt * 0.9, true);
+      // whatever the timeline handed over before the scene existed
+      if (this.arcs.length) this.scene.setArcs(this.arcs, ENGINE_BLUE);
       this.sync(false);
     });
   }
@@ -125,6 +140,7 @@ export class DuelBoardComponent implements AfterViewInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.resize?.disconnect();
     this.scene?.dispose();
   }

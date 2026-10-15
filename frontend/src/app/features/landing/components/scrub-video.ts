@@ -2,7 +2,8 @@
 
 /**
  * A clip played by the scroll rather than by the clock: {@link seek} shows the frame for a point of
- * the clip, one seek at a time (the newest request wins). The clip loads once the page is on screen.
+ * the clip, one seek at a time (the newest request wins). The clip loads when {@link load} is called,
+ * and not before the page itself has loaded: the clips are megabytes, and must not compete with it.
  */
 export class ScrubVideo {
   private live = false;
@@ -11,16 +12,29 @@ export class ScrubVideo {
   private pending: number | null = null;
   private progress = 0;
 
-  constructor(private readonly video: HTMLVideoElement, src: string, private readonly onLive: () => void) {
+  private loading = false;
+
+  constructor(private readonly video: HTMLVideoElement, private readonly src: string, private readonly onLive: () => void) {
     video.addEventListener('seeked', this.onSeeked);
     video.addEventListener('loadeddata', () => {
       this.live = true;
       this.onLive();
       this.seek(this.progress);
     }, { once: true });
-    const load = (): void => { video.src = src; video.preload = 'auto'; video.load(); };
-    if (document.readyState === 'complete') requestAnimationFrame(load);
-    else addEventListener('load', load, { once: true });
+  }
+
+  /** Start loading the clip (once), as soon as the page has loaded and the browser is idle. */
+  load(): void {
+    if (this.loading) return;
+    this.loading = true;
+    const start = (): void => {
+      const v = this.video;
+      if (!v.isConnected) return; // the page went away meanwhile
+      v.src = this.src;
+      v.preload = 'auto';
+      v.load();
+    };
+    whenIdleAfterLoad(start);
   }
 
   /** Show the frame at `progress`: 0 the first frame … 1 the last */
@@ -48,6 +62,17 @@ export class ScrubVideo {
     this.pending = null;
     if (Math.abs(this.video.currentTime - t) >= 1 / 48) { this.seeking = true; this.video.currentTime = t; }
   };
+}
+
+/** Runs `work` once the page has loaded and the main thread is idle (soon after, where idleness cannot be asked about) */
+export function whenIdleAfterLoad(work: () => void): void {
+  const idle = (): void => {
+    const ric = (window as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+    if (ric) ric(work, { timeout: 2000 });
+    else setTimeout(work, 200);
+  };
+  if (document.readyState === 'complete') idle();
+  else addEventListener('load', idle, { once: true });
 }
 
 /** Smoothstep of `x` between `a` and `b`, for crossfading stills */

@@ -21,7 +21,7 @@ const MEDIA = {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <img class="frame" alt="" decoding="async" [src]="startStill.src" [attr.srcset]="startStill.srcset" sizes="100vw" />
+    <img class="frame" alt="" decoding="async" loading="lazy" [src]="startStill.src" [attr.srcset]="startStill.srcset" sizes="100vw" />
     @if (stillsOnly) {
       <img class="frame" #tree alt="" decoding="async" loading="lazy" [src]="treeStill.src" [attr.srcset]="treeStill.srcset" sizes="100vw" />
       <img class="frame" #end alt="" decoding="async" loading="lazy" [src]="endStill.src" [attr.srcset]="endStill.srcset" sizes="100vw" />
@@ -56,6 +56,11 @@ export class SearchStageComponent implements AfterViewInit, OnDestroy {
   ngAfterViewInit(): void {
     const v = this.videoEl?.nativeElement;
     if (v) this.scrub = new ScrubVideo(v, assetUrl(MEDIA.video), () => this.hostEl.classList.add('is-live'));
+  }
+
+  /** The visitor is getting close to act III: start loading its clip (once). */
+  prepare(): void {
+    this.scrub?.load();
   }
 
   /** progress: 0 the first frame … 1 the last; active: on screen */

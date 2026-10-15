@@ -1,8 +1,7 @@
 // src/app/app.config.ts
-import { ApplicationConfig, isDevMode } from '@angular/core';
+import { ApplicationConfig, isDevMode, provideZoneChangeDetection } from '@angular/core';
 import { provideRouter, withComponentInputBinding, withViewTransitions } from '@angular/router';
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
-import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideStore } from '@ngrx/store';
 import { provideEffects } from '@ngrx/effects';
 import { provideStoreDevtools } from '@ngrx/store-devtools';
@@ -22,7 +21,8 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideRouter(routes, withComponentInputBinding(), withViewTransitions()),
     provideHttpClient(withInterceptors([authInterceptor, errorInterceptor])),
-    provideAnimations(),
+    // one change detection for the events of one turn of the event loop (a pointer move fires several), not one each
+    provideZoneChangeDetection({ eventCoalescing: true, runCoalescing: true }),
     provideStore(
       { game: gameReducer, account: accountReducer, lobby: lobbyReducer },
       { metaReducers: [resetOnSessionEnd] },

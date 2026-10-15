@@ -90,8 +90,12 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* marble texture is painted onto the body at runtime (see AppComponent) */
-body { background-size: cover; background-attachment: fixed; overflow-x: hidden; }
+/* Black marble with gold veining behind every page: makeMarble(1400, '#0e0c0a', 'rgba(196,156,92,', ...)
+   from shared/three/marble.ts, drawn once ahead of time (19 kB) rather than painted on every start */
+body {
+  background-image: url('./assets/marble-bg.webp');
+  background-size: cover; background-attachment: fixed; overflow-x: hidden;
+}
 
 /* Touch screens: the app is a fixed shell, so no pull-to-refresh or bounce on the page itself,
    and no zoom. iOS Safari ignores user-scalable=no, so pinch and double-tap are switched off here
