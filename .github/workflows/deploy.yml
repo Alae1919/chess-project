@@ -35,7 +35,12 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       # The commit CI tested (not whatever main points at by now), fast-forward only so a
-      # server that drifted from main fails loudly instead of being overwritten.
+      # server that drifted from main fails loudly instead of being overwritten. The one drift
+      # it repairs is a commit that was amended or rebased after an earlier deploy had put it
+      # on the server: a copy with the same patch and a new hash is not work to protect, so
+      # the server moves onto the tested commit. A commit of its own, a merge or an edit in
+      # the tree still fails the run. (The script below is an unquoted heredoc: \$ is for the
+      # server, $SHA is filled in here.)
       # --wait returns once every service is healthy and fails otherwise.
       - name: Update and restart
         env:
@@ -46,7 +51,22 @@ jobs:
           set -euo pipefail
           cd /home/ubuntu/chess-project
           git fetch --quiet origin main
-          git merge --ff-only $SHA
+          if ! git merge --ff-only $SHA; then
+            echo "The server is not behind $SHA. Commits only the server has:"
+            git log --oneline $SHA..HEAD
+            # each assignment stops the script if git fails, so an error never reads as "nothing to protect"
+            copies=\$(git cherry $SHA HEAD)
+            merges=\$(git rev-list --merges $SHA..HEAD)
+            edits=\$(git status --porcelain --untracked-files=no)
+            # git cherry marks a commit "-" when $SHA holds one with the same patch, "+" when not
+            if [[ -n "\$edits" || -n "\$merges" || "\$copies" == *+* ]]; then
+              echo "The server holds work that is not in $SHA, so it is not overwritten."
+              git status --short --untracked-files=no
+              exit 1
+            fi
+            echo "All of them are copies of commits in $SHA (rewritten after they were deployed): moving the server onto $SHA."
+            git reset --hard $SHA
+          fi
           docker compose -f docker-compose.prod.yml up -d --build --wait --wait-timeout 300
           docker compose -f docker-compose.prod.yml ps
           docker image prune -f > /dev/null

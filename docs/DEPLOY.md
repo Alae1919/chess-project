@@ -202,6 +202,14 @@ can run it by hand against any deployment: `tools/ci/check-delivery.sh https://y
 The server's checkout (`/home/ubuntu/chess-project`) must be on `main` with no local changes, or the fast-forward
 fails (and the run says so). Rolling back is still manual, as above.
 
+One drift repairs itself: a commit that was amended or rebased on `main` after a deploy had put it on the server.
+The run compares the commits only the server has with the tested commit; if each has a copy there (same patch, new
+hash), it moves the server onto the tested commit and logs that it did. A commit made on the server, a merge or an
+edit to a tracked file is never overwritten: the run fails and lists them. Then inspect with `git log
+origin/main..HEAD` and `git status` on the server, and `git reset --hard origin/main` once nothing there is worth
+keeping. A tested commit that is no longer on `main` (rewritten again before its deploy ran) still fails, because
+there is nothing to move the server to; re-run the deploy for the current `main`.
+
 ## Backups
 
 The database lives in a Docker volume on the server's disk. If the instance is terminated, the games and accounts go
