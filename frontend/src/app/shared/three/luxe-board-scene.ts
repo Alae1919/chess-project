@@ -9,6 +9,7 @@ import { fitSquare, hasPhotoWoods, loadPhotoWoods, LOOKS_3D, lookTextures, photo
 import { DESK_HOME, DESK_PRESETS, DeskPreset, DeskView, deskOffset, easeView, nudge, orbitDrag, panDrag, sameView, zoomBy } from './desk-camera';
 import { DESK_PROPS, disposeProp, loadDeskProps, LoadedProp } from './desk-props';
 import { buildDesk, DESK_WOOD_URL, DeskParts, loadPicture, loadRoomLight, roomLight, standInRoomLight } from './desk-environment';
+import { easeFor, framesIn } from './frame-step';
 
 const LETTER: Record<PieceType, PieceLetter> = {
   king: 'K', queen: 'Q', rook: 'R', bishop: 'B', knight: 'N', pawn: 'P',
@@ -29,6 +30,11 @@ const COMPILE_WAIT_MS = 8000;
 const DESK_WAIT_MS = 4000;
 /** A board at rest is drawn again this often anyway, in case a change did not mark it (see frame()) */
 const IDLE_REDRAW_MS = 1000;
+/** How long the room's props take to fade in, once they are ready (see revealProps()) */
+const PROP_FADE_MS = 400;
+
+/** The next animation frame (none while the page is hidden: the wait lasts until it is shown) */
+const nextFrame = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()));
 /** The desk model's top lies this far under the wood laid on it (units), so that the two do not fight over the same pixels */
 const DESK_TOP_GAP = 0.012;
 /** How much the room behind the desk is blurred, as the background of a photograph is (0..1) */
@@ -161,6 +167,8 @@ interface Tween {
   duration: number;
   step: (t: number) => void;
   done?: () => void;
+  /** Not the board's: it outlives a change of look (the room's props fading in) */
+  keep?: boolean;
 }
 
 /** Standard starting position, for decorative boards. */
@@ -257,6 +265,8 @@ export class LuxeBoardScene {
   private afterDraw: Array<() => void> = [];
   /** Something changed since the last frame was drawn: draw the next one (see frame()) */
   private dirty = true;
+  /** While the room's props are being brought in (see revealProps()): puts their own materials back, at once */
+  private unfade: (() => void) | null = null;
   private lastDraw = 0;
   /** One pawn per look, never drawn: their materials keep every look's shader programs alive (see keepLooksWarm) */
   private warm: { group: THREE.Group; mats: LuxeMaterials[] } | null = null;
@@ -269,6 +279,8 @@ export class LuxeBoardScene {
 
   private intro = true;
   private introT = 0;
+  /** When the last animation frame came (drawn or not): the easing goes by the time between them, not by their number */
+  private lastFrameAt = performance.now();
   private perspPos = new THREE.Vector3(0, 9.6, 9.4);
   private topDist = 12;
   /** 0 = tilted 3D view, 1 = straight down; eased towards `topTarget` */
@@ -568,7 +580,7 @@ export class LuxeBoardScene {
    */
   private retireBoard(): () => void {
     this.clearMarkers();
-    this.tweens = [];
+    this.tweens = this.tweens.filter((tw) => tw.keep);
     this.boardParts.forEach((o) => this.boardGroup.remove(o));
     const textures = this.sqTextures;
     const materials = this.ownedMaterials;
@@ -623,6 +635,7 @@ export class LuxeBoardScene {
     [this.dotGeo, this.ringGeo].forEach((g) => g.dispose());
     [this.dotMat, this.ringMat].forEach((m) => m.dispose());
     window.clearTimeout(this.deskTimer);
+    this.unfade?.(); // props still coming in: back in their own materials, which are the ones freed below
     this.deskProps.forEach(disposeProp);
     this.deskProps = [];
     this.deskParts?.dispose();
@@ -824,15 +837,101 @@ export class LuxeBoardScene {
     }
     const from = this.deskProps.length;
     rest.forEach((p) => this.placeProp(p));
-    // what they brought (the lamp also brings its flame and halo) stays hidden until its shaders are ready: shown
-    // half-compiled, the first draw would compile the rest and the board would stand still meanwhile
-    const added = this.deskProps.slice(from);
-    added.forEach((o) => (o.visible = false));
-    await this.compile();
-    if (this.disposed) return;
-    added.forEach((o) => (o.visible = true));
-    this.dirty = true;
+    // what they brought (the lamp also brings its flame and halo) stays hidden until it can be shown at no cost
+    await this.revealProps(this.deskProps.slice(from));
     measure('desk: room props', drawn);
+  }
+
+  /**
+   * Bring the room's props in without the board standing still: hidden, their shaders are compiled (as they are, and
+   * see-through for the fade), then once the intro is over their pictures go to the graphics card one per frame, and
+   * they fade in. Shown at once, the first frame with them compiled and uploaded it all, ~200 ms on a laptop.
+   */
+  private async revealProps(objects: THREE.Object3D[]): Promise<void> {
+    if (!objects.length) return;
+    objects.forEach((o) => (o.visible = false));
+    // the fade's materials: see-through copies, opacity 0. three compiles an opaque material and a see-through one
+    // into different programs, so both are compiled now, while nothing waits for them
+    const meshes: Array<{ mesh: THREE.Mesh | THREE.Sprite; own: THREE.Material; casts: boolean }> = [];
+    const copies = new Map<THREE.Material, { copy: THREE.Material; opacity: number }>();
+    for (const o of objects) {
+      o.traverse((c) => {
+        const mesh = c as THREE.Mesh | THREE.Sprite;
+        if (!(mesh as THREE.Mesh).isMesh && !(mesh as THREE.Sprite).isSprite) return;
+        const own = mesh.material as THREE.Material;
+        if (Array.isArray(own)) return; // the props have one material per mesh; anything else simply appears
+        if (!copies.has(own)) {
+          const copy = own.clone();
+          copy.transparent = true;
+          copy.opacity = 0;
+          copies.set(own, { copy, opacity: own.opacity });
+        }
+        meshes.push({ mesh, own, casts: mesh.castShadow });
+      });
+    }
+    const wear = (fade: boolean): void => meshes.forEach((m) => {
+      m.mesh.material = fade ? copies.get(m.own)!.copy : m.own;
+      // the shadow pass ignores opacity: a prop casts its shadow once it is all there
+      m.mesh.castShadow = fade ? false : m.casts;
+    });
+    // at the end of the fade, or cut short (another look, which clears the tweens; the scene going): the props in
+    // their own materials, the ones dispose() frees, and shown
+    this.unfade = () => {
+      this.unfade = null;
+      wear(false);
+      copies.forEach(({ copy }) => copy.dispose());
+      objects.forEach((o) => (o.visible = true));
+      this.dirty = true; // their shadows, from the next frame
+    };
+
+    // each step may find the scene gone, or the props already shown (unfade() ran): then there is nothing left to do
+    const cutShort = (): boolean => this.disposed || !this.unfade;
+
+    // Their pictures first, one per frame, as soon as they are in: usually before the board's first frame, while the
+    // canvas is not shown yet. Measured (Chrome, Windows): the opponent's 2048 px picture took ~120 ms just after it
+    // was loaded, and 0.5-0.9 s two seconds later (the browser lets the decoded picture go, and decodes it again)
+    const pictures = new Set<THREE.Texture>();
+    copies.forEach(({ copy }) => {
+      for (const v of Object.values(copy)) if ((v as THREE.Texture | null)?.isTexture) pictures.add(v as THREE.Texture);
+    });
+    for (const picture of pictures) {
+      if (cutShort()) return;
+      this.renderer.initTexture(picture);
+      await nextFrame();
+    }
+
+    // Their shaders after the board's first frame: the driver compiles one program at a time, and the board's own
+    // (its shadows, the room behind it) must not queue behind the props'
+    while (!this.firstFrameDrawn && !cutShort()) await nextFrame();
+    if (cutShort()) return;
+    await this.compile();               // their own materials
+    if (cutShort()) return;
+    wear(true);
+    await this.compile();               // the see-through copies
+    if (cutShort()) return;
+
+    // Compiled is not ready to draw: on Windows (Direct3D, under Chrome's ANGLE) a program is finished the first time
+    // it draws, ~30-100 ms each, and their shadows' programs only exist once they cast one. So, once the intro is over
+    // and the board is at rest, they are drawn once in each dress, too small to see, as drawWarm() does for the pawns
+    while (this.intro && !cutShort()) await nextFrame();
+    if (cutShort()) return;
+    const sizes = objects.map((o) => o.scale.clone());
+    objects.forEach((o) => { o.scale.setScalar(1e-4); o.visible = true; });
+    for (const fade of [false, true]) {
+      wear(fade);
+      this.renderer.render(this.scene, this.camera);
+      if (cutShort()) return;
+      await nextFrame();
+      if (cutShort()) return;
+    }
+    objects.forEach((o, i) => o.scale.copy(sizes[i]));
+    this.dirty = true;
+
+    objects.forEach((o) => (o.visible = true));
+    this.tween(PROP_FADE_MS, (t) => {
+      const k = t * t * (3 - 2 * t);
+      copies.forEach(({ copy, opacity }) => (copy.opacity = opacity * k));
+    }, () => this.unfade?.()).keep = true;
   }
 
   /** Stand a prop on the desk. The lamp also becomes the light of the room: a flame inside it, and the lamp light moved to it. */
@@ -1681,13 +1780,16 @@ export class LuxeBoardScene {
   private frame = (): void => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.frame);
+    // taken before the early return: a stretch spent hidden or compiling is not time the animation was seen running
+    const now = performance.now();
+    const frames = framesIn(now - this.lastFrameAt);
+    this.lastFrameAt = now;
     if (!this.visible || document.hidden || this.compiling || !this.deskReady) return;
 
-    const now = performance.now();
     const t = now * 0.001;
 
     if (this.intro) {
-      this.introT = Math.min(this.introT + 0.014, 1);
+      this.introT = Math.min(this.introT + 0.014 * frames, 1);
       const e = 1 - Math.pow(1 - this.introT, 3);
       this.boardGroup.rotation.x = this.basePitch * e * (1 - this.topT);
       // the study's board is set down on its table; the studio's rises into view
@@ -1695,7 +1797,7 @@ export class LuxeBoardScene {
       if (this.introT >= 1) this.intro = false;
     }
 
-    const k = this.opts.interactive ? 0.15 : 0.07;
+    const k = easeFor(this.opts.interactive ? 0.15 : 0.07, frames);
     // eased, and snapped once close: otherwise they creep forever and the board never counts as still
     const dPitch = this.targetPitch - this.pitch;
     this.pitch = Math.abs(dPitch) < 1e-5 ? this.targetPitch : this.pitch + dPitch * k;
@@ -1710,12 +1812,12 @@ export class LuxeBoardScene {
 
     let moved = false;
     if (this.desk && !sameView(this.deskView, this.deskGoal, 1e-4)) {
-      this.deskView = easeView(this.deskView, this.deskGoal, 0.18);
+      this.deskView = easeView(this.deskView, this.deskGoal, easeFor(0.18, frames));
       if (sameView(this.deskView, this.deskGoal, 1e-3)) this.deskView = { ...this.deskGoal };
       moved = true;
     }
     if (this.topT !== this.topTarget) {
-      this.topT += (this.topTarget - this.topT) * 0.12;
+      this.topT += (this.topTarget - this.topT) * easeFor(0.12, frames);
       if (Math.abs(this.topTarget - this.topT) < 0.002) this.topT = this.topTarget;
       moved = true;
     }
@@ -1738,7 +1840,7 @@ export class LuxeBoardScene {
     this.pieces.forEach((e) => {
       if (e.moving) return;
       const dy = e.targetY - e.group.position.y;
-      e.group.position.y = Math.abs(dy) < 1e-4 ? e.targetY : e.group.position.y + dy * 0.3;
+      e.group.position.y = Math.abs(dy) < 1e-4 ? e.targetY : e.group.position.y + dy * easeFor(0.3, frames);
     });
 
     let settling = false;

@@ -290,6 +290,17 @@ describe('LuxeBoardScene', () => {
       expect(await until(() => propsOf(scene).length > deskOnly)).withContext('the props are placed').toBeTrue();
       const added = propsOf(scene).slice(deskOnly);
       expect(await until(() => added.every((o) => o.visible))).withContext('and shown, once compiled').toBeTrue();
+      // they fade in through see-through copies of their materials: at the end, each is back in its own, opaque one
+      const meshes = (): THREE.Mesh[] => {
+        const found: THREE.Mesh[] = [];
+        added.forEach((o) => o.traverse((c) => { if ((c as THREE.Mesh).isMesh) found.push(c as THREE.Mesh); }));
+        return found;
+      };
+      const faded = (): boolean => meshes().every((m) => !(m.material as THREE.Material).transparent);
+      expect(await until(faded)).withContext('back in their own materials after the fade').toBeTrue();
+      // a prop casts a shadow when it takes one (standOnBase); the fade held the casting back, and gives it back
+      expect(meshes().some((m) => m.castShadow)).withContext('the desk\'s own props cast shadows').toBeTrue();
+      expect(meshes().every((m) => m.castShadow === m.receiveShadow)).withContext('casting their shadows again').toBeTrue();
       scene.dispose();
     }, SLOW_SPEC_MS);
 
