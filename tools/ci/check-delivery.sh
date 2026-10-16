@@ -24,6 +24,8 @@ check() { # description, actual, expected (an extended regex)
 # The page: always checked with the server, so a deploy shows at once
 check "index.html status" "$(status "$site/")" '^200$'
 check "index.html Cache-Control" "$(header "$site/" Cache-Control)" 'no-cache'
+# the desk models' pictures are fetched from blob: URLs: without it the props are drawn without colour
+check "CSP connect-src allows blob:" "$(header "$site/" Content-Security-Policy | grep -oE 'connect-src[^;]*')" 'blob:'
 
 # A hashed bundle: cached for a year, sent compressed
 main=$(curl -sS "$site/" | grep -oE 'main-[A-Za-z0-9]+\.js' | head -1)
