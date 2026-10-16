@@ -1,0 +1,12 @@
+{
+  "name": "rexchess-csp-smoke",
+  "private": true,
+  "type": "module",
+  "description": "The production build under the production CSP, in a real Chrome (see csp-smoke.mjs)",
+  "scripts": {
+    "smoke": "node csp-smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.63.0"
+  }
+}

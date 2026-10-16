@@ -89,6 +89,15 @@ jobs:
       - name: Size budget
         run: npm run check:sizes
 
+      # The production build under the production CSP, in the runner's Chrome: what the specs cannot see (ng serve
+      # sends no CSP). Fails on anything the browser refuses, a link that takes seconds to show its page, or a 3D desk
+      # that never draws. The API is answered from tools/ci/smoke/api.json.
+      - name: Smoke test (production build, real CSP)
+        working-directory: tools/ci/smoke
+        run: |
+          npm ci --no-audit --no-fund
+          node csp-smoke.mjs
+
       # Page loads under Lighthouse (mobile, throttled), on / and /login. Warnings only for now:
       # the numbers on a shared CI machine vary too much to fail a build on. Reports are kept.
       - name: Lighthouse

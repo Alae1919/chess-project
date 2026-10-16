@@ -324,6 +324,33 @@ describe('GameEffects', () => {
     });
   });
 
+  describe('timer$', () => {
+    /** The ticks timer$ sends over three seconds while `game` is shown */
+    function ticksOver3s(game: Game): number {
+      showing(game);
+      let ticks = 0;
+      const sub = effects.timer$.subscribe((a) => { if (a.type === GameActions.tickTimer.type) ticks++; });
+      tick(3000);
+      sub.unsubscribe();
+      return ticks;
+    }
+
+    it('ticks every second in a game with a clock', fakeAsync(() => {
+      expect(ticksOver3s(makeGame({ mode: 'online', timeControl: { type: 'blitz', initialMs: 300_000, incrementMs: 0 } }))).toBe(3);
+    }));
+
+    // each tick is a change detection of the whole page, the 3D board's included, for a clock that does not exist
+    it('stays quiet in AI games and unlimited games, which have no clock', fakeAsync(() => {
+      expect(ticksOver3s(makeGame({ mode: 'ai' }))).withContext('AI game').toBe(0);
+      expect(ticksOver3s(makeGame({ mode: 'online', timeControl: { type: 'unlimited', initialMs: 0, incrementMs: 0 } })))
+        .withContext('unlimited game').toBe(0);
+    }));
+
+    it('stops once the game is over', fakeAsync(() => {
+      expect(ticksOver3s(makeGame({ mode: 'online', status: 'white_resigned' }))).toBe(0);
+    }));
+  });
+
   describe('creating and loading', () => {
     it('shows the server\'s explanation when a game can\'t be created', () => {
       gameService.createGame.and.returnValue(throwError(() => ({ error: { detail: 'timeControl.type: must be blitz...' } })));

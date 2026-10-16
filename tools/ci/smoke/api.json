@@ -1,0 +1,116 @@
+{
+  "_comment": "API answers for tools/ci/smoke/csp-smoke.mjs, recorded from the real backend (a fresh account, an AI game at move 1) and anonymised. Re-record when the DTOs change shape.",
+  "me": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "username": "smoke",
+    "email": "smoke@example.invalid",
+    "avatarUrl": null,
+    "country": "FR",
+    "elo": 1200,
+    "rank": "bronze",
+    "memberSince": "2026-10-16T00:00:00Z",
+    "stats": {
+      "gamesPlayed": 0,
+      "wins": 0,
+      "losses": 0,
+      "draws": 0,
+      "winRate": 0.0,
+      "currentStreak": 0,
+      "bestStreak": 0,
+      "eloHistory": []
+    },
+    "preferences": {
+      "boardTheme": "classic-wood",
+      "pieceStyle": "standard",
+      "boardMode": "3d",
+      "boardStyle3d": "marble-gold",
+      "boardStyle2d": "classic-wood",
+      "language": "fr",
+      "soundEnabled": true,
+      "animationsEnabled": true,
+      "notificationsEnabled": true,
+      "confirmMoves": false,
+      "showLegalMoves": true,
+      "enableUndo": false,
+      "realTimeAnalysis": false
+    },
+    "subscription": {
+      "plan": "free",
+      "active": true,
+      "renewsAt": null
+    },
+    "achievements": []
+  },
+  "game": {
+    "id": "00000000-0000-4000-8000-0000000000aa",
+    "mode": "ai",
+    "status": "ONGOING",
+    "playerWhite": {
+      "userId": "00000000-0000-4000-8000-000000000001",
+      "username": "smoke",
+      "elo": null,
+      "color": "white",
+      "timeRemainingMs": 0,
+      "capturedPieces": null,
+      "isAi": false,
+      "aiDifficulty": null
+    },
+    "playerBlack": {
+      "userId": null,
+      "username": "AI",
+      "elo": null,
+      "color": "black",
+      "timeRemainingMs": 0,
+      "capturedPieces": null,
+      "isAi": true,
+      "aiDifficulty": 1
+    },
+    "board": null,
+    "moves": [],
+    "currentTurn": "white",
+    "timeControl": {
+      "type": "unlimited",
+      "initialMs": 0,
+      "incrementMs": 0
+    },
+    "enPassantTarget": null,
+    "castlingRights": {
+      "whiteKingside": true,
+      "whiteQueenside": true,
+      "blackKingside": true,
+      "blackQueenside": true
+    },
+    "halfMoveClock": 0,
+    "fullMoveNumber": 1,
+    "result": null,
+    "opening": null,
+    "createdAt": "2026-10-16T00:00:00Z",
+    "updatedAt": null,
+    "fen": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "legalMoves": [
+      "a2a3",
+      "a2a4",
+      "b1a3",
+      "b1c3",
+      "b2b3",
+      "b2b4",
+      "c2c3",
+      "c2c4",
+      "d2d3",
+      "d2d4",
+      "e2e3",
+      "e2e4",
+      "f2f3",
+      "f2f4",
+      "g1f3",
+      "g1h3",
+      "g2g3",
+      "g2g4",
+      "h2h3",
+      "h2h4"
+    ],
+    "moveHistory": [],
+    "lastMove": null,
+    "drawOfferedBy": null
+  }
+}
