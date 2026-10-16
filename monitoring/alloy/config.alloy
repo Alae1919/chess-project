@@ -33,7 +33,9 @@ prometheus.scrape "host" {
 }
 
 prometheus.exporter.postgres "db" {
-  data_source_names = [sys.env("POSTGRES_DSN")]
+  // the exporter only accepts the URL form; the password is percent-encoded because
+  // `openssl rand -base64` makes one with / + and =
+  data_source_names = ["postgresql://chess_user:" + encoding.url_encode(sys.env("POSTGRES_PASSWORD")) + "@db:5432/chess_db?sslmode=disable"]
 }
 
 prometheus.scrape "db" {
