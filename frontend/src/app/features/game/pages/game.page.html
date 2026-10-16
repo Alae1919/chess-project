@@ -1,6 +1,6 @@
 <!-- src/app/features/game/pages/game.page.html -->
 <ng-container *ngIf="vm$ | async as vm">
-<div class="arena" *ngIf="vm.game; else noGame" [class.arena--study]="(boardView$ | async)?.mode === '3d'" [class.arena--top]="topView">
+<div class="arena" *ngIf="vm.game; else noGame" [class.arena--study]="(boardView$ | async)?.mode === '3d'" [class.arena--desk]="deskScene && (boardView$ | async)?.mode === '3d'" [class.arena--top]="topView">
 
   <!-- ══ TOP BAR ═════════════════════════════════════════════════════ -->
   <header class="topbar">

@@ -340,6 +340,52 @@
       ]
     },
     {
+      "type": "timeseries",
+      "title": "Refused by the CSP (per hour)",
+      "description": "Something the page asked for that the browser refused under the Content-Security-Policy, by rule. Should stay at 0: anything here is a feature broken in production only (ng serve sends no CSP). The desk props once lost their colours this way.",
+      "id": 21,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 25
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 8
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "refId": "A",
+          "expr": "sum by (variant) (increase(rum_timing_milliseconds_count{name=\"csp.violation\"}[1h]))",
+          "legendFormat": "{{variant}}"
+        }
+      ]
+    },
+    {
       "type": "row",
       "title": "Server",
       "id": 8,
@@ -348,7 +394,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 25
+        "y": 31
       }
     },
     {
@@ -364,7 +410,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 26
+        "y": 32
       },
       "fieldConfig": {
         "defaults": {
@@ -410,7 +456,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 35
+        "y": 41
       },
       "fieldConfig": {
         "defaults": {
@@ -456,7 +502,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 35
+        "y": 41
       },
       "fieldConfig": {
         "defaults": {
@@ -511,7 +557,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 43
+        "y": 49
       },
       "fieldConfig": {
         "defaults": {
@@ -575,7 +621,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 43
+        "y": 49
       },
       "fieldConfig": {
         "defaults": {
@@ -639,7 +685,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 51
+        "y": 57
       },
       "fieldConfig": {
         "defaults": {
@@ -703,7 +749,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 51
+        "y": 57
       },
       "fieldConfig": {
         "defaults": {
@@ -745,7 +791,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 59
+        "y": 65
       }
     },
     {
@@ -761,7 +807,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 60
+        "y": 66
       },
       "fieldConfig": {
         "defaults": {
@@ -816,7 +862,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 60
+        "y": 66
       },
       "fieldConfig": {
         "defaults": {
@@ -880,7 +926,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 68
+        "y": 74
       },
       "fieldConfig": {
         "defaults": {
@@ -926,7 +972,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 68
+        "y": 74
       },
       "fieldConfig": {
         "defaults": {

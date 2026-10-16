@@ -53,6 +53,9 @@ import { TelemetryService } from '../../../core/telemetry/telemetry.service';
     :host(.fill) .stage::before { display: none; }
     /* none: a finger dragging a piece must not scroll the page */
     canvas { position: relative; display: block; width: 100%; height: 100%; touch-action: none; }
+    /* the desk draws its whole room at once: fade it in over the page's backdrop rather than cut to it */
+    :host(.desk) canvas { opacity: 0; transition: opacity .45s ease-out; }
+    :host(.desk.drawn) canvas { opacity: 1; }
   `],
 })
 export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestroy {
@@ -82,6 +85,7 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
   @Input() safeArea: SafeArea | null = null;
 
   @HostBinding('class.fill') get fillClass(): boolean { return this.fill; }
+  @HostBinding('class.desk') get deskClass(): boolean { return this.environment === 'desk'; }
 
   @ViewChild('canvas', { static: true }) private canvasRef!: ElementRef<HTMLCanvasElement>;
 
@@ -119,7 +123,11 @@ export class ChessBoard3DComponent implements AfterViewInit, OnChanges, OnDestro
           onDrop: (from, to) => this.zone.run(() => this.onDrop(from, to)),
           onSquareClick: (sq) => this.zone.run(() => this.onSquareClick(sq)),
           // outside Angular, like the scene's own loop: recording a timing changes nothing on screen
-          onFirstFrame: (ms, cold) => this.telemetry.timing('game.firstFrame', ms, cold ? 'cold' : 'warm'),
+          onFirstFrame: (ms, cold) => {
+            // a class, not a binding: showing the drawn canvas needs no change detection
+            this.host.nativeElement.classList.add('drawn');
+            this.telemetry.timing('game.firstFrame', ms, cold ? 'cold' : 'warm');
+          },
           onDeskReady: (ms, cold) => this.telemetry.timing('desk.assets', ms, cold ? 'cold' : 'warm'),
           onTopViewChange: (top) => this.zone.run(() => {
             this.reportedTopView = top;

@@ -632,6 +632,14 @@ $m-chrome: 290px;
   .game-layout { background: none; }
 }
 
+/* The desk: the scene draws its own room, edge to edge. Until its first frame, the photo (another room) would show and
+   then be swapped: the room's own dim warm tones instead, and the board fades in over them (chess-board-3d). */
+.arena--study.arena--desk::before {
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 58%, rgba(120, 66, 28, .55), transparent 70%),
+    linear-gradient(#1c1009, #0b0907 60%);
+}
+
 @include mq.desktop {
   .arena--study {
     .game-layout {

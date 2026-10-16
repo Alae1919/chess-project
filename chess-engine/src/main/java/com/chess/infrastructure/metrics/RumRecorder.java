@@ -34,7 +34,9 @@ public class RumRecorder {
         "game.start",     Set.of(),
         "game.firstFrame", Set.of("cold", "warm"),
         "desk.assets",    Set.of("cold", "warm"),
-        "ws.reconnect",   Set.of("game", "lobby"));
+        "ws.reconnect",   Set.of("game", "lobby"),
+        // value 1 each: the browser refused something under the CSP; the variant is the rule it broke
+        "csp.violation",  Set.of("connect-src", "img-src", "script-src", "style-src", "font-src", "media-src", "worker-src", "other"));
     /** The app's routes, as the router declares them (see app.routes.ts). */
     static final Set<String> ROUTES = Set.of(
         "/", "/home", "/login", "/register", "/game", "/game/:id", "/account", "/online");

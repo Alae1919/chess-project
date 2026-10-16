@@ -1,6 +1,15 @@
 import { TestBed } from '@angular/core/testing';
 import { Subject } from 'rxjs';
-import { TelemetryService, routeTemplate, timed } from './telemetry.service';
+import { TelemetryService, cspDirective, routeTemplate, timed } from './telemetry.service';
+
+describe('cspDirective', () => {
+  it('names the rule as the policy writes it, and folds the rest into one', () => {
+    expect(cspDirective('connect-src')).toBe('connect-src');
+    expect(cspDirective('script-src-elem')).toBe('script-src');
+    expect(cspDirective('style-src-attr')).toBe('style-src');
+    expect(cspDirective('frame-ancestors')).toBe('other');
+  });
+});
 
 describe('routeTemplate', () => {
   it('turns a game id into the route template', () => {

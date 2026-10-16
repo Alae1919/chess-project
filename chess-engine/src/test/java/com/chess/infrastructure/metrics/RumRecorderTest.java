@@ -64,6 +64,18 @@ class RumRecorderTest {
     }
 
     @Test
+    @DisplayName("counts CSP violations by the rule they broke, any other rule as one")
+    void countsCspViolations() {
+        int n = recorder.record("/game/:id", List.of(
+            new Timing("csp.violation", 1.0, "connect-src"),
+            new Timing("csp.violation", 1.0, "navigate-to")), DESKTOP);
+
+        assertThat(n).isEqualTo(2);
+        assertThat(summary("rum.timing", "name", "csp.violation", "variant", "connect-src").count()).isEqualTo(1);
+        assertThat(summary("rum.timing", "name", "csp.violation", "variant", "none").count()).isEqualTo(1);
+    }
+
+    @Test
     @DisplayName("takes at most a fixed number of timings from one report")
     void capsAReport() {
         List<Timing> many = new ArrayList<>();

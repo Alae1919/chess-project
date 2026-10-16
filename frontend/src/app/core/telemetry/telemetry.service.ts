@@ -13,10 +13,21 @@ import { environment } from '../../../environments/environment';
  *  - `game.firstFrame`: the 3D board's first drawn frame, from creating it; `cold` for the first board since the page loaded
  *  - `desk.assets`: the desk's room, wood and props, from asking for them to all being in (cold / warm as above)
  *  - `ws.reconnect`: a dropped socket, to it being open again; the variant says which (`game` or `lobby`)
+ *  - `csp.violation`: the browser refused something the page asked for (value 1); the variant is the rule it broke.
+ *    The page itself never should: one of these means a feature is broken in production only (ng serve sends no CSP)
  */
 export type TimingName =
   | 'move.roundtrip' | 'ai.reply' | 'legal.select' | 'game.start'
-  | 'game.firstFrame' | 'desk.assets' | 'ws.reconnect';
+  | 'game.firstFrame' | 'desk.assets' | 'ws.reconnect' | 'csp.violation';
+
+/** The CSP rules reported by name; any other is `other` (the server keeps the same list) */
+const CSP_DIRECTIVES = new Set(['connect-src', 'img-src', 'script-src', 'style-src', 'font-src', 'media-src', 'worker-src']);
+
+/** `script-src-elem` → `script-src`: the rule as security-headers.conf writes it */
+export function cspDirective(effective: string): string {
+  const base = effective.replace(/-(elem|attr)$/, '');
+  return CSP_DIRECTIVES.has(base) ? base : 'other';
+}
 
 interface Timing { name: string; value: number; variant?: string }
 
@@ -66,6 +77,8 @@ export class TelemetryService {
         if (document.visibilityState === 'hidden') this.flush();
       });
       window.addEventListener('pagehide', () => this.flush());
+      // the desk's props once lost their colours to a refused blob: fetch, and nothing said so
+      document.addEventListener('securitypolicyviolation', (e) => this.timing('csp.violation', 1, cspDirective(e.effectiveDirective)));
     });
   }
 

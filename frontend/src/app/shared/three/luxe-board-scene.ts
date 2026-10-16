@@ -7,7 +7,7 @@ import { Piece, PieceType, Square, Style3D } from '../../core/models';
 import { buildFrame, buildPiece, disposeLuxeMaterials, glowPiece, hasPieceModel, loadPieceModels, LuxeMaterials, makeLuxeMaterials, PieceLetter, pieceModelsSettled, reshapePiece } from './luxe-pieces';
 import { fitSquare, hasPhotoWoods, loadPhotoWoods, LOOKS_3D, lookTextures, photoWoodsReady } from './board-looks';
 import { DESK_HOME, DESK_PRESETS, DeskPreset, DeskView, deskOffset, easeView, nudge, orbitDrag, panDrag, sameView, zoomBy } from './desk-camera';
-import { disposeProp, loadDeskProps, LoadedProp } from './desk-props';
+import { DESK_PROPS, disposeProp, loadDeskProps, LoadedProp } from './desk-props';
 import { buildDesk, DESK_WOOD_URL, DeskParts, loadPicture, loadRoomLight, roomLight, standInRoomLight } from './desk-environment';
 
 const LETTER: Record<PieceType, PieceLetter> = {
@@ -26,7 +26,9 @@ const MODEL_WAIT_MS = 6000;
 /** Longest the board waits for its shaders to compile before drawing anyway (a driver that never reports them done) */
 const COMPILE_WAIT_MS = 8000;
 /** The desk view waits this long for its pictures (the room, the wood) before it is drawn without them */
-const DESK_WAIT_MS = 8000;
+const DESK_WAIT_MS = 4000;
+/** A board at rest is drawn again this often anyway, in case a change did not mark it (see frame()) */
+const IDLE_REDRAW_MS = 1000;
 /** The desk model's top lies this far under the wood laid on it (units), so that the two do not fight over the same pixels */
 const DESK_TOP_GAP = 0.012;
 /** How much the room behind the desk is blurred, as the background of a photograph is (0..1) */
@@ -253,6 +255,9 @@ export class LuxeBoardScene {
   private compiling = true;
   /** Run once the next frame has been drawn: frees the look that has just been replaced (see retireBoard) */
   private afterDraw: Array<() => void> = [];
+  /** Something changed since the last frame was drawn: draw the next one (see frame()) */
+  private dirty = true;
+  private lastDraw = 0;
   /** One pawn per look, never drawn: their materials keep every look's shader programs alive (see keepLooksWarm) */
   private warm: { group: THREE.Group; mats: LuxeMaterials[] } | null = null;
 
@@ -292,7 +297,8 @@ export class LuxeBoardScene {
     const width = Math.max(canvas.clientWidth, 200);
     const height = Math.max(canvas.clientHeight, 200);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // 1.5, not 2: on a full-screen canvas a ratio of 2 is nearly twice the pixels, for a difference few eyes see
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     this.renderer.setSize(width, height, false);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -322,7 +328,7 @@ export class LuxeBoardScene {
     if (this.desk) {
       // nothing is drawn until the room and the wood are in: until then the page's own photo of the room shows
       this.deskReady = false;
-      this.deskTimer = window.setTimeout(() => (this.deskReady = true), DESK_WAIT_MS);
+      this.deskTimer = window.setTimeout(() => { this.deskReady = this.dirty = true; }, DESK_WAIT_MS);
       void this.loadDesk();
     }
     this.keepLooksWarm();
@@ -348,6 +354,7 @@ export class LuxeBoardScene {
 
   resize(width: number, height: number): void {
     if (width < 1 || height < 1) return;
+    this.dirty = true;
     this.viewW = width;
     this.viewH = height;
     this.renderer.setSize(width, height, false);
@@ -361,15 +368,18 @@ export class LuxeBoardScene {
     if (area.left === s.left && area.right === s.right && area.top === s.top && area.bottom === s.bottom) return;
     this.safe = { ...area };
     this.fitCamera();
+    this.dirty = true;
   }
 
   setVisible(visible: boolean): void {
     this.visible = visible;
+    this.dirty = true;
   }
 
   /** Switch between the tilted 3D view and a straight top-down view of the board. */
   setTopView(top: boolean, snap = false): void {
     this.topTarget = top ? 1 : 0;
+    this.dirty = true;
     if (snap) {
       this.topT = this.topTarget;
       this.applyCamera();
@@ -383,6 +393,7 @@ export class LuxeBoardScene {
    */
   setView(preset: DeskPreset | 'reset'): void {
     if (!this.desk) return;
+    this.dirty = true;
     if (preset === 'overhead') {
       this.topTarget = 1;
       this.opts.onTopViewChange?.(true);
@@ -406,6 +417,7 @@ export class LuxeBoardScene {
     // The old look is freed only after the new one has been drawn: a shader program is deleted the moment the
     // last material using it goes, and the new materials (the same programs, other colours) would compile it again.
     const free = this.retireBoard();
+    this.dirty = true;
     this.look = look;
     this.mats = makeLuxeMaterials(LOOKS_3D[look]);
     this.buildBoard();
@@ -417,11 +429,13 @@ export class LuxeBoardScene {
 
   setFlipped(flipped: boolean): void {
     this.flipYaw = flipped ? Math.PI : 0;
+    this.dirty = true;
   }
 
   /** Sync the pieces with `squares`, animating small changes (a move) and snapping big ones (a new game). */
   setPosition(squares: Squares, animate = true): void {
     this.lastSquares = squares;
+    this.dirty = true;
     if (this.modelsPending) return; // revealPieces() draws the latest position once the models are in
     const desired = new Map<string, { letter: PieceLetter; white: boolean }>();
     for (let r = 0; r < 8; r++) {
@@ -514,6 +528,7 @@ export class LuxeBoardScene {
   /** Put the camera part-way between the tilted view (0) and straight above (1); `snap` skips the easing. */
   setTopAmount(t: number, snap = false): void {
     this.topTarget = Math.max(0, Math.min(1, t));
+    this.dirty = true;
     if (snap) {
       this.topT = this.topTarget;
       this.applyCamera();
@@ -522,6 +537,7 @@ export class LuxeBoardScene {
 
   /** Draw these arcs over the board (and remove the others). A strength of 0 hides an arc without freeing it. */
   setArcs(arcs: Arc[], color = 0x4da6ff): void {
+    this.dirty = true;
     const wanted = new Set<string>();
     for (const a of arcs) {
       const key = `${a.from.row},${a.from.col}-${a.to.row},${a.to.col}`;
@@ -742,13 +758,19 @@ export class LuxeBoardScene {
     return env;
   }
 
-  /** Bring in the room behind the desk and the wood of its top, then let the scene be drawn. */
+  /**
+   * Bring in the room behind the desk, the wood of its top and the desk itself, then let the scene be drawn. The other
+   * props (lamp, books, bookcases, the opponent...) follow: placed hidden, their shaders compiled, then shown. Their
+   * programs were half of the wait before the first frame.
+   */
   private async loadDesk(): Promise<void> {
     const start = performance.now();
     const cold = desksLoaded++ === 0;
+    // the desk model carries the top the wood is laid on: the board needs it; the rest of the room can follow
+    const later = loadDeskProps(DESK_PROPS.filter((p) => !p.hangs));
     // only the woods the board wears now: the other looks' photographs come in afterwards, before anyone switches
     const [room, wood, props] = await Promise.all([
-      loadRoomLight(), loadPicture(DESK_WOOD_URL), loadDeskProps(),
+      loadRoomLight(), loadPicture(DESK_WOOD_URL), loadDeskProps(DESK_PROPS.filter((p) => p.hangs)),
       hasPhotoWoods(this.look) ? loadPhotoWoods(this.look) : Promise.resolve(false),
     ]);
     // each step shows in DevTools' Performance panel (Timings), and in performance.getEntriesByType('measure')
@@ -758,6 +780,7 @@ export class LuxeBoardScene {
       // scene's copies on the graphics card go
       wood?.dispose();
       props.forEach((p) => disposeProp(p.object));
+      void later.then((rest) => rest.forEach((p) => disposeProp(p.object)));
       return;
     }
     whenIdle(() => {
@@ -782,14 +805,34 @@ export class LuxeBoardScene {
       this.envTexture = env;
       this.scene.environment = env;
     }
-    const lit = measure('desk: props placed, room lighting', filesIn);
-    // the props came in after the shaders were compiled: compile theirs too, before anything is drawn
+    const lit = measure('desk: desk placed, room lighting', filesIn);
+    // the desk came in after the shaders were compiled: compile its own too, before anything is drawn
     await this.compile();
-    measure('desk: shaders', lit);
-    if (this.disposed) return;
+    const drawn = measure('desk: shaders', lit);
+    if (this.disposed) {
+      void later.then((rest) => rest.forEach((p) => disposeProp(p.object)));
+      return;
+    }
     window.clearTimeout(this.deskTimer);
-    this.deskReady = true;
+    this.deskReady = this.dirty = true;
     this.opts.onDeskReady?.(performance.now() - start, cold);
+
+    const rest = await later;
+    if (this.disposed) {
+      rest.forEach((p) => disposeProp(p.object));
+      return;
+    }
+    const from = this.deskProps.length;
+    rest.forEach((p) => this.placeProp(p));
+    // what they brought (the lamp also brings its flame and halo) stays hidden until its shaders are ready: shown
+    // half-compiled, the first draw would compile the rest and the board would stand still meanwhile
+    const added = this.deskProps.slice(from);
+    added.forEach((o) => (o.visible = false));
+    await this.compile();
+    if (this.disposed) return;
+    added.forEach((o) => (o.visible = true));
+    this.dirty = true;
+    measure('desk: room props', drawn);
   }
 
   /** Stand a prop on the desk. The lamp also becomes the light of the room: a flame inside it, and the lamp light moved to it. */
@@ -1149,6 +1192,7 @@ export class LuxeBoardScene {
     void this.compile().then(() => {
       if (this.disposed) return;
       this.pieceGroup.visible = true;
+      this.dirty = true;
       this.pieces.forEach((e) => {
         const g = e.group;
         g.scale.setScalar(0.01);
@@ -1199,10 +1243,12 @@ export class LuxeBoardScene {
       return Promise.resolve();
     }
     const giveUp = performance.now() + COMPILE_WAIT_MS;
+    // only the programs there are now: those of things added meanwhile (the room's props) are another compile's wait,
+    // and the board's first frame must not wait for them
+    const programs = [...(this.renderer.info.programs ?? [])] as Array<{ isReady?: () => boolean }>;
     return new Promise((resolve) => {
       const poll = (): void => {
         // `isReady` is three's own check of the driver's "compile finished" flag
-        const programs = (this.renderer.info.programs ?? []) as Array<{ isReady?: () => boolean }>;
         if (this.disposed || programs.every((p) => p.isReady?.() ?? true) || performance.now() > giveUp) resolve();
         else window.setTimeout(poll, 16);
       };
@@ -1353,6 +1399,7 @@ export class LuxeBoardScene {
 
   private applyHighlights(): void {
     const { selected, hints, lastMove, check } = this.highlights;
+    this.dirty = true;
 
     this.pieces.forEach((e) => {
       const isSel = sameSq(selected, e.row, e.col);
@@ -1399,8 +1446,13 @@ export class LuxeBoardScene {
 
   private bindEvents(): void {
     const on = (target: EventTarget, type: string, fn: (e: any) => void): void => {
-      target.addEventListener(type, fn);
-      this.listeners.push(() => target.removeEventListener(type, fn));
+      // any input may change the picture (hover, a drag, the camera): the next frame is drawn
+      const handler = (e: any): void => {
+        this.dirty = true;
+        fn(e);
+      };
+      target.addEventListener(type, handler);
+      this.listeners.push(() => target.removeEventListener(type, handler));
     };
 
     if (!this.opts.interactive) {
@@ -1644,10 +1696,14 @@ export class LuxeBoardScene {
     }
 
     const k = this.opts.interactive ? 0.15 : 0.07;
-    this.pitch += (this.targetPitch - this.pitch) * k;
+    // eased, and snapped once close: otherwise they creep forever and the board never counts as still
+    const dPitch = this.targetPitch - this.pitch;
+    this.pitch = Math.abs(dPitch) < 1e-5 ? this.targetPitch : this.pitch + dPitch * k;
     // the desk's camera goes round the board; only the board's own turn (playing Black) turns the board on the desk
     const turn = this.desk ? 0 : (this.dragYaw + this.parallaxYaw) * (1 - this.topT);
-    this.yaw += (this.flipYaw + turn - this.yaw) * k;
+    const dYaw = this.flipYaw + turn - this.yaw;
+    this.yaw = Math.abs(dYaw) < 1e-5 ? this.flipYaw + turn : this.yaw + dYaw * k;
+    const easing = dPitch !== 0 || dYaw !== 0;
     if (!this.intro) {
       this.boardGroup.rotation.x = (this.basePitch + this.pitch) * (1 - this.topT);
     }
@@ -1680,12 +1736,29 @@ export class LuxeBoardScene {
     }
 
     this.pieces.forEach((e) => {
-      if (!e.moving) e.group.position.y += (e.targetY - e.group.position.y) * 0.3;
+      if (e.moving) return;
+      const dy = e.targetY - e.group.position.y;
+      e.group.position.y = Math.abs(dy) < 1e-4 ? e.targetY : e.group.position.y + dy * 0.3;
     });
 
-    this.dotMat.emissiveIntensity = this.ringMat.emissiveIntensity = 0.5 + Math.sin(t * 2.5) * 0.2;
-    this.markers.forEach((m, i) => m.scale.setScalar(0.85 + Math.sin(t * 2 + i * 0.9) * 0.1));
+    let settling = false;
+    this.pieces.forEach((e) => {
+      if (!e.moving && Math.abs(e.targetY - e.group.position.y) > 1e-4) settling = true;
+    });
+    // the hint markers pulse for as long as a piece is selected
+    const pulsing = this.markers.length > 0;
+    if (pulsing) {
+      this.dotMat.emissiveIntensity = this.ringMat.emissiveIntensity = 0.5 + Math.sin(t * 2.5) * 0.2;
+      this.markers.forEach((m, i) => m.scale.setScalar(0.85 + Math.sin(t * 2 + i * 0.9) * 0.1));
+    }
 
+    // Draw only when something changed or is still moving: a board at rest is the same picture each frame, and
+    // drawing it anyway kept the graphics card busy (soft shadows, glossy squares, the blurred panels over the
+    // canvas) for as long as the page was open. Once a second regardless, should some change not have said so.
+    const animating = this.intro || this.tweens.length > 0 || moved || settling || pulsing || easing;
+    if (!animating && !this.dirty && now - this.lastDraw < IDLE_REDRAW_MS) return;
+    this.dirty = false;
+    this.lastDraw = now;
     this.renderer.render(this.scene, this.camera);
     this.afterDraw.splice(0).forEach((free) => free());
     if (!this.firstFrameDrawn) {

@@ -29,6 +29,7 @@ uniform vec3 uMarbleVein;
 uniform vec3 uMarbleVein2;
 uniform vec3 uMarbleSeed;
 uniform float uMarbleWeight;
+uniform int uMarbleOctaves;
 
 float marbleHash(vec3 p) {
   p = 17.0 * fract(p * 0.3183099 + vec3(0.11, 0.17, 0.13));
@@ -50,7 +51,9 @@ float marbleNoise(vec3 x) {
 float marbleFbm(vec3 p) {
   float sum = 0.0;
   float amp = 0.5;
-  for (int i = 0; i < 5; i++) {
+  // the count comes from a uniform (always 5): with a constant, Direct3D's shader compiler (Chrome and Edge on
+  // Windows) unrolls all five calls' loops, and this one program took a second or more to compile
+  for (int i = 0; i < uMarbleOctaves; i++) {
     sum += amp * marbleNoise(p);
     p = p * 2.03 + vec3(7.1, 3.7, 5.3);
     amp *= 0.5;
@@ -85,6 +88,7 @@ export function applyPieceMarble(mat: THREE.MeshPhysicalMaterial, stone: PieceMa
     uMarbleVein: { value: new THREE.Color(stone.vein) },
     uMarbleVein2: { value: new THREE.Color(stone.vein2) },
     uMarbleWeight: { value: stone.weight ?? 1 },
+    uMarbleOctaves: { value: 5 },
     // a different window into the (endless) stone for each piece
     uMarbleSeed: { value: new THREE.Vector3(((seed * 7.31) % 13) + 1, ((seed * 3.17) % 11) + 1, ((seed * 5.53) % 9) + 1) },
   };

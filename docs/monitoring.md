@@ -31,6 +31,7 @@ name, a number in ms, the route's template (`/game/:id`, never a game's id) and 
 | `game.firstFrame` | The 3D board's first frame. `cold` for the first board since the page loaded, `warm` after |
 | `desk.assets` | The desk's room, wood and props, from asking for them to all being in |
 | `ws.reconnect` | How long a dropped socket stayed down (`game` or `lobby`) |
+| `csp.violation` | The browser refused something under the Content-Security-Policy (value 1, the rule as variant). Should never happen: `ng serve` sends no CSP, so only production shows it |
 
 The server keeps only the names, routes and variants it knows (`RumRecorder`), so the number of series stays fixed.
 A new timing goes on both lists.

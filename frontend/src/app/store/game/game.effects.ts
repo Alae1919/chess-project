@@ -409,12 +409,12 @@ export class GameEffects {
   );
 
   /**
-   * Tick the timer every second while a game is in play, and only then: a timer running on every page woke the
-   * whole app (change detection) every second for nothing.
+   * Tick the timer every second while a game with a clock is in play, and only then: each tick is a change detection
+   * of the whole page, and the reducer ignores it in AI and unlimited games.
    */
   timer$ = createEffect(() =>
     this.store.select(selectCurrentGame).pipe(
-      map((game) => isPlayableStatus(game?.status)),
+      map((game) => isPlayableStatus(game?.status) && game?.mode !== 'ai' && game?.timeControl?.type !== 'unlimited'),
       distinctUntilChanged(),
       switchMap((playing) => (playing ? interval(1000).pipe(map(() => GameActions.tickTimer())) : EMPTY))
     )

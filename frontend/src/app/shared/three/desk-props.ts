@@ -107,9 +107,9 @@ export function forgetDeskModels(): void {
  * The props, ready to stand on the desk. Each scene gets its own copies, which share the models' geometry, materials
  * and pictures: a disposed scene frees those on the graphics card, and three uploads them again for the next one.
  */
-export async function loadDeskProps(): Promise<LoadedProp[]> {
+export async function loadDeskProps(specs: readonly DeskProp[] = DESK_PROPS): Promise<LoadedProp[]> {
   const loaded = await Promise.all(
-    DESK_PROPS.map(async (spec): Promise<LoadedProp | null> => {
+    specs.map(async (spec): Promise<LoadedProp | null> => {
       try {
         const model = await loadModel(spec.url);
         const stood = standOnBase(model.clone(true), spec);
