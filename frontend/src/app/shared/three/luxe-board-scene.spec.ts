@@ -185,7 +185,6 @@ describe('LuxeBoardScene', () => {
         ['a new size', () => scene.resize(330, 250)],
         ['another look', () => scene.setLook('classic-wood')],
         ['a last move marked', () => scene.setHighlights({ ...noMarks, lastMove: [{ row: 6, col: 4 }, { row: 4, col: 4 }] })],
-        ['the pointer over the board', () => canvases[canvases.length - 1].dispatchEvent(new PointerEvent('pointermove', { clientX: 160, clientY: 120, bubbles: true }))],
         ['the board turned round', () => scene.setFlipped(true)],
       ];
       for (const [what, change] of changes) {
@@ -193,6 +192,20 @@ describe('LuxeBoardScene', () => {
         change();
         expect(await drawnIn(scene, 200)).withContext(what).toBeGreaterThan(0);
       }
+      scene.dispose();
+    }, SLOW_SPEC_MS);
+
+    it('draws nothing for a pointer that only passes over the board', async () => {
+      needsWebGL();
+      const scene = await restingScene();
+      const canvas = canvases[canvases.length - 1];
+      const passing = watch(scene, 400);
+      for (let i = 0; i < 10; i++) {
+        canvas.dispatchEvent(new PointerEvent('pointermove', { clientX: 100 + i * 10, clientY: 120, bubbles: true }));
+        await sleep(30);
+      }
+      // the once-a-second redraw may fall in the window
+      expect((await passing).drawn).withContext('drawn while the pointer moved').toBeLessThanOrEqual(1);
       scene.dispose();
     }, SLOW_SPEC_MS);
 
@@ -211,16 +224,30 @@ describe('LuxeBoardScene', () => {
       scene.dispose();
     }, SLOW_SPEC_MS);
 
-    it('keeps drawing while a piece is selected (its targets pulse), and rests once it is not', async () => {
+    it('draws a selection coming in, then rests while the piece stays selected', async () => {
       needsWebGL();
       const scene = await restingScene();
-      scene.setHighlights({ ...noMarks, selected: { row: 6, col: 4 }, hints: [{ row: 5, col: 4 }, { row: 4, col: 4 }] });
-      await sleep(300); // the lifted piece settles
-      const selected = await watch(scene, 600);
-      // every frame offered is drawn (a frame may slip past between two counts)
-      expect(selected.drawn).withContext(`the markers pulse: ${JSON.stringify(selected)}`).toBeGreaterThanOrEqual(selected.offered - 2);
+      const marks = { ...noMarks, selected: { row: 6, col: 4 }, hints: [{ row: 5, col: 4 }, { row: 4, col: 4 }] };
+      scene.setHighlights(marks);
+      expect(await drawnIn(scene, 150)).withContext('the piece lifts, its markers come in').toBeGreaterThan(0);
+      expect(await cameToRest(scene, 15_000)).withContext('rests while selected').toBeTrue();
+      // the same marks again (the page sends them on every change of the game) bring nothing in again
+      scene.setHighlights({ ...marks });
+      expect(await cameToRest(scene, 15_000)).withContext('rests after the same marks').toBeTrue();
       scene.setHighlights(noMarks);
+      expect(await drawnIn(scene, 150)).withContext('the piece is put down').toBeGreaterThan(0);
       expect(await cameToRest(scene, 15_000)).withContext('rests once deselected').toBeTrue();
+      scene.dispose();
+    }, SLOW_SPEC_MS);
+
+    it('has the hint markers compiled with the rest, before any piece is selected', async () => {
+      needsWebGL();
+      const scene = await restingScene();
+      const renderer = (scene as unknown as { renderer: THREE.WebGLRenderer }).renderer;
+      const programs = renderer.info.programs?.length ?? 0;
+      scene.setHighlights({ ...noMarks, selected: { row: 6, col: 4 }, hints: [{ row: 5, col: 4 }, { row: 1, col: 4 }] });
+      await drawnIn(scene, 300);
+      expect(renderer.info.programs?.length ?? 0).withContext('a shader compiled on the first selection').toBe(programs);
       scene.dispose();
     }, SLOW_SPEC_MS);
   });

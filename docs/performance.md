@@ -106,4 +106,12 @@ with its window shown. Each figure is the range over two runs.
 | 2026-10-15 | phase 5 | `MovePersistenceCostTest` | saving a move | 4 statements, the same at move 20 as at move 2 (it loaded every earlier move before) |
 | 2026-10-15 | phase 5 | dev database, `EXPLAIN` | indexes | match history uses `idx_games_*_status_updated`; name search can use `idx_users_username_lower` (the table is too small for the planner to bother yet) |
 
+### Playing in the desk view
+
+| Date | Commit | Where | Measure | Result |
+|---|---|---|---|---|
+| 2026-10-16 | before | Docker dev stack, Windows laptop, Intel UHD 630 (ANGLE D3D11), Playwright, 1529×1029 window at 125 %, AI level 1, moves by clicks | GPU time of one desk frame (`EXT_disjoint_timer_query_webgl2`) | classic-wood **53–56 ms**, marble-gold **74 ms**: 13–18 fps whenever anything moves. Per pixel, not per triangle: the shadow pass is 2 ms; switched off one at a time, the room's reflections save 15 ms, the props 17, the pieces 14, MSAA 9–12, the lamp light 6. Pixel ratio 1.0 → 41 ms, 0.9 → 36 ms. A smaller room-light atlas saves nothing (the cost is the lookups, not the texture). Changing the canvas resolution mid-game costs 75–100 ms each time, so "lower resolution while moving" by resizing is out |
+| 2026-10-16 | before | same | interaction | the first selection of each game: a 373 ms long task (the hint markers' shaders compiled at their first draw). Every pointer move redrew the whole room, and the markers pulsed for as long as a piece was selected, so the GPU ran flat out and the frame that answers a click queued behind 1–2 others |
+| 2026-10-16 | after | same | interaction | no shader linked during play, no long task; once lifted the piece and its markers hold still and nothing is drawn until the next input; a pointer passing over the board draws nothing. A move's animation still runs at the GPU's 15–18 fps here (the trade-offs above, all visible, were left for later) |
+
 Production numbers come once the dashboard has a day of data.

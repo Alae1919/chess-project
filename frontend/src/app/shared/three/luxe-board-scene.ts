@@ -19,6 +19,8 @@ const LETTER: Record<PieceType, PieceLetter> = {
 const PHONE_PIECE_SIZE = 1.25;
 const REST_Y = 0.1;
 const LIFT_Y = 0.38;
+/** Size of a hint marker once it has come in */
+const MARKER_SCALE = 0.85;
 /**
  * The pieces stay off the board until their model files have loaded. If that takes longer than this
  * (a stalled connection), the stand-in lathe pieces are shown instead and swapped when the files arrive.
@@ -244,10 +246,12 @@ export class LuxeBoardScene {
   private viewH = 1;
 
   private markers: THREE.Mesh[] = [];
+  /** The squares the markers stand on (and whether taken): the same hints are not built, and brought in, again */
+  private markerKey = '';
   private dotGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.035, 24);
   private ringGeo = new THREE.TorusGeometry(0.4, 0.04, 10, 40);
-  private dotMat = new THREE.MeshStandardMaterial({ color: 0xd6a94e, emissive: 0x8a6420, emissiveIntensity: 0.8, metalness: 1, roughness: 0.25, transparent: true, opacity: 0.9 });
-  private ringMat = new THREE.MeshStandardMaterial({ color: 0xe6c27a, emissive: 0x8a6420, emissiveIntensity: 0.8, metalness: 1, roughness: 0.25 });
+  private dotMat = new THREE.MeshStandardMaterial({ color: 0xd6a94e, emissive: 0x8a6420, emissiveIntensity: 0.5, metalness: 1, roughness: 0.25, transparent: true, opacity: 0.9 });
+  private ringMat = new THREE.MeshStandardMaterial({ color: 0xe6c27a, emissive: 0x8a6420, emissiveIntensity: 0.5, metalness: 1, roughness: 0.25 });
 
   private highlights: Highlights = { selected: null, hints: [], lastMove: null, check: null };
   /** Calculation arcs, by "from-to" key, so changing a strength reuses the meshes */
@@ -1314,6 +1318,8 @@ export class LuxeBoardScene {
       group.add(buildPiece('P', true, mats));
       return mats;
     });
+    // and the hint markers, which are only drawn once a piece is selected: else the first selection compiles them
+    group.add(new THREE.Mesh(this.dotGeo, this.dotMat), new THREE.Mesh(this.ringGeo, this.ringMat));
     this.scene.add(group);
     this.warm = { group, mats: sets };
   }
@@ -1524,34 +1530,41 @@ export class LuxeBoardScene {
       mat.emissiveIntensity = intensity;
     });
 
+    const markerKey = hints.map((h) => `${h.row},${h.col},${+this.pieces.has(keyOf(h.row, h.col))}`).join(' ');
+    if (markerKey === this.markerKey) return;
     this.clearMarkers();
+    this.markerKey = markerKey;
     hints.forEach((h) => {
       const occupied = this.pieces.has(keyOf(h.row, h.col));
       const mesh = new THREE.Mesh(occupied ? this.ringGeo : this.dotGeo, occupied ? this.ringMat : this.dotMat);
       const [x, z] = sqCenter(h.row, h.col);
       if (occupied) mesh.rotation.x = Math.PI / 2;
       mesh.position.set(x, 0.12, z);
+      mesh.scale.setScalar(0.01);
       this.boardGroup.add(mesh);
       this.markers.push(mesh);
     });
+    // they come in once, then hold still: a marker that kept pulsing kept the whole room being drawn for as long
+    // as a piece was selected, and the frame that answers the next click waited behind those
+    const markers = this.markers;
+    if (markers.length) this.tween(160, (t) => markers.forEach((m) => m.scale.setScalar(MARKER_SCALE * (0.01 + 0.99 * (1 - Math.pow(1 - t, 3))))));
   }
 
   private clearMarkers(): void {
     this.markers.forEach((m) => this.boardGroup.remove(m));
     this.markers = [];
+    this.markerKey = '';
   }
 
   /* ── input ──────────────────────────────────────────────────────────────── */
 
   private bindEvents(): void {
+    // An event alone draws nothing: the handlers that change the picture say so (a carried piece, the highlights),
+    // and the camera's goals are eased by the loop, which draws while they move. Drawing on every pointer move kept
+    // the graphics card busy whenever the mouse went over the page, so the frame that answers a click waited.
     const on = (target: EventTarget, type: string, fn: (e: any) => void): void => {
-      // any input may change the picture (hover, a drag, the camera): the next frame is drawn
-      const handler = (e: any): void => {
-        this.dirty = true;
-        fn(e);
-      };
-      target.addEventListener(type, handler);
-      this.listeners.push(() => target.removeEventListener(type, handler));
+      target.addEventListener(type, fn);
+      this.listeners.push(() => target.removeEventListener(type, fn));
     };
 
     if (!this.opts.interactive) {
@@ -1708,6 +1721,7 @@ export class LuxeBoardScene {
       this.opts.onDragStart?.(h.from);
     }
     const p = this.boardPoint(e, HELD_Y);
+    this.dirty = true;
     if (p) h.entry.group.position.set(Math.max(-4.5, Math.min(4.5, p.x)), HELD_Y, Math.max(-4.5, Math.min(4.5, p.z)));
     const over = this.squareUnder(e);
     const moved = !over !== !this.hover || (!!over && !!this.hover && !sameSq(this.hover, over.row, over.col));
@@ -1786,8 +1800,6 @@ export class LuxeBoardScene {
     this.lastFrameAt = now;
     if (!this.visible || document.hidden || this.compiling || !this.deskReady) return;
 
-    const t = now * 0.001;
-
     if (this.intro) {
       this.introT = Math.min(this.introT + 0.014 * frames, 1);
       const e = 1 - Math.pow(1 - this.introT, 3);
@@ -1847,17 +1859,11 @@ export class LuxeBoardScene {
     this.pieces.forEach((e) => {
       if (!e.moving && Math.abs(e.targetY - e.group.position.y) > 1e-4) settling = true;
     });
-    // the hint markers pulse for as long as a piece is selected
-    const pulsing = this.markers.length > 0;
-    if (pulsing) {
-      this.dotMat.emissiveIntensity = this.ringMat.emissiveIntensity = 0.5 + Math.sin(t * 2.5) * 0.2;
-      this.markers.forEach((m, i) => m.scale.setScalar(0.85 + Math.sin(t * 2 + i * 0.9) * 0.1));
-    }
 
     // Draw only when something changed or is still moving: a board at rest is the same picture each frame, and
     // drawing it anyway kept the graphics card busy (soft shadows, glossy squares, the blurred panels over the
     // canvas) for as long as the page was open. Once a second regardless, should some change not have said so.
-    const animating = this.intro || this.tweens.length > 0 || moved || settling || pulsing || easing;
+    const animating = this.intro || this.tweens.length > 0 || moved || settling || easing;
     if (!animating && !this.dirty && now - this.lastDraw < IDLE_REDRAW_MS) return;
     this.dirty = false;
     this.lastDraw = now;
